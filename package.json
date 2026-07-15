@@ -31,7 +31,9 @@
     "lint": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "spelling:check": "cspell ."
+    "spelling:check": "cspell .",
+    "version": "pnpm run build && changeset version && pnpm install",
+    "publish": "pnpm run build && pnpm publish --access public"
   },
   "dependencies": {
     "jmap-rfc-types": "^0.1.3"
