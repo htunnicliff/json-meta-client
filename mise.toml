@@ -1,0 +1,5 @@
+[tools]
+node = "26"
+
+[env.'_'.path]
+paths = ["./node_modules/.bin"]

@@ -1,0 +1,149 @@
+import type { Invocation, Response } from "jmap-rfc-types";
+import { describe, expect, it, vi } from "vitest";
+
+import { Batcher, type ResolveUsing, type Transport } from "./batch.js";
+import { JmapError } from "./error.js";
+
+/** Construct a properly typed JMAP {@link Invocation} tuple. */
+function inv(name: string, args: unknown, id: string): Invocation {
+  return [name, args, id];
+}
+
+/** Build a JMAP Response echoing back a result for each method call id. */
+function respondWith(...responses: Invocation[]): Response {
+  return { methodResponses: responses, sessionState: "state-1" };
+}
+
+/** A transport that echoes each call back keyed by its method call id. */
+const echoTransport: Transport = async (calls) =>
+  respondWith(...calls.map(([name, , id]) => inv(name, { id }, id)));
+
+/** Requires the mail urn for Email methods, core otherwise. */
+const mailAwareResolveUsing: ResolveUsing = (method) =>
+  method.startsWith("Email")
+    ? ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
+    : ["urn:ietf:params:jmap:core"];
+
+function makeBatcher(options?: { transport?: Transport; resolveUsing?: ResolveUsing }) {
+  const transport = options?.transport ?? echoTransport;
+  const resolveUsing = options?.resolveUsing ?? (() => ["urn:ietf:params:jmap:core"]);
+  return { batcher: new Batcher({ transport, resolveUsing }), transport };
+}
+
+describe("Batcher.enqueue", () => {
+  it("coalesces calls made in the same microtask into one request", async () => {
+    const transport = vi.fn(echoTransport);
+    const { batcher } = makeBatcher({ transport });
+
+    const [a, b] = await Promise.all([
+      batcher.enqueue("Foo/get", { n: 1 }),
+      batcher.enqueue("Foo/get", { n: 2 }),
+    ]);
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(a).toEqual({ id: "c0" });
+    expect(b).toEqual({ id: "c1" });
+  });
+
+  it("assigns sequential method call ids and forwards the invocation", async () => {
+    const transport = vi.fn(echoTransport);
+    const { batcher } = makeBatcher({ transport });
+
+    await Promise.all([
+      batcher.enqueue("Email/get", { a: 1 }),
+      batcher.enqueue("Email/set", { b: 2 }),
+    ]);
+
+    const sentCalls = transport.mock.calls[0]![0];
+    expect(sentCalls).toEqual([
+      ["Email/get", { a: 1 }, "c0"],
+      ["Email/set", { b: 2 }, "c1"],
+    ]);
+  });
+
+  it("separates calls made in different microtasks into different requests", async () => {
+    const transport = vi.fn(echoTransport);
+    const { batcher } = makeBatcher({ transport });
+
+    await batcher.enqueue("Foo/get", {});
+    await batcher.enqueue("Foo/get", {});
+
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+
+  it("collects the union of required capability urns into `using`", async () => {
+    const transport = vi.fn(echoTransport);
+    const { batcher } = makeBatcher({
+      transport,
+      resolveUsing: mailAwareResolveUsing,
+    });
+
+    await Promise.all([batcher.enqueue("Email/get", {}), batcher.enqueue("Core/echo", {})]);
+
+    const using = transport.mock.calls[0]![1];
+    expect([...using].toSorted()).toEqual([
+      "urn:ietf:params:jmap:core",
+      "urn:ietf:params:jmap:mail",
+    ]);
+  });
+
+  it("routes each response back to its originating call by id", async () => {
+    // Return responses out of order to prove routing is by id, not position.
+    const transport: Transport = async () =>
+      respondWith(
+        inv("Foo/get", { which: "second" }, "c1"),
+        inv("Foo/get", { which: "first" }, "c0"),
+      );
+    const { batcher } = makeBatcher({ transport });
+
+    const [first, second] = await Promise.all([
+      batcher.enqueue("Foo/get", {}),
+      batcher.enqueue("Foo/get", {}),
+    ]);
+
+    expect(first).toEqual({ which: "first" });
+    expect(second).toEqual({ which: "second" });
+  });
+
+  it("rejects a call that has no matching response", async () => {
+    const transport: Transport = async () => respondWith();
+    const { batcher } = makeBatcher({ transport });
+
+    await expect(batcher.enqueue("Foo/get", {})).rejects.toThrow(
+      'No response for method call "c0"',
+    );
+  });
+
+  it("rejects every queued call when the transport throws", async () => {
+    const failure = new Error("network down");
+    const transport: Transport = async () => {
+      throw failure;
+    };
+    const { batcher } = makeBatcher({ transport });
+
+    const a = batcher.enqueue("Foo/get", {});
+    const b = batcher.enqueue("Foo/get", {});
+
+    await expect(a).rejects.toBe(failure);
+    await expect(b).rejects.toBe(failure);
+  });
+
+  it("rejects with a JmapError on a method-level error response", async () => {
+    const problem = { type: "urn:ietf:params:jmap:error:invalidArguments" };
+    const transport: Transport = async () => respondWith(inv("error", problem, "c0"));
+    const { batcher } = makeBatcher({ transport });
+
+    await expect(batcher.enqueue("Foo/get", {})).rejects.toBeInstanceOf(JmapError);
+  });
+
+  it("resolves when a response is named `error` but is not problem details", async () => {
+    // name === "error" but args are not problem details -> resolved, not rejected.
+    const transport: Transport = async () =>
+      respondWith(inv("error", { not: "problemDetails" }, "c0"));
+    const { batcher } = makeBatcher({ transport });
+
+    await expect(batcher.enqueue("Foo/get", {})).resolves.toEqual({
+      not: "problemDetails",
+    });
+  });
+});
