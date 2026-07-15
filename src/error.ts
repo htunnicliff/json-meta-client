@@ -31,4 +31,8 @@ export class JmapError extends Error implements ProblemDetails {
       typeof input.type === "string"
     );
   }
+
+  static isJmapError(input: unknown): input is JmapError {
+    return input instanceof JmapError;
+  }
 }

@@ -1,7 +1,7 @@
 import type { Invocation, Response } from "jmap-rfc-types";
 import { describe, expect, it, vi } from "vitest";
 
-import { Batcher, type ResolveUsing, type Transport } from "../batch.ts";
+import { MethodCallBatcher, type ResolveUrnsForMethodCallFn, type TransportFn } from "../batch.ts";
 import { JmapError } from "../error.ts";
 
 /** Construct a properly typed JMAP {@link Invocation} tuple. */
@@ -15,19 +15,22 @@ function respondWith(...responses: Invocation[]): Response {
 }
 
 /** A transport that echoes each call back keyed by its method call id. */
-const echoTransport: Transport = async (calls) =>
+const echoTransport: TransportFn = async (calls) =>
   respondWith(...calls.map(([name, , id]) => inv(name, { id }, id)));
 
 /** Requires the mail urn for Email methods, core otherwise. */
-const mailAwareResolveUsing: ResolveUsing = (method) =>
+const mailAwareResolveUsing: ResolveUrnsForMethodCallFn = (method) =>
   method.startsWith("Email")
     ? ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
     : ["urn:ietf:params:jmap:core"];
 
-function makeBatcher(options?: { transport?: Transport; resolveUsing?: ResolveUsing }) {
+function makeBatcher(options?: {
+  transport?: TransportFn;
+  resolveUsing?: ResolveUrnsForMethodCallFn;
+}) {
   const transport = options?.transport ?? echoTransport;
   const resolveUsing = options?.resolveUsing ?? (() => ["urn:ietf:params:jmap:core"]);
-  return { batcher: new Batcher({ transport, resolveUsing }), transport };
+  return { batcher: new MethodCallBatcher({ transport, resolveUsing }), transport };
 }
 
 describe("Batcher.enqueue", () => {
@@ -35,14 +38,16 @@ describe("Batcher.enqueue", () => {
     const transport = vi.fn(echoTransport);
     const { batcher } = makeBatcher({ transport });
 
-    const [a, b] = await Promise.all([
-      batcher.enqueue("Foo/get", { n: 1 }),
-      batcher.enqueue("Foo/get", { n: 2 }),
+    const [a, b, c] = await Promise.all([
+      batcher.enqueue("Foo/get", { n: 1 }, "c0"),
+      batcher.enqueue("Foo/get", { n: 2 }, "c1"),
+      batcher.enqueue("Foo/get", { n: 3 }),
     ]);
 
     expect(transport).toHaveBeenCalledTimes(1);
     expect(a).toEqual({ id: "c0" });
     expect(b).toEqual({ id: "c1" });
+    expect(c).toEqual({ id: expect.stringMatching("Foo/get::") });
   });
 
   it("assigns sequential method call ids and forwards the invocation", async () => {
@@ -50,8 +55,8 @@ describe("Batcher.enqueue", () => {
     const { batcher } = makeBatcher({ transport });
 
     await Promise.all([
-      batcher.enqueue("Email/get", { a: 1 }),
-      batcher.enqueue("Email/set", { b: 2 }),
+      batcher.enqueue("Email/get", { a: 1 }, "c0"),
+      batcher.enqueue("Email/set", { b: 2 }, "c1"),
     ]);
 
     const sentCalls = transport.mock.calls[0][0];
@@ -89,7 +94,7 @@ describe("Batcher.enqueue", () => {
 
   it("routes each response back to its originating call by id", async () => {
     // Return responses out of order to prove routing is by id, not position.
-    const transport: Transport = async () =>
+    const transport: TransportFn = async () =>
       respondWith(
         inv("Foo/get", { which: "second" }, "c1"),
         inv("Foo/get", { which: "first" }, "c0"),
@@ -106,7 +111,7 @@ describe("Batcher.enqueue", () => {
   });
 
   it("rejects a call that has no matching response", async () => {
-    const transport: Transport = async () => respondWith();
+    const transport: TransportFn = async () => respondWith();
     const { batcher } = makeBatcher({ transport });
 
     await expect(batcher.enqueue("Foo/get", {})).rejects.toThrow(
@@ -116,7 +121,7 @@ describe("Batcher.enqueue", () => {
 
   it("rejects every queued call when the transport throws", async () => {
     const failure = new Error("network down");
-    const transport: Transport = async () => {
+    const transport: TransportFn = async () => {
       throw failure;
     };
     const { batcher } = makeBatcher({ transport });
@@ -130,7 +135,7 @@ describe("Batcher.enqueue", () => {
 
   it("rejects with a JmapError on a method-level error response", async () => {
     const problem = { type: "urn:ietf:params:jmap:error:invalidArguments" };
-    const transport: Transport = async () => respondWith(inv("error", problem, "c0"));
+    const transport: TransportFn = async () => respondWith(inv("error", problem, "c0"));
     const { batcher } = makeBatcher({ transport });
 
     await expect(batcher.enqueue("Foo/get", {})).rejects.toBeInstanceOf(JmapError);
@@ -138,7 +143,7 @@ describe("Batcher.enqueue", () => {
 
   it("resolves when a response is named `error` but is not problem details", async () => {
     // name === "error" but args are not problem details -> resolved, not rejected.
-    const transport: Transport = async () =>
+    const transport: TransportFn = async () =>
       respondWith(inv("error", { not: "problemDetails" }, "c0"));
     const { batcher } = makeBatcher({ transport });
 

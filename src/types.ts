@@ -11,8 +11,8 @@ export type GlobalEntity = keyof GlobalMethodCalls;
  *
  * Only entities unlocked by the client's configured capabilities appear.
  */
-export type Api<Entity extends GlobalEntity> = {
-  [E in Entity]: {
+export type Api = {
+  [E in GlobalEntity]: {
     [Method in keyof GlobalMethodCalls[E]]: GlobalMethodCalls[E][Method] extends (
       ...args: infer Args
     ) => infer Result

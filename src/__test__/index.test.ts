@@ -1,7 +1,7 @@
 import type { Invocation } from "jmap-rfc-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Client, type GlobalEntity, JmapError, KNOWN_CAPABILITIES } from "../index.ts";
+import { Client, JmapError, KNOWN_CAPABILITIES } from "../index.ts";
 
 const SESSION_URL = "https://jmap.example.com/.well-known/jmap";
 const API_URL = "https://jmap.example.com/api";
@@ -54,7 +54,7 @@ function echoApi(body: ApiRequestBody): Response {
 }
 
 function makeClient() {
-  return new Client<GlobalEntity>({
+  return new Client({
     bearerToken: "secret-token",
     sessionUrl: SESSION_URL,
     capabilities: KNOWN_CAPABILITIES,

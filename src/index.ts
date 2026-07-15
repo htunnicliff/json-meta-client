@@ -1,64 +1,73 @@
 import type { Invocation, Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 
-import { Batcher, type Transport } from "./batch.ts";
+import { MethodCallBatcher } from "./batch.ts";
 import { Capability } from "./capability.ts";
-import { JmapError } from "./error.ts";
-import type { Api, GlobalEntity } from "./types.ts";
+import type { Api } from "./types.ts";
 
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
 
-interface Config<Entity extends GlobalEntity> {
+interface Config {
   bearerToken: string;
   sessionUrl: string;
-  capabilities?: ReadonlyArray<Capability<Entity>>;
+  capabilities?: ReadonlyArray<Capability>;
 }
 
-export class Client<Entity extends GlobalEntity> {
-  readonly #config: Required<Config<Entity>>;
-  readonly #entityToUrn: ReadonlyMap<string, string>;
-  readonly #batcher: Batcher;
-  #sessionPromise?: Promise<Session>;
-
-  /**
-   * Strongly typed, promise-based entry point to the server. Calls made within
-   * the same microtask are automatically coalesced into a single JMAP request.
-   *
-   * @example
-   * ```ts
-   * const [inbox, drafts] = await Promise.all([
-   *   client.api.Mailbox.get({ accountId, ids: [inboxId] }),
-   *   client.api.Mailbox.get({ accountId, ids: [draftsId] }),
-   * ]); // one HTTP round trip
-   * ```
-   */
-  readonly api: Api<Entity>;
-
-  constructor(config: Config<Entity>) {
-    this.#config = Object.freeze({
+export class Client {
+  constructor(config: Config) {
+    this.#config = {
       bearerToken: config.bearerToken,
       sessionUrl: config.sessionUrl,
       capabilities: Array.from(config.capabilities ?? []),
-    });
+    };
 
-    this.#entityToUrn = new Map(
+    this.#capabilityUrnByEntity = new Map(
       this.#config.capabilities.flatMap(({ urn, entities }) =>
         entities.map((entity) => [entity, urn] as const),
       ),
     );
-
-    this.#batcher = new Batcher({
-      transport: this.#transport,
-      resolveUsing: (method) => this.#usingFor(method),
-    });
-
-    this.api = this.#createApi();
   }
+
+  readonly #config: Required<Config>;
+
+  readonly #capabilityUrnByEntity: ReadonlyMap<string, string>;
+
+  readonly #batcher = new MethodCallBatcher({
+    transport: async (methodCalls, capabilityUrns) => {
+      const session = await this.getSession();
+      const request: JmapRequest = {
+        using: [...capabilityUrns],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        methodCalls: methodCalls as Invocation[],
+      };
+      return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
+    },
+    resolveUsing: (method) => {
+      const capabilities = new Set<string>([CORE_CAPABILITY]);
+      const [entity] = /^[^/]+/.exec(method)!;
+      const urn = this.#capabilityUrnByEntity.get(entity);
+      if (urn) {
+        capabilities.add(urn);
+      }
+      return [...capabilities];
+    },
+  });
+
+  readonly #api = this.#initApi();
+
+  get api() {
+    return this.#api;
+  }
+
+  #sessionPromise: Promise<Session> | undefined;
 
   getSession(): Promise<Session> {
-    return (this.#sessionPromise ??= this.#fetchJson<Session>(this.#config.sessionUrl));
+    if (!this.#sessionPromise) {
+      this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl);
+    }
+    return this.#sessionPromise;
   }
 
-  async #fetchJson<T>(url: string, body: string | null = null): Promise<T> {
+  async #fetchJson<T>(url: string | URL, body: string | null = null): Promise<T> {
     const response = await fetch(url, {
       method: body === null ? "GET" : "POST",
       headers: {
@@ -69,13 +78,11 @@ export class Client<Entity extends GlobalEntity> {
       body,
     });
 
-    const isJson = /\bjson\b/.test(response.headers.get("content-type") ?? "");
-    const payload: unknown = isJson ? await response.json() : await response.text();
+    const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
+
+    const payload: unknown = await (isJsonResponse ? response.json() : response.text());
 
     if (!response.ok) {
-      if (JmapError.isProblemDetails(payload)) {
-        throw new JmapError("JMAP request failed", payload);
-      }
       throw new Error(`JMAP request failed (${response.status})`, { cause: payload });
     }
 
@@ -83,39 +90,12 @@ export class Client<Entity extends GlobalEntity> {
     return payload as T;
   }
 
-  readonly #transport: Transport = async (methodCalls, using) => {
-    const session = await this.getSession();
-    const request: JmapRequest = {
-      using: [...using],
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-      methodCalls: methodCalls as Invocation[],
-    };
-    return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
-  };
-
-  /** Capability URNs required to invoke the given `Entity/method` name. */
-  #usingFor(method: string): Iterable<string> {
-    const using = new Set<string>([CORE_CAPABILITY]);
-    const slash = method.indexOf("/");
-    const entity = slash === -1 ? method : method.slice(0, slash);
-    const urn = this.#entityToUrn.get(entity);
-    if (urn !== undefined) {
-      using.add(urn);
-    }
-    return using;
-  }
-
-  /**
-   * Builds the nested proxy exposed as `client.api`. The outer proxy resolves
-   * an entity name (e.g. `Email`); the inner proxy resolves a method name
-   * (e.g. `get`) into a function that enqueues an `Email/get` invocation.
-   */
-  #createApi(): Api<Entity> {
+  #initApi(): Api {
     const batcher = this.#batcher;
     const entityProxies = new Map<string, object>();
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return new Proxy(Object.create(null) as Api<Entity>, {
+    return new Proxy(Object.create(null) as Api, {
       get(_target, entity) {
         if (typeof entity !== "string") {
           return undefined;
@@ -126,8 +106,6 @@ export class Client<Entity extends GlobalEntity> {
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion
           methods = new Proxy(Object.create(null) as object, {
             get(_methodTarget, method) {
-              // Guard against promise-unwrapping probes (e.g. `then`) and
-              // symbol access so the proxy is never mistaken for a thenable.
               if (typeof method !== "string" || method === "then") {
                 return undefined;
               }

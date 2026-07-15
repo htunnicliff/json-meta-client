@@ -20,11 +20,11 @@ import type { GlobalEntity } from "./types.ts";
  * unlocks. The client uses these mappings to compute the `using` array for
  * each request based on the methods actually invoked.
  */
-export class Capability<Entity extends GlobalEntity> {
+export class Capability {
   readonly urn: string;
-  readonly entities: ReadonlyArray<Entity>;
+  readonly entities: ReadonlyArray<GlobalEntity>;
 
-  constructor(options: { urn: string; entities: ReadonlyArray<Entity> }) {
+  constructor(options: { urn: string; entities: ReadonlyArray<GlobalEntity> }) {
     this.urn = options.urn;
     this.entities = Array.from(options.entities);
   }
