@@ -1,9 +1,16 @@
 {
   "name": "json-meta-client",
   "version": "0.1.0",
+  "bugs": {
+    "url": "https://github.com/htunnicliff/json-meta-client/issues"
+  },
   "author": {
     "name": "Hunter Tunnicliff",
     "email": "hunter@tunnicliff.co"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/htunnicliff/json-meta-client.git"
   },
   "files": [
     "dist",
