@@ -6,5 +6,8 @@ words:
   - oxlint
   - tsgolint
   - vacationresponse
+  - capnweb
+  - tunnicliff
+  - unstub
 ignorePaths:
   - pnpm-lock.yaml

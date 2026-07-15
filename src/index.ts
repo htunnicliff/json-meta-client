@@ -79,6 +79,7 @@ export class Client<Entity extends GlobalEntity> {
       throw new Error(`JMAP request failed (${response.status})`, { cause: payload });
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return payload as T;
   }
 
@@ -86,6 +87,7 @@ export class Client<Entity extends GlobalEntity> {
     const session = await this.getSession();
     const request: JmapRequest = {
       using: [...using],
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       methodCalls: methodCalls as Invocation[],
     };
     return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
@@ -112,6 +114,7 @@ export class Client<Entity extends GlobalEntity> {
     const batcher = this.#batcher;
     const entityProxies = new Map<string, object>();
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return new Proxy(Object.create(null) as Api<Entity>, {
       get(_target, entity) {
         if (typeof entity !== "string") {
@@ -120,6 +123,7 @@ export class Client<Entity extends GlobalEntity> {
 
         let methods = entityProxies.get(entity);
         if (methods === undefined) {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
           methods = new Proxy(Object.create(null) as object, {
             get(_methodTarget, method) {
               // Guard against promise-unwrapping probes (e.g. `then`) and

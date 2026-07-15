@@ -65,13 +65,13 @@ interface Changeable {
   changes(args: ChangesArguments): ChangesResponse;
 }
 
-interface Setable<T extends object> {
+interface Settable<T extends object> {
   set<Args extends SetArguments<T>>(args: Args): SetResponse<T, Args>;
 }
 
 interface Queryable<T extends Record<string, unknown>> {
-  query<Args extends QueryArguments<T>>(args: Args): QueryResponse;
-  queryChanges<Args extends QueryChangesArguments<T, T>>(args: Args): QueryChangesResponse;
+  query(args: QueryArguments<T>): QueryResponse;
+  queryChanges(args: QueryChangesArguments<T, T>): QueryChangesResponse;
 }
 
 declare module "./types.ts" {
@@ -82,12 +82,12 @@ declare module "./types.ts" {
     Mailbox: Getable<Entities["Mailbox"]> &
       Changeable &
       Queryable<Entities["Mailbox"]> &
-      Setable<Entities["Mailbox"]>;
+      Settable<Entities["Mailbox"]>;
     Thread: Getable<Entities["Thread"]> & Changeable;
     Email: Getable<Entities["Email"]> &
       Changeable &
       Queryable<Entities["Email"]> &
-      Setable<Entities["Email"]>;
+      Settable<Entities["Email"]>;
     SearchSnippet: {
       get(args: { accountId: ID; filter?: unknown; emailIds: ReadonlyArray<ID> }): {
         accountId: ID;
@@ -95,11 +95,12 @@ declare module "./types.ts" {
         notFound: ReadonlyArray<ID> | null;
       };
     };
-    Identity: Getable<Entities["Identity"]> & Changeable & Setable<Entities["Identity"]>;
+    Identity: Getable<Entities["Identity"]> & Changeable & Settable<Entities["Identity"]>;
     EmailSubmission: Getable<Entities["EmailSubmission"]> &
       Changeable &
       Queryable<Entities["EmailSubmission"]> &
-      Setable<Entities["EmailSubmission"]>;
-    VacationResponse: Getable<Entities["VacationResponse"]> & Setable<Entities["VacationResponse"]>;
+      Settable<Entities["EmailSubmission"]>;
+    VacationResponse: Getable<Entities["VacationResponse"]> &
+      Settable<Entities["VacationResponse"]>;
   }
 }
