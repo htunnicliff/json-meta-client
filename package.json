@@ -19,7 +19,9 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "oxlint --fix",
+    "fmt": "oxfmt"
   },
   "dependencies": {
     "jmap-rfc-types": "^0.1.3"

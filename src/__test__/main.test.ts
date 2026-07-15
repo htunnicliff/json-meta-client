@@ -73,7 +73,7 @@ describe("Client.getSession", () => {
     const session = await client.getSession();
 
     expect(session).toEqual({ apiUrl: API_URL, state: "s0" });
-    const [, init] = fetchMock.mock.calls[0]!;
+    const [, init] = fetchMock.mock.calls[0];
     expect(init?.method).toBe("GET");
     expect(new Headers(init?.headers).get("authorization")).toBe("Bearer secret-token");
   });
@@ -94,7 +94,7 @@ describe("Client.getSession", () => {
 describe("Client.api", () => {
   it("dispatches a method call and resolves with the result args", async () => {
     stubFetch((body) => {
-      const [, , id] = body.methodCalls[0]!;
+      const [, , id] = body.methodCalls[0];
       return jsonResponse({
         methodResponses: [inv("Mailbox/get", { list: [{ id: "mb1" }] }, id)],
         sessionState: "s0",
@@ -149,7 +149,7 @@ describe("Client.api", () => {
 
   it("rejects with a JmapError on a method-level error", async () => {
     stubFetch((body) => {
-      const [, , id] = body.methodCalls[0]!;
+      const [, , id] = body.methodCalls[0];
       return jsonResponse({
         methodResponses: [inv("error", { type: "urn:ietf:params:jmap:error:serverFail" }, id)],
         sessionState: "s0",

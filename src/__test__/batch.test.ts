@@ -54,7 +54,7 @@ describe("Batcher.enqueue", () => {
       batcher.enqueue("Email/set", { b: 2 }),
     ]);
 
-    const sentCalls = transport.mock.calls[0]![0];
+    const sentCalls = transport.mock.calls[0][0];
     expect(sentCalls).toEqual([
       ["Email/get", { a: 1 }, "c0"],
       ["Email/set", { b: 2 }, "c1"],
@@ -80,7 +80,7 @@ describe("Batcher.enqueue", () => {
 
     await Promise.all([batcher.enqueue("Email/get", {}), batcher.enqueue("Core/echo", {})]);
 
-    const using = transport.mock.calls[0]![1];
+    const using = transport.mock.calls[0][1];
     expect([...using].toSorted()).toEqual([
       "urn:ietf:params:jmap:core",
       "urn:ietf:params:jmap:mail",
