@@ -16,6 +16,8 @@
     "dist",
     "src",
     "package.json",
+    "!**/__test/**",
+    "!**/*.test.*",
     "README.md"
   ],
   "type": "module",
