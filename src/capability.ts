@@ -47,7 +47,7 @@ export const KNOWN_CAPABILITIES = [
     urn: "urn:ietf:params:jmap:vacationresponse",
     entities: ["VacationResponse"],
   }),
-] as const;
+];
 
 // =================================
 // Standard method groups (rfc8620 § 5)
@@ -74,7 +74,7 @@ interface Queryable<T extends Record<string, unknown>> {
   queryChanges<Args extends QueryChangesArguments<T, T>>(args: Args): QueryChangesResponse;
 }
 
-declare module "./types.js" {
+declare module "./types.ts" {
   interface GlobalMethodCalls {
     Core: {
       echo<T>(input: T): T;

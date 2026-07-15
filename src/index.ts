@@ -138,6 +138,6 @@ export class Client<Entity extends GlobalEntity> {
   }
 }
 
-export { Capability, KNOWN_CAPABILITIES } from "./capability.js";
-export { JmapError } from "./error.js";
-export type { Api, GlobalEntity, GlobalMethodCalls } from "./types.js";
+export { Capability, KNOWN_CAPABILITIES } from "./capability.ts";
+export { JmapError } from "./error.ts";
+export type { Api, GlobalEntity, GlobalMethodCalls } from "./types.ts";
