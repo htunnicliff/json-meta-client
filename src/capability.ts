@@ -13,7 +13,7 @@ import type {
 } from "jmap-rfc-types";
 import type { Entities, SearchSnippet } from "jmap-rfc-types/jmap-mail";
 
-import type { GlobalEntity } from "./types.js";
+import type { GlobalEntity } from "./types.ts";
 
 /**
  * Associates a JMAP capability URN with the set of entity (data type) names it

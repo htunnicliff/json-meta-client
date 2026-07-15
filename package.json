@@ -5,7 +5,17 @@
     "name": "Hunter Tunnicliff",
     "email": "hunter@tunnicliff.co"
   },
+  "files": [
+    "dist",
+    "src",
+    "package.json",
+    "README.md"
+  ],
   "type": "module",
+  "exports": {
+    ".": "./dist/main.js",
+    "./*": "./dist/*"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",

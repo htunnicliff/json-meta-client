@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { JmapError } from "./error.js";
+import { JmapError } from "../error.js";
 
 describe("JmapError.isProblemDetails", () => {
   it("accepts an object with a string `type`", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Capability, KNOWN_CAPABILITIES } from "./capability.js";
+import { Capability, KNOWN_CAPABILITIES } from "../capability.ts";
 
 describe("Capability", () => {
   it("stores the urn and entities", () => {

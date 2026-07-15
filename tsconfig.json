@@ -1,39 +1,25 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
+    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+
     // File Layout
     "rootDir": "./src",
     "outDir": "./dist",
 
     // Environment Settings
-    // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
     "target": "esnext",
     "types": [],
-    // jmap-rfc-types ships raw .ts sources that import one another with
-    // explicit .ts extensions; allow consuming them (rewritten to .js on emit).
     "rewriteRelativeImportExtensions": true,
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
+    "allowImportingTsExtensions": true,
 
     // Other Outputs
     "sourceMap": true,
     "declaration": true,
-    "declarationMap": true,
 
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
-    // "exactOptionalPropertyTypes": true,
-
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
 
     // Recommended Options
     "strict": true,
@@ -42,8 +28,7 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
-    "useDefineForClassFields": true
+    "skipLibCheck": true
   },
-  "exclude": ["node_modules", "vitest.config.ts", "dist"]
+  "exclude": ["node_modules", "vitest.config.ts", "dist", "**/*.test.*", "**/__test__"]
 }

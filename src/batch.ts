@@ -1,6 +1,6 @@
 import type { Invocation, Response } from "jmap-rfc-types";
 
-import { JmapError } from "./error.js";
+import { JmapError } from "./error.ts";
 
 /**
  * Sends a batch of method calls to the server and resolves with the raw JMAP

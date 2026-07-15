@@ -1,9 +1,9 @@
 import type { Invocation, Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 
-import { Batcher, type Transport } from "./batch.js";
-import { Capability } from "./capability.js";
-import { JmapError } from "./error.js";
-import type { Api, GlobalEntity } from "./types.js";
+import { Batcher, type Transport } from "./batch.ts";
+import { Capability } from "./capability.ts";
+import { JmapError } from "./error.ts";
+import type { Api, GlobalEntity } from "./types.ts";
 
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
 

@@ -1,8 +1,8 @@
 import type { Invocation, Response } from "jmap-rfc-types";
 import { describe, expect, it, vi } from "vitest";
 
-import { Batcher, type ResolveUsing, type Transport } from "./batch.js";
-import { JmapError } from "./error.js";
+import { Batcher, type ResolveUsing, type Transport } from "../batch.ts";
+import { JmapError } from "../error.ts";
 
 /** Construct a properly typed JMAP {@link Invocation} tuple. */
 function inv(name: string, args: unknown, id: string): Invocation {
