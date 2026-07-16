@@ -1,6 +1,7 @@
 import type { Invocation, Response as JMAPResponse } from "jmap-rfc-types";
 
 import { JmapError } from "./error.ts";
+import { MethodCall, MethodCallResult } from "./method-calls.ts";
 
 export type TransportFn = (
   methodCalls: ReadonlyArray<Invocation>,
@@ -8,13 +9,6 @@ export type TransportFn = (
 ) => Promise<JMAPResponse>;
 
 export type ResolveUrnsForMethodCallFn = (method: string) => ReadonlyArray<string>;
-
-interface PendingInvocation {
-  readonly invocation: Invocation;
-  readonly methodCallId: string;
-  readonly resolve: (value: unknown) => void;
-  readonly reject: (reason: unknown) => void;
-}
 
 interface MethodCallBatcherConfig {
   transport: TransportFn;
@@ -31,29 +25,30 @@ export class MethodCallBatcher {
 
   readonly #resolveUsing: ResolveUrnsForMethodCallFn;
 
-  #pendingInvocations: PendingInvocation[] = [];
+  #methodCalls: MethodCall<unknown>[] = [];
 
   #flushScheduled = false;
 
-  enqueue(
-    method: string,
-    args: unknown,
-    methodCallId = `${method}::${crypto.randomUUID()}`,
-  ): Promise<unknown> {
-    const invocationPromise = Promise.withResolvers<unknown>();
-
-    this.#pendingInvocations.push({
-      invocation: [method, args, methodCallId],
-      methodCallId,
-      resolve: invocationPromise.resolve,
-      reject: invocationPromise.reject,
+  /**
+   * Add a method call to the current batch
+   */
+  enqueue(method: string, args: unknown, id = `${method}::${crypto.randomUUID()}`) {
+    const methodCall = new MethodCall({
+      method,
+      args,
+      id,
     });
+
+    this.#methodCalls.push(methodCall);
 
     this.#scheduleFlush();
 
-    return invocationPromise.promise;
+    return methodCall.promise;
   }
 
+  /**
+   * Trigger a flush on the next microtask
+   */
   #scheduleFlush(): void {
     if (!this.#flushScheduled) {
       this.#flushScheduled = true;
@@ -61,47 +56,62 @@ export class MethodCallBatcher {
     }
   }
 
-  async #flush(): Promise<void> {
-    const batch = this.#pendingInvocations;
-    this.#pendingInvocations = [];
+  /**
+   * Get method calls from batch and mark as flushed
+   */
+  #drainBatch() {
+    const batch = this.#methodCalls.splice(0);
     this.#flushScheduled = false;
+    return batch;
+  }
 
-    const methodCalls = batch.map((call) => call.invocation);
+  /**
+   * Drain method calls from batch, send request, then fulfill promises
+   */
+  async #flush(): Promise<void> {
+    // Get all method calls from the current batch
+    const batch = this.#drainBatch();
 
-    const capabilities: ReadonlySet<string> = new Set(
-      methodCalls.flatMap(([method]) => this.#resolveUsing(method)),
-    );
-
-    let response: JMAPResponse;
     try {
-      response = await this.#transport(methodCalls, [...capabilities]);
+      // Determine which URNs are needed
+      const capabilityUrns = new Set<string>(batch.flatMap((c) => this.#resolveUsing(c.method)));
+
+      // Compose invocations from method calls
+      const invocations: Invocation[] = batch.map((c) => c.toInvocation());
+
+      // Submit request via transport
+      const response = await this.#transport(invocations, [...capabilityUrns]);
+
+      // Organize results by method call ID
+      const resultById = new Map(
+        response.methodResponses.map((invocation) => {
+          const result = new MethodCallResult(invocation);
+          return [result.id, result];
+        }),
+      );
+
+      // Process each method call
+      for (const methodCall of batch) {
+        const result = resultById.get(methodCall.id);
+        if (!result) {
+          methodCall.reject(new Error(`No response for method call "${methodCall.id}"`));
+          continue;
+        }
+
+        const { data } = result;
+        if (result.method === "error") {
+          methodCall.reject(
+            JmapError.isProblemDetails(data)
+              ? new JmapError("Error in method call", data)
+              : new Error("Unknown error in method call", { cause: data }),
+          );
+        } else {
+          methodCall.resolve(data);
+        }
+      }
     } catch (error) {
-      for (const call of batch) {
-        call.reject(error);
-      }
-      return;
-    }
-
-    const byId = new Map<string, Invocation>();
-    for (const invocation of response.methodResponses) {
-      const methodCallId = invocation[2];
-      byId.set(methodCallId, invocation);
-    }
-
-    for (const call of batch) {
-      const methodCallId = call.invocation[2];
-      const result = byId.get(methodCallId);
-
-      if (!result) {
-        call.reject(new Error(`No response for method call "${methodCallId}"`));
-        continue;
-      }
-
-      const [name, data] = result;
-      if (name === "error" && JmapError.isProblemDetails(data)) {
-        call.reject(new JmapError("Error in method call", data));
-      } else {
-        call.resolve(data);
+      for (const methodCall of batch) {
+        methodCall.reject(error);
       }
     }
   }

@@ -1,18 +1,3 @@
-import type {
-  ChangesArguments,
-  ChangesResponse,
-  GetArguments,
-  GetResponse,
-  ID,
-  QueryArguments,
-  QueryChangesArguments,
-  QueryChangesResponse,
-  QueryResponse,
-  SetArguments,
-  SetResponse,
-} from "jmap-rfc-types";
-import type { Entities, SearchSnippet } from "jmap-rfc-types/jmap-mail";
-
 import type { GlobalEntity } from "./types.ts";
 
 /**
@@ -49,58 +34,15 @@ export const KNOWN_CAPABILITIES = [
   }),
 ];
 
-// =================================
-// Standard method groups (rfc8620 § 5)
-//
-// These helpers compose the standard `/get`, `/changes`, `/set`, `/query`, and
-// `/queryChanges` method signatures for a given entity type using the generic
-// argument/response types from jmap-rfc-types.
-// =================================
-
-interface Getable<T> {
-  get<Args extends GetArguments<T>>(args: Args): GetResponse<T, Args>;
-}
-
-interface Changeable {
-  changes(args: ChangesArguments): ChangesResponse;
-}
-
-interface Settable<T extends object> {
-  set<Args extends SetArguments<T>>(args: Args): SetResponse<T, Args>;
-}
-
-interface Queryable<T extends Record<string, unknown>> {
-  query(args: QueryArguments<T>): QueryResponse;
-  queryChanges(args: QueryChangesArguments<T, T>): QueryChangesResponse;
-}
-
 declare module "./types.ts" {
   interface GlobalMethodCalls {
-    Core: {
-      echo<T>(input: T): T;
-    };
-    Mailbox: Getable<Entities["Mailbox"]> &
-      Changeable &
-      Queryable<Entities["Mailbox"]> &
-      Settable<Entities["Mailbox"]>;
-    Thread: Getable<Entities["Thread"]> & Changeable;
-    Email: Getable<Entities["Email"]> &
-      Changeable &
-      Queryable<Entities["Email"]> &
-      Settable<Entities["Email"]>;
-    SearchSnippet: {
-      get(args: { accountId: ID; filter?: unknown; emailIds: ReadonlyArray<ID> }): {
-        accountId: ID;
-        list: ReadonlyArray<SearchSnippet>;
-        notFound: ReadonlyArray<ID> | null;
-      };
-    };
-    Identity: Getable<Entities["Identity"]> & Changeable & Settable<Entities["Identity"]>;
-    EmailSubmission: Getable<Entities["EmailSubmission"]> &
-      Changeable &
-      Queryable<Entities["EmailSubmission"]> &
-      Settable<Entities["EmailSubmission"]>;
-    VacationResponse: Getable<Entities["VacationResponse"]> &
-      Settable<Entities["VacationResponse"]>;
+    Core: {};
+    Mailbox: {};
+    Thread: {};
+    Email: {};
+    SearchSnippet: {};
+    Identity: {};
+    EmailSubmission: {};
+    VacationResponse: {};
   }
 }
