@@ -25,15 +25,19 @@ export class MethodCallBatcher {
 
   readonly #resolveUsing: ResolveUrnsForMethodCallFn;
 
-  #methodCalls: MethodCall<unknown>[] = [];
+  #methodCalls: MethodCall<unknown, unknown>[] = [];
 
   #flushScheduled = false;
 
   /**
    * Add a method call to the current batch
    */
-  enqueue(method: string, args: unknown, id = `${method}::${crypto.randomUUID()}`) {
-    const methodCall = new MethodCall({
+  enqueue<T>(
+    method: string,
+    args: T,
+    id = `${method}::${crypto.randomUUID()}`,
+  ): MethodCall<T, unknown> {
+    const methodCall = new MethodCall<T, unknown>({
       method,
       args,
       id,
@@ -43,7 +47,7 @@ export class MethodCallBatcher {
 
     this.#scheduleFlush();
 
-    return methodCall.promise;
+    return methodCall;
   }
 
   /**

@@ -1,3 +1,5 @@
+import type { MethodCall } from "./method-calls.ts";
+
 export interface GlobalMethodCalls {
   //
 }
@@ -16,7 +18,7 @@ export type Api = {
     [Method in keyof GlobalMethodCalls[E]]: GlobalMethodCalls[E][Method] extends (
       ...args: infer Args
     ) => infer Result
-      ? (...args: Args) => Promise<Awaited<Result>>
+      ? (...args: Args) => MethodCall<Args, Result>
       : never;
   };
 };

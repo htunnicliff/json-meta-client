@@ -1,3 +1,4 @@
+// oxlint-disable unicorn/no-thenable
 import type { Invocation } from "jmap-rfc-types";
 
 interface MethodCallParams<T> {
@@ -6,7 +7,7 @@ interface MethodCallParams<T> {
   readonly id: string;
 }
 
-export class MethodCall<T> implements MethodCallParams<T> {
+export class MethodCall<T, Result> implements MethodCallParams<T>, PromiseLike<Result> {
   constructor(params: MethodCallParams<T>) {
     this.method = params.method;
     this.args = params.args;
@@ -17,7 +18,7 @@ export class MethodCall<T> implements MethodCallParams<T> {
   readonly args: T;
   readonly id: string;
 
-  #promise = Promise.withResolvers<unknown>();
+  #promise = Promise.withResolvers<Result>();
 
   reject = this.#promise.reject.bind(this);
 
@@ -29,6 +30,13 @@ export class MethodCall<T> implements MethodCallParams<T> {
 
   toInvocation(): Invocation<T> {
     return [this.method, this.args, this.id];
+  }
+
+  then<TResult1 = Result, TResult2 = never>(
+    onfulfilled?: ((value: Result) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2> {
+    return this.#promise.promise.then(onfulfilled, onrejected);
   }
 }
 
