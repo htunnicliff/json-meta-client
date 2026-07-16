@@ -1,3 +1,19 @@
+import type {
+  ChangesArguments,
+  ChangesResponse,
+  GetArguments,
+  GetResponse,
+  Mailbox,
+  MailboxCreate,
+  MailboxFilterCondition,
+  QueryArguments,
+  QueryChangesArguments,
+  QueryChangesResponse,
+  QueryResponse,
+  SetArguments,
+  SetResponse,
+} from "jmap-rfc-types";
+
 import type { GlobalEntity } from "./types.ts";
 
 /**
@@ -37,7 +53,24 @@ export const KNOWN_CAPABILITIES = [
 declare module "./types.ts" {
   interface GlobalMethodCalls {
     Core: {};
-    Mailbox: {};
+    Mailbox: {
+      get: <A extends GetArguments<Mailbox>>(args: A) => GetResponse<Mailbox, A>;
+      changes: (
+        args: ChangesArguments,
+      ) => ChangesResponse & { updatedProperties: Array<keyof Mailbox> | null };
+      query: (
+        args: QueryArguments<Mailbox, MailboxFilterCondition> & {
+          sortAsTree?: boolean;
+          filterAsTree?: boolean;
+        },
+      ) => QueryResponse;
+      queryChanges: (
+        args: QueryChangesArguments<Mailbox, MailboxFilterCondition>,
+      ) => QueryChangesResponse;
+      set: <A extends SetArguments<MailboxCreate> & { onDestroyRemoveEmails?: boolean }>(
+        args: A,
+      ) => SetResponse<Mailbox, A>;
+    };
     Thread: {};
     Email: {};
     SearchSnippet: {};
