@@ -1,13 +1,14 @@
 version: "0.2"
 language: en
 words:
+  - Batchable
+  - capnweb
   - JMAP
   - oxfmt
   - oxlint
   - tsgolint
-  - vacationresponse
-  - capnweb
   - tunnicliff
   - unstub
+  - vacationresponse
 ignorePaths:
   - pnpm-lock.yaml

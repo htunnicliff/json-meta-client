@@ -1,6 +1,7 @@
-import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
+import type { Invocation, Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 
 import { MethodCallBatcher } from "./batch.ts";
+import { makeBatcher } from "./batcher.ts";
 import { Capability } from "./capability.ts";
 import type { Api } from "./types.ts";
 
@@ -32,25 +33,77 @@ export class Client {
 
   readonly #capabilityUrnByEntity: ReadonlyMap<string, string>;
 
-  readonly #batcher = new MethodCallBatcher({
-    transport: async (methodCalls, capabilityUrns) => {
+  // readonly #batcher = new MethodCallBatcher({
+  //   transport: async (methodCalls, capabilityUrns) => {
+  //     const session = await this.getSession();
+  //     const request: JmapRequest = {
+  //       using: [...capabilityUrns],
+  //       methodCalls,
+  //     };
+  //     console.log(JSON.stringify(request, null, 2));
+  //     return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
+  //   },
+  //   resolveUsing: (method) => {
+  //     const capabilities = new Set<string>([CORE_CAPABILITY]);
+  //     const [entity] = /^[^/]+/.exec(method)!;
+  //     const urn = this.#capabilityUrnByEntity.get(entity);
+  //     if (urn) {
+  //       capabilities.add(urn);
+  //     }
+  //     return [...capabilities];
+  //   },
+  // });
+
+  readonly #batcher = makeBatcher(async (inputs) => {
+    try {
+      const batch = inputs.map((input) => input.args);
+
+      // Determine which URNs are needed
+      const capabilityUrns = new Set<string>(batch.flatMap((c) => this.#resolveUsing(c.method)));
+
+      // Compose invocations from method calls
+      const invocations: Invocation[] = batch.map((c) => c.toInvocation());
+
+      // Submit request via transport
       const session = await this.getSession();
       const request: JmapRequest = {
         using: [...capabilityUrns],
         methodCalls,
       };
-      console.log(JSON.stringify(request, null, 2));
-      return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
-    },
-    resolveUsing: (method) => {
-      const capabilities = new Set<string>([CORE_CAPABILITY]);
-      const [entity] = /^[^/]+/.exec(method)!;
-      const urn = this.#capabilityUrnByEntity.get(entity);
-      if (urn) {
-        capabilities.add(urn);
+      const response = await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
+
+      // Organize results by method call ID
+      const resultById = new Map(
+        response.methodResponses.map((invocation) => {
+          const result = new MethodCallResult(invocation);
+          return [result.id, result];
+        }),
+      );
+
+      // Process each method call
+      for (const methodCall of batch) {
+        const result = resultById.get(methodCall.id);
+        if (!result) {
+          methodCall.reject(new Error(`No response for method call "${methodCall.id}"`));
+          continue;
+        }
+
+        const { data } = result;
+        if (result.method === "error") {
+          methodCall.reject(
+            JmapError.isProblemDetails(data)
+              ? new JmapError("Error in method call", data)
+              : new Error("Unknown error in method call", { cause: data }),
+          );
+        } else {
+          methodCall.resolve(data);
+        }
       }
-      return [...capabilities];
-    },
+    } catch (error) {
+      for (const methodCall of batch) {
+        methodCall.reject(error);
+      }
+    }
   });
 
   readonly #api = this.#initApi();
