@@ -1,8 +1,9 @@
-import type { Invocation, Request as JmapRequest, Response, Session } from "jmap-rfc-types";
+import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 
-import { MethodCallBatcher } from "./batch.ts";
-import { makeBatcher } from "./batcher.ts";
+import { Batcher } from "./batcher.ts";
 import { Capability } from "./capability.ts";
+import { JmapError } from "./error.ts";
+import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import type { Api } from "./types.ts";
 
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
@@ -33,42 +34,28 @@ export class Client {
 
   readonly #capabilityUrnByEntity: ReadonlyMap<string, string>;
 
-  // readonly #batcher = new MethodCallBatcher({
-  //   transport: async (methodCalls, capabilityUrns) => {
-  //     const session = await this.getSession();
-  //     const request: JmapRequest = {
-  //       using: [...capabilityUrns],
-  //       methodCalls,
-  //     };
-  //     console.log(JSON.stringify(request, null, 2));
-  //     return await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
-  //   },
-  //   resolveUsing: (method) => {
-  //     const capabilities = new Set<string>([CORE_CAPABILITY]);
-  //     const [entity] = /^[^/]+/.exec(method)!;
-  //     const urn = this.#capabilityUrnByEntity.get(entity);
-  //     if (urn) {
-  //       capabilities.add(urn);
-  //     }
-  //     return [...capabilities];
-  //   },
-  // });
-
-  readonly #batcher = makeBatcher(async (inputs) => {
+  readonly #batcher = new Batcher<MethodCall<unknown>>(async (batch) => {
     try {
-      const batch = inputs.map((input) => input.args);
+      const methodCalls = batch.map((b) => b.input);
 
       // Determine which URNs are needed
-      const capabilityUrns = new Set<string>(batch.flatMap((c) => this.#resolveUsing(c.method)));
-
-      // Compose invocations from method calls
-      const invocations: Invocation[] = batch.map((c) => c.toInvocation());
+      const capabilityUrns = new Set<string>(
+        methodCalls.flatMap(({ method }) => {
+          const capabilities = new Set<string>([CORE_CAPABILITY]);
+          const [entity] = /^[^/]+/.exec(method)!;
+          const urn = this.#capabilityUrnByEntity.get(entity);
+          if (urn) {
+            capabilities.add(urn);
+          }
+          return [...capabilities];
+        }),
+      );
 
       // Submit request via transport
       const session = await this.getSession();
       const request: JmapRequest = {
         using: [...capabilityUrns],
-        methodCalls,
+        methodCalls: methodCalls.map((c) => c.toInvocation()),
       };
       const response = await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
 
@@ -81,27 +68,27 @@ export class Client {
       );
 
       // Process each method call
-      for (const methodCall of batch) {
+      for (const { input: methodCall, handle } of batch) {
         const result = resultById.get(methodCall.id);
         if (!result) {
-          methodCall.reject(new Error(`No response for method call "${methodCall.id}"`));
+          handle.reject(new Error(`No response for method call "${methodCall.id}"`));
           continue;
         }
 
         const { data } = result;
         if (result.method === "error") {
-          methodCall.reject(
+          handle.reject(
             JmapError.isProblemDetails(data)
               ? new JmapError("Error in method call", data)
               : new Error("Unknown error in method call", { cause: data }),
           );
         } else {
-          methodCall.resolve(data);
+          handle.resolve(data);
         }
       }
     } catch (error) {
-      for (const methodCall of batch) {
-        methodCall.reject(error);
+      for (const { handle } of batch) {
+        handle.reject(error);
       }
     }
   });
@@ -186,7 +173,13 @@ export class Client {
               if (typeof method !== "string" || method === "then") {
                 return undefined;
               }
-              return (args: unknown) => batcher.enqueue(`${entity}/${method}`, transformArgs(args));
+              return (args: unknown) =>
+                batcher.enqueue(
+                  new MethodCall({
+                    method: `${entity}/${method}`,
+                    args: transformArgs(args),
+                  }),
+                );
             },
           });
           entityProxies.set(entity, methods);

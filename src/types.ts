@@ -1,3 +1,6 @@
+import type { SetOptional } from "type-fest";
+
+import type { BatchResult } from "./batcher.ts";
 import type { MethodCall } from "./method-calls.ts";
 
 export interface GlobalMethodCalls {
@@ -16,9 +19,11 @@ export type GlobalEntity = keyof GlobalMethodCalls;
 export type Api = {
   [E in GlobalEntity]: {
     [Method in keyof GlobalMethodCalls[E]]: GlobalMethodCalls[E][Method] extends (
-      ...args: infer Args
+      args: infer Args,
     ) => infer Result
-      ? (...args: Args) => MethodCall<Args, Result>
+      ? (
+          args: Args extends { accountId: unknown } ? SetOptional<Args, "accountId"> : Args,
+        ) => BatchResult<MethodCall<Args>, Result>
       : never;
   };
 };

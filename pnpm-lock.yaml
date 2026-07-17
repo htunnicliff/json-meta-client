@@ -11,6 +11,9 @@ importers:
       jmap-rfc-types:
         specifier: 0.2.0
         version: 0.2.0
+      type-fest:
+        specifier: ^5.8.0
+        version: 5.8.0
     devDependencies:
       '@changesets/cli':
         specifier: ^2.31.0

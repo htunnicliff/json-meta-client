@@ -1,8 +1,8 @@
-import type { ProblemDetails, RequestErrorProblemType } from "jmap-rfc-types";
+import type { ProblemDetails } from "jmap-rfc-types";
 
 export class JmapError extends Error implements ProblemDetails {
   readonly name = "JmapError";
-  readonly type: string | RequestErrorProblemType;
+  readonly type: string;
   readonly detail?: string;
   readonly instance?: string;
   readonly limit?: string;

@@ -1,69 +1,91 @@
-interface BatchInput<Output = unknown> {
-  args: unknown[];
-  fn: (...args: any[]) => unknown;
-  promise: PromiseWithResolvers<Output>;
+interface Work<Input, Output = any> {
+  input: Input;
+  handle: PromiseWithResolvers<Output>;
 }
 
-const DEFAULT_FLUSH = (inputs: BatchInput[]): void => {
-  for (const { args, fn, promise } of inputs) {
-    try {
-      promise.resolve(fn(...args));
-    } catch (error) {
-      promise.reject(error);
+export type BatchResult<Input, Output> = Input & Promise<Output>;
+
+interface Flush<Input> {
+  (batchedWork: Work<Input>[]): void | Promise<void>;
+}
+
+/**
+ * A utility for scheduling a batch of work to be
+ * resolved at the same time
+ *
+ * @example
+ * ```ts
+ * const batcher = new Batcher((batchedWork) => {
+ *   for (const { input, handle } of batchedWork) {
+ *     try {
+ *       handle.resolve(doSomething(input));
+ *     } catch (error) {
+ *       handle.reject(error);
+ *     }
+ *   }
+ * });
+ * ```
+ */
+export class Batcher<Input = unknown> {
+  constructor(flush: Flush<Input>) {
+    this.#flush = flush;
+  }
+
+  /**
+   * All work input yet to be flushed
+   */
+  #pendingWork: Work<Input>[] = [];
+
+  /**
+   * Whether a flush has been queued in the next microtask
+   */
+  #flushPending = false;
+
+  /**
+   * Function to process a batch of work
+   */
+  #flush: Flush<Input>;
+
+  /**
+   * Push some input into the next batch and return a promise for
+   * the result for the given input
+   */
+  enqueue = <Output = unknown, I extends Input = Input>(input: I): BatchResult<I, Output> => {
+    // Create a promise for providing the output
+    const handle = Promise.withResolvers<Output>();
+
+    // Add work to the batch
+    this.#pendingWork.push({ input, handle });
+
+    // Schedule a flush
+    this.#scheduleFlush();
+
+    const result: BatchResult<I, Output> = Object.assign(handle.promise, input);
+
+    // Supply the output promise
+    return result;
+  };
+
+  /**
+   * Queue up a flush for the next microtask if
+   * a flush is not already scheduled
+   */
+  #scheduleFlush() {
+    if (!this.#flushPending) {
+      // Mark flush as pending
+      this.#flushPending = true;
+
+      // Enqueue flush
+      queueMicrotask(() => {
+        // Mark flush as not pending
+        this.#flushPending = false;
+
+        // Get batch of work while emptying pending array
+        const batch = this.#pendingWork.splice(0);
+
+        // Flush batch
+        void this.#flush(batch);
+      });
     }
   }
-};
-
-export function makeBatcher(flush: (inputs: BatchInput[]) => void | Promise<void> = DEFAULT_FLUSH) {
-  let flushScheduled = false;
-  const inputs: BatchInput<any>[] = [];
-
-  function batch<Args extends unknown[], Returning>(fn: (...args: Args) => Returning) {
-    return function batched(...args: Args): Promise<Returning> {
-      // Capture
-      const input: BatchInput<Returning> = {
-        args,
-        fn,
-        promise: Promise.withResolvers(),
-      };
-
-      // Batch
-      inputs.push(input);
-
-      // Schedule flush
-      if (!flushScheduled) {
-        flushScheduled = true;
-        queueMicrotask(() => {
-          flushScheduled = false;
-          const drained = inputs.splice(0);
-          void flush(drained);
-        });
-      }
-
-      return input.promise.promise;
-    };
-  }
-
-  return batch;
 }
-
-// const batch = makeBatcher();
-
-// export class API {
-//   sayHello = batch((name: string, age: number) => {
-//     console.log("Executing...", { name, age });
-//     return `Hello, ${name}! You are ${age.toLocaleString()} at ${performance.now()}`;
-//   });
-// }
-
-// const api = new API();
-
-// const pendingA = api.sayHello("Joe", 10);
-// const pendingB = api.sayHello("John", 12);
-// const pendingC = api.sayHello("Jim", 49);
-
-// console.log("Invoked");
-
-// const results = await Promise.all([pendingA, pendingB, pendingC]);
-
-// console.log(results);

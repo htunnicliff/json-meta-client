@@ -4,39 +4,22 @@ import type { Invocation } from "jmap-rfc-types";
 interface MethodCallParams<T> {
   readonly method: string;
   readonly args: T;
-  readonly id: string;
+  readonly id?: string;
 }
 
-export class MethodCall<T, Result> implements MethodCallParams<T>, PromiseLike<Result> {
+export class MethodCall<T> implements MethodCallParams<T> {
   constructor(params: MethodCallParams<T>) {
     this.method = params.method;
     this.args = params.args;
-    this.id = params.id;
+    this.id = params.id ?? `${params.method}::${crypto.randomUUID()}`;
   }
 
   readonly method: string;
   readonly args: T;
   readonly id: string;
 
-  #promise = Promise.withResolvers<Result>();
-
-  reject = this.#promise.reject.bind(this);
-
-  resolve = this.#promise.resolve.bind(this);
-
-  get promise() {
-    return this.#promise.promise;
-  }
-
   toInvocation(): Invocation<T> {
     return [this.method, this.args, this.id];
-  }
-
-  then<TResult1 = Result, TResult2 = never>(
-    onfulfilled?: ((value: Result) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-  ): PromiseLike<TResult1 | TResult2> {
-    return this.#promise.promise.then(onfulfilled, onrejected);
   }
 }
 
