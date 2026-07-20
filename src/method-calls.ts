@@ -1,7 +1,5 @@
-// oxlint-disable unicorn/no-thenable
-import type { ExtendedJSONPointer, Invocation, ResultReference } from "jmap-rfc-types";
-
-import { ref } from "./ref.ts";
+// oxlint-disable unicorn/no-thenable typescript/no-unnecessary-type-parameters typescript/no-unsafe-type-assertion
+import type { Invocation } from "jmap-rfc-types";
 
 interface MethodCallParams<T> {
   readonly method: string;
@@ -22,10 +20,6 @@ export class MethodCall<T> implements MethodCallParams<T> {
 
   toInvocation = (): Invocation<T> => {
     return [this.method, this.args, this.id];
-  };
-
-  ref = (pointer: ExtendedJSONPointer): ResultReference => {
-    return ref(this, pointer);
   };
 }
 

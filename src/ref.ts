@@ -1,11 +1,29 @@
-import type { ExtendedJSONPointer, ResultReference } from "jmap-rfc-types";
-import type { JsonValue } from "type-fest";
+import type { ResultReference } from "jmap-rfc-types";
+import type { JsonValue, Paths, Replace } from "type-fest";
 
+import type { BatchResult } from "./batcher.ts";
 import type { MethodCall } from "./method-calls.ts";
 
 const refSymbol = Symbol("ref");
 
-export function ref<T>(methodCall: MethodCall<T>, pointer: ExtendedJSONPointer) {
+type ReplaceArrayKeyWithAsterisk<T> = {
+  [K in keyof T]: T[K] extends ArrayLike<infer I extends object>
+    ? { "*": ReplaceArrayKeyWithAsterisk<I> }
+    : ReplaceArrayKeyWithAsterisk<T[K]>;
+};
+
+type ReplaceDotsWithSlashes<T> = Replace<
+  // @ts-expect-error
+  Paths<ReplaceArrayKeyWithAsterisk<T>>,
+  ".",
+  "/",
+  { all: true }
+>;
+
+export function ref<Output, Pointer extends ReplaceDotsWithSlashes<Output>>(
+  methodCall: BatchResult<MethodCall<unknown>, Output>,
+  pointer: `/${Pointer}`,
+) {
   return {
     name: methodCall.method,
     resultOf: methodCall.id,
