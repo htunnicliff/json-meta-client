@@ -1,9 +1,11 @@
 import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
+import type { JsonObject } from "type-fest";
 
 import { Batcher } from "./batcher.ts";
 import { Capability } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
+import { replaceNestedResultRefKeys } from "./ref.ts";
 import type { Api } from "./types.ts";
 
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
@@ -146,16 +148,23 @@ export class Client {
   #initApi(): Api {
     const batcher = this.#batcher;
     const entityProxies = new Map<string, object>();
-    const transformArgs = (args: unknown) => {
+    const transformArgs = (args: JsonObject) => {
+      const transformed = replaceNestedResultRefKeys(args);
+
       // Add accountId if not set
-      if (typeof args === "object" && args !== null && !args.accountId) {
-        Object.defineProperty(args, "accountId", {
+      if (
+        typeof transformed === "object" &&
+        transformed !== null &&
+        !Object.hasOwn(transformed, "accountId")
+      ) {
+        Object.defineProperty(transformed, "accountId", {
+          // Session is not ready when this property is defined
           get: () => this.getSessionSync().primaryAccounts[MAIL_CAPABILITY],
           enumerable: true,
         });
       }
 
-      return args;
+      return transformed;
     };
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
@@ -173,7 +182,7 @@ export class Client {
               if (typeof method !== "string" || method === "then") {
                 return undefined;
               }
-              return (args: unknown) =>
+              return (args: JsonObject) =>
                 batcher.enqueue(
                   new MethodCall({
                     method: `${entity}/${method}`,

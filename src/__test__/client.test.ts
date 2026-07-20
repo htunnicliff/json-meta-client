@@ -173,7 +173,7 @@ describe("Client error handling", () => {
     );
     const client = makeClient();
 
-    await expect(client.getSession()).rejects.toBeInstanceOf(JmapError);
+    await expect(client.getSession()).rejects.toThrow("JMAP request failed (400)");
   });
 
   it("throws a generic Error for non-problem-details failures", async () => {
