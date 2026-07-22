@@ -1,7 +1,7 @@
 import type { Invocation } from "jmap-rfc-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Client, JmapError, KNOWN_CAPABILITIES } from "../index.ts";
+import { Client, JmapError, KNOWN_CAPABILITIES, ref } from "../index.ts";
 
 const SESSION_URL = "https://jmap.example.com/.well-known/jmap";
 const API_URL = "https://jmap.example.com/api";
@@ -27,6 +27,10 @@ function parseBody(init?: RequestInit): ApiRequestBody {
   const raw = typeof init?.body === "string" ? init.body : "{}";
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- JSON.parse is `any`
   return JSON.parse(raw);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -160,6 +164,264 @@ describe("Client.api", () => {
     await expect(client.api.Mailbox.get({ accountId: "a1", ids: [] })).rejects.toBeInstanceOf(
       JmapError,
     );
+  });
+});
+
+describe("Client result references", () => {
+  it("rewrites ref-valued argument keys with a # prefix on the wire", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const query = client.api.Mailbox.query({ accountId: "a1" });
+    await client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ref(query, "/ids"),
+    });
+
+    expect(sentCalls).toHaveLength(2);
+    const [, getArgs] = sentCalls[1];
+    expect(getArgs).toEqual({
+      accountId: "a1",
+      "#ids": {
+        name: "Mailbox/query",
+        resultOf: query.id,
+        path: "/ids",
+      },
+    });
+    expect(getArgs).not.toHaveProperty("ids");
+  });
+
+  it("serialises only name, resultOf, and path (no internal ref marker)", async () => {
+    let rawBody = "";
+    stubFetch((body) => {
+      rawBody = JSON.stringify(body);
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const query = client.api.Mailbox.query({ accountId: "a1" });
+    await client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ref(query, "/ids"),
+    });
+
+    const parsed = parseBody({ body: rawBody });
+    const [, getArgs] = parsed.methodCalls[1];
+    if (!isRecord(getArgs) || !isRecord(getArgs["#ids"])) {
+      throw new Error("expected get args to contain a #ids result reference");
+    }
+    const resultRef = getArgs["#ids"];
+
+    expect(Object.keys(resultRef).toSorted()).toEqual(["name", "path", "resultOf"]);
+    expect(rawBody).not.toMatch(/Symbol\(|refSymbol|"__type"/);
+  });
+
+  it("batches a query and a dependent get into one HTTP request", async () => {
+    const fetchMock = stubFetch((body) => {
+      const [queryCall, getCall] = body.methodCalls;
+      return jsonResponse({
+        methodResponses: [
+          inv("Mailbox/query", { ids: ["mb1", "mb2"], queryState: "q0", position: 0 }, queryCall[2]),
+          inv(
+            "Mailbox/get",
+            { list: [{ id: "mb1" }, { id: "mb2" }], notFound: [] },
+            getCall[2],
+          ),
+        ],
+        sessionState: "s0",
+      });
+    });
+    const client = makeClient();
+
+    const query = client.api.Mailbox.query({ accountId: "a1" });
+    const get = client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ref(query, "/ids"),
+    });
+    const [queryResult, getResult] = await Promise.all([query, get]);
+
+    expect(fetchMock.mock.calls.filter(([url]) => url === API_URL)).toHaveLength(1);
+    expect(queryResult).toMatchObject({ ids: ["mb1", "mb2"] });
+    expect(getResult).toMatchObject({ list: [{ id: "mb1" }, { id: "mb2" }] });
+  });
+
+  it("supports wildcard JSON Pointer paths", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const get = client.api.Mailbox.get({ accountId: "a1", ids: ["mb1"] });
+    await client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ref(get, "/list/*/id"),
+    });
+
+    const [, secondArgs] = sentCalls[1];
+    expect(secondArgs).toMatchObject({
+      "#ids": {
+        name: "Mailbox/get",
+        resultOf: get.id,
+        path: "/list/*/id",
+      },
+    });
+  });
+
+  it("rewrites nested refs inside objects and arrays of objects", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const parent = client.api.Mailbox.get({ accountId: "a1", ids: ["mb-parent"] });
+    await client.api.Mailbox.set({
+      accountId: "a1",
+      create: {
+        child: {
+          name: "Child",
+          parentId: ref(parent, "/list/0/id"),
+        },
+      },
+      // Exercise array traversal: refs on keys inside array elements are rewritten
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- force invalid update shape through the client
+      update: [
+        {
+          id: "mb2",
+          parentId: ref(parent, "/list/0/id"),
+        },
+      ] as never,
+    });
+
+    const [, setArgs] = sentCalls[1];
+    expect(setArgs).toEqual({
+      accountId: "a1",
+      create: {
+        child: {
+          name: "Child",
+          "#parentId": {
+            name: "Mailbox/get",
+            resultOf: parent.id,
+            path: "/list/0/id",
+          },
+        },
+      },
+      update: [
+        {
+          id: "mb2",
+          "#parentId": {
+            name: "Mailbox/get",
+            resultOf: parent.id,
+            path: "/list/0/id",
+          },
+        },
+      ],
+    });
+  });
+
+  it("leaves ordinary values and lookalike objects unprefixed", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const lookalike = {
+      name: "Mailbox/query",
+      resultOf: "someone-elses-id",
+      path: "/ids",
+    };
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- force an extra property through the client
+    await client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ["mb1"],
+      also: lookalike,
+    } as never);
+
+    const [, args] = sentCalls[0];
+    expect(args).toEqual({
+      accountId: "a1",
+      ids: ["mb1"],
+      also: lookalike,
+    });
+    expect(args).not.toHaveProperty("#also");
+    expect(args).not.toHaveProperty("#ids");
+  });
+
+  it("can attach multiple refs in a single method call", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const query = client.api.Mailbox.query({ accountId: "a1" });
+    const priorGet = client.api.Mailbox.get({ accountId: "a1", ids: ["mb0"] });
+    await client.api.Mailbox.set({
+      accountId: "a1",
+      create: {
+        a: {
+          name: "A",
+          parentId: ref(priorGet, "/list/0/id"),
+        },
+      },
+      destroy: ref(query, "/ids"),
+    });
+
+    const [, setArgs] = sentCalls[2];
+    expect(setArgs).toMatchObject({
+      create: {
+        a: {
+          "#parentId": {
+            name: "Mailbox/get",
+            resultOf: priorGet.id,
+            path: "/list/0/id",
+          },
+        },
+      },
+      "#destroy": {
+        name: "Mailbox/query",
+        resultOf: query.id,
+        path: "/ids",
+      },
+    });
+  });
+
+  it("preserves sibling non-ref keys alongside a rewritten ref", async () => {
+    let sentCalls: Invocation[] = [];
+    stubFetch((body) => {
+      sentCalls = body.methodCalls;
+      return echoApi(body);
+    });
+    const client = makeClient();
+
+    const query = client.api.Mailbox.query({ accountId: "a1" });
+    await client.api.Mailbox.get({
+      accountId: "a1",
+      ids: ref(query, "/ids"),
+      properties: ["id", "name"],
+    });
+
+    const [, getArgs] = sentCalls[1];
+    expect(getArgs).toEqual({
+      accountId: "a1",
+      properties: ["id", "name"],
+      "#ids": {
+        name: "Mailbox/query",
+        resultOf: query.id,
+        path: "/ids",
+      },
+    });
   });
 });
 
