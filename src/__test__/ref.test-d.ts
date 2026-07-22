@@ -2,7 +2,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { BatchResult } from "../batcher.ts";
 import type { MethodCall } from "../method-calls.ts";
-import { ref, type ExtractByPointer, type Ref } from "../ref.ts";
+import { ref, type ExtractByPointer, type PointerPaths, type Ref } from "../ref.ts";
 
 // ─── Simple object shape ──────────────────────────────────────────────────
 type User = {
@@ -146,6 +146,28 @@ describe("exports work in user code", () => {
 
     const subject = resolvePointer(msg, "/subject" as const);
     expectTypeOf(subject).toEqualTypeOf<string | null>();
+  });
+});
+
+// ─── PointerPaths offers a closed autocomplete union ────────────────────────
+describe("PointerPaths", () => {
+  it("includes property, index, and wildcard paths", () => {
+    type Paths = PointerPaths<User>;
+
+    expectTypeOf<"/name">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/friends">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/friends/0">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/friends/*">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/friends/*/id">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/friends/0/username">().toMatchTypeOf<Paths>();
+  });
+
+  it("excludes paths ExtractByPointer cannot resolve", () => {
+    type Paths = PointerPaths<User>;
+
+    expectTypeOf<"/nope">().not.toMatchTypeOf<Paths>();
+    expectTypeOf<"/age/0">().not.toMatchTypeOf<Paths>();
+    expectTypeOf<"/name/*/extra">().not.toMatchTypeOf<Paths>();
   });
 });
 

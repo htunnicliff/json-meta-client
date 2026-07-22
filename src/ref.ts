@@ -1,5 +1,5 @@
 import type { ResultReference } from "jmap-rfc-types";
-import type { JsonValue } from "type-fest";
+import type { JsonValue, Paths, Primitive, Replace } from "type-fest";
 
 import type { BatchResult } from "./batcher.ts";
 import type { MethodCall } from "./method-calls.ts";
@@ -54,9 +54,35 @@ type _EBR<T, Segments extends string> =
             ? T[Segments]
             : never;
 
-/** A pointer that resolves to a real type within `T` (not `never`). */
-type ValidPointer<T, Pointer extends string> =
-  ExtractByPointer<T, Pointer> extends never ? never : Pointer;
+/** Convert a type-fest dot path into a JSON Pointer. */
+type DotPathToPointer<Path extends string> = `/${Replace<Path, ".", "/", { all: true }>}`;
+
+/**
+ * Allow JMAP `*` in place of any numeric array-index segment
+ * (RFC 8620 §3.7), which type-fest's {@link Paths} does not model.
+ */
+type WithArrayWildcards<Pointer extends string> = Pointer extends `/${infer Rest}`
+  ? `/${WithArrayWildcardsInner<Rest>}`
+  : never;
+
+type WithArrayWildcardsInner<Rest extends string> = Rest extends `${infer Seg}/${infer Tail}`
+  ? Seg extends `${number}`
+    ? `${number}/${WithArrayWildcardsInner<Tail>}` | `*/${WithArrayWildcardsInner<Tail>}`
+    : `${Seg}/${WithArrayWildcardsInner<Tail>}`
+  : Rest extends `${number}`
+    ? `${number}` | `*`
+    : Rest;
+
+/**
+ * Union of JSON Pointers that {@link ExtractByPointer} can resolve against `T`.
+ * Built from type-fest {@link Paths}, remapped to pointer syntax with JMAP wildcards.
+ */
+export type PointerPaths<T> =
+  Paths<T> extends infer Path
+    ? Path extends string
+      ? WithArrayWildcards<DotPathToPointer<Path>>
+      : never
+    : never;
 
 /**
  * A JMAP result reference carrying the type extracted by its JSON Pointer.
@@ -66,8 +92,6 @@ export type Ref<T = unknown> = ResultReference & {
   /** Phantom carrier for the type at `path`. */
   readonly __type?: T;
 };
-
-type Primitive = string | number | boolean | bigint | symbol | null | undefined;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.
@@ -89,21 +113,22 @@ export type AllowRefs<T> =
  * Deeply replaces {@link Ref} wrappers with the types they resolve to.
  * Used when deriving method response types from arguments that may contain refs.
  */
-export type UnpackRefs<T> = T extends Ref<infer U>
-  ? U
-  : T extends Primitive
-    ? T
-    : T extends readonly [any, ...any[]]
-      ? { [K in keyof T]: UnpackRefs<T[K]> }
-      : T extends readonly any[]
-        ? Array<UnpackRefs<T[number]>>
-        : T extends object
-          ? { [K in keyof T]: UnpackRefs<T[K]> }
-          : T;
+export type UnpackRefs<T> =
+  T extends Ref<infer U>
+    ? U
+    : T extends Primitive
+      ? T
+      : T extends readonly [any, ...any[]]
+        ? { [K in keyof T]: UnpackRefs<T[K]> }
+        : T extends readonly any[]
+          ? Array<UnpackRefs<T[number]>>
+          : T extends object
+            ? { [K in keyof T]: UnpackRefs<T[K]> }
+            : T;
 
-export function ref<Output, const Pointer extends `/${string}`>(
+export function ref<Output, const Pointer extends PointerPaths<Output>>(
   methodCall: BatchResult<MethodCall<unknown>, Output>,
-  pointer: ValidPointer<Output, Pointer>,
+  pointer: Pointer,
 ): Ref<ExtractByPointer<Output, Pointer>> {
   return {
     name: methodCall.method,
