@@ -24,9 +24,7 @@ export type AllowRefsInArgs<Args> = {
  * argument type. Uses `const A` so call-site literals and {@link AllowRefs}
  * still infer.
  */
-export type ClientMethod<Args, Result> = <
-  const A extends OptionalAccountId<AllowRefsInArgs<Args>>,
->(
+export type ClientMethod<Args, Result> = <const A extends OptionalAccountId<AllowRefsInArgs<Args>>>(
   args: A,
 ) => BatchResult<MethodCall<UnpackRefs<A>>, Result>;
 

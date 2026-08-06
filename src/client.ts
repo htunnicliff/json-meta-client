@@ -2,7 +2,7 @@ import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 import type { JsonObject } from "type-fest";
 
 import { Batcher } from "./batcher.ts";
-import { Capability } from "./capability.ts";
+import { Capability, type CapabilityMethods } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import { replaceNestedResultRefKeys } from "./ref.ts";
@@ -11,14 +11,14 @@ import type { Api } from "./types.ts";
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
 const MAIL_CAPABILITY = "urn:ietf:params:jmap:mail";
 
-interface Config {
+interface Config<M extends CapabilityMethods> {
   bearerToken: string;
   sessionUrl: string;
-  capabilities?: ReadonlyArray<Capability>;
+  capabilities?: ReadonlyArray<Capability<M>>;
 }
 
-export class Client {
-  constructor(config: Config) {
+export class Client<M extends CapabilityMethods> {
+  constructor(config: Config<M>) {
     this.#config = {
       bearerToken: config.bearerToken,
       sessionUrl: config.sessionUrl,
@@ -26,9 +26,7 @@ export class Client {
     };
 
     this.#capabilityUrnByEntity = new Map(
-      this.#config.capabilities.flatMap(({ urn, entities }) =>
-        entities.map((entity) => [entity, urn] as const),
-      ),
+      this.#config.capabilities.flatMap(({}) => entities.map((entity) => [entity, urn] as const)),
     );
   }
 

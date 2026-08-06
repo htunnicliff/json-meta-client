@@ -28,42 +28,95 @@ import type { SetOptional } from "type-fest";
 import type { BatchResult } from "./batcher.ts";
 import type { MethodCall } from "./method-calls.ts";
 import type { UnpackRefs } from "./ref.ts";
-import type {
-  AllowRefsInArgs,
-  ClientMethod,
-  GlobalEntity,
-  OptionalAccountId,
-} from "./types.ts";
+import type { AllowRefsInArgs, ClientMethod, OptionalAccountId } from "./types.ts";
 
 /**
- * Associates a JMAP capability URN with the set of entity (data type) names it
- * unlocks. The client uses these mappings to compute the `using` array for
- * each request based on the methods actually invoked.
+ * The primary type used to define JMAP calls for
+ * one or more entities.
+ *
+ * @example
+ * ```ts
+ * type Methods = {
+ *   Email: {
+ *       get: <A>(args: A) => SomeResult<A>;
+ *       query: <A>(args: A) => SomeOtherResult<A>;
+ *   };
+ *   Thread: {};
+ *   Mailbox: {};
+ *   SearchSnippet: {};
+ * };
+ * ```
  */
-export class Capability {
-  readonly urn: string;
-  readonly entities: ReadonlyArray<GlobalEntity>;
+type CapabilityMethods<Entity extends string> = Record<
+  Entity,
+  Record<string, (...args: any[]) => any>
+>;
 
-  constructor(options: { urn: string; entities: ReadonlyArray<GlobalEntity> }) {
-    this.urn = options.urn;
-    this.entities = Array.from(options.entities);
-  }
+/**
+ * A partially-configured capability that supports using
+ * layers of generics. The first layer captures the {@link Entity}
+ * type, while the second layer captures the {@link CapabilityMethods}
+ */
+interface ConfigurableCapability<Entity extends string> {
+  urn: string;
+  entities: Entity[];
+  withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M>;
+}
+
+/**
+ * A fully configured capability:
+ * - Known entities (type and value)
+ * - Known urn (value)
+ * - Known methods (type)
+ */
+export interface Capability<Entity extends string, _Methods extends CapabilityMethods<Entity>> {
+  urn: string;
+  entities: Entity[];
+}
+
+/**
+ * Extracts the {@link CapabilityMethods} from a configured
+ * {@link Capability}
+ */
+export type InferMethodsFromCapability<C> =
+  C extends Capability<infer _Entity, infer Methods> ? Methods : never;
+
+/**
+ * Define a JMAP capability for one or more entities
+ *
+ * @example
+ * ```ts
+ * const Core = defineCapability({ })
+ * ```
+ */
+export function defineCapability<const Entity extends string>({
+  urn,
+  entities,
+}: {
+  urn: string;
+  entities: Entity[];
+}): ConfigurableCapability<Entity> {
+  return {
+    urn,
+    entities,
+    withMethods: () => ({ urn, entities }),
+  };
 }
 
 export const KNOWN_CAPABILITIES = [
-  new Capability({
+  defineCapability({
     urn: "urn:ietf:params:jmap:core",
     entities: ["Core"],
   }),
-  new Capability({
+  defineCapability({
     urn: "urn:ietf:params:jmap:mail",
     entities: ["Mailbox", "Thread", "Email", "SearchSnippet"],
   }),
-  new Capability({
+  defineCapability({
     urn: "urn:ietf:params:jmap:submission",
     entities: ["Identity", "EmailSubmission"],
   }),
-  new Capability({
+  defineCapability({
     urn: "urn:ietf:params:jmap:vacationresponse",
     entities: ["VacationResponse"],
   }),
@@ -88,14 +141,15 @@ type FilterEmailProperties<Properties extends GetEmailArguments["properties"]> =
     : WithoutHeaders<Email>
 >;
 
-export type GetEmailResponse<Args> = Args extends SetOptional<GetEmailArguments, "accountId">
-  ? {
-      accountId: ID;
-      state: string;
-      list: FilterEmailProperties<Args["properties"]>;
-      notFound: ReadonlyArray<ID>;
-    }
-  : never;
+export type GetEmailResponse<Args> =
+  Args extends SetOptional<GetEmailArguments, "accountId">
+    ? {
+        accountId: ID;
+        state: string;
+        list: FilterEmailProperties<Args["properties"]>;
+        notFound: ReadonlyArray<ID>;
+      }
+    : never;
 
 type MailboxSetArguments = SetArguments<MailboxCreate> & { onDestroyRemoveEmails?: boolean };
 
