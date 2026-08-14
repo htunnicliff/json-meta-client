@@ -6,7 +6,6 @@ import { Capability, type CapabilityMethods } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import { replaceNestedResultRefKeys } from "./ref.ts";
-import type { Api } from "./types.ts";
 
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
 const MAIL_CAPABILITY = "urn:ietf:params:jmap:mail";

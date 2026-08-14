@@ -1,9 +1,8 @@
-// oxlint-disable typescript/no-unsafe-type-assertion
 import type { BatchResult } from "../batcher.ts";
 import { defineCapability } from "../capability.ts";
 import type { MethodCall } from "../method-calls.ts";
 
-export const Core = defineCapability({
+export const core = defineCapability({
   urn: "urn:ietf:params:jmap:core",
   entities: ["Core"],
 }).withMethods<{

@@ -20,7 +20,7 @@ import type { MethodCall } from "../method-calls.ts";
 import type { UnpackRefs } from "../ref.ts";
 import type { AllowRefsInArgs, ClientMethod, OptionalAccountId } from "../types.ts";
 
-export const Mail = defineCapability({
+export const mail = defineCapability({
   entities: ["Mailbox", "Thread", "Email", "SearchSnippet"],
   urn: "urn:ietf:params:jmap:mail",
 }).withMethods<{
@@ -31,9 +31,15 @@ export const Mail = defineCapability({
     query: Mailbox.Query.Method;
     queryChanges: Mailbox.QueryChanges.Method;
   };
-  Thread: {};
-  Email: {};
-  SearchSnippet: {};
+  Thread: {
+    // TODO
+  };
+  Email: {
+    // TODO
+  };
+  SearchSnippet: {
+    // TODO
+  };
 }>();
 
 declare namespace Mailbox {
