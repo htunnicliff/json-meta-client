@@ -1,10 +1,23 @@
-import { Capability, defineCapability } from "../capability.ts";
+// oxlint-disable typescript/no-unsafe-type-assertion
+import type { BatchResult } from "../batcher.ts";
+import { defineCapability } from "../capability.ts";
+import type { MethodCall } from "../method-calls.ts";
 
-const Core = defineCapability({
+export const Core = defineCapability({
   urn: "urn:ietf:params:jmap:core",
   entities: ["Core"],
 }).withMethods<{
   Core: {
-    get: <Args extends Record<string, any>>(args: Args) => Args;
+    get: Core.Get.Method;
   };
 }>();
+
+declare namespace Core {
+  export namespace Get {
+    type Args = Record<string, any>;
+
+    type Result<A> = BatchResult<MethodCall<A>, A>;
+
+    export type Method = <const A extends Args>(args: A) => Result<A>;
+  }
+}

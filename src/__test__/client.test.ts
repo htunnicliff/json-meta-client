@@ -345,7 +345,7 @@ describe("Client result references", () => {
       accountId: "a1",
       ids: ["mb1"],
       also: lookalike,
-    } as never);
+    });
 
     const [, args] = sentCalls[0];
     expect(args).toEqual({
