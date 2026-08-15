@@ -3,6 +3,7 @@ import type {
   ChangesResponse,
   GetArguments,
   GetResponse,
+  ID,
   Mailbox as JMapMailbox,
   MailboxCreate,
   MailboxFilterCondition,
@@ -43,12 +44,13 @@ export const mail = defineCapability({
 }>();
 
 declare namespace Mailbox {
-  type Model = JMapMailbox;
-
   export namespace Get {
-    type Args = OptionalAccountId<AllowRefsInArgs<GetArguments<Model>>>;
+    export type Args = OptionalAccountId<AllowRefsInArgs<GetArguments<JMapMailbox>>>;
 
-    type Result<A> = BatchResult<MethodCall<UnpackRefs<A>>, GetResponse<Model, UnpackRefs<A>>>;
+    export type Result<A> = BatchResult<
+      MethodCall<UnpackRefs<A>>,
+      GetResponse<JMapMailbox, UnpackRefs<A> & { accountId: ID }>
+    >;
 
     export type Method = <const A extends Args>(args: A) => Result<A>;
   }
@@ -62,7 +64,10 @@ declare namespace Mailbox {
       >
     >;
 
-    type Result<A> = BatchResult<MethodCall<UnpackRefs<A>>, SetResponse<Model, UnpackRefs<A>>>;
+    type Result<A> = BatchResult<
+      MethodCall<UnpackRefs<A>>,
+      SetResponse<JMapMailbox, UnpackRefs<A> & { accountId: ID }>
+    >;
 
     export type Method = <const A extends Args>(args: A) => Result<A>;
   }
@@ -70,13 +75,13 @@ declare namespace Mailbox {
   export namespace Changes {
     type Args = ChangesArguments;
 
-    type Result = ChangesResponse & { updatedProperties: Array<keyof Model> | null };
+    type Result = ChangesResponse & { updatedProperties: Array<keyof JMapMailbox> | null };
 
     export type Method = ClientMethod<Args, Result>;
   }
 
   export namespace Query {
-    type Args = QueryArguments<Model, MailboxFilterCondition> & {
+    type Args = QueryArguments<JMapMailbox, MailboxFilterCondition> & {
       sortAsTree?: boolean;
       filterAsTree?: boolean;
     };
@@ -87,7 +92,7 @@ declare namespace Mailbox {
   }
 
   export namespace QueryChanges {
-    type Args = QueryChangesArguments<Model, MailboxFilterCondition>;
+    type Args = QueryChangesArguments<JMapMailbox, MailboxFilterCondition>;
 
     type Result = QueryChangesResponse;
 

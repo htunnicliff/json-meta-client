@@ -1,8 +1,8 @@
 import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
-import type { JsonObject } from "type-fest";
+import type { JsonObject, UnionToIntersection } from "type-fest";
 
 import { Batcher } from "./batcher.ts";
-import { Capability, type CapabilityMethods } from "./capability.ts";
+import type { Capability, CapabilityMethods, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import { replaceNestedResultRefKeys } from "./ref.ts";
@@ -10,113 +10,114 @@ import { replaceNestedResultRefKeys } from "./ref.ts";
 const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
 const MAIL_CAPABILITY = "urn:ietf:params:jmap:mail";
 
-interface Config<M extends CapabilityMethods> {
+interface Config<C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>> {
   bearerToken: string;
   sessionUrl: string;
-  capabilities?: ReadonlyArray<Capability<M>>;
+  capabilities: C;
 }
 
-export class Client<M extends CapabilityMethods> {
-  constructor(config: Config<M>) {
+export class Client<
+  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>,
+  API extends C extends ReadonlyArray<infer U>
+    ? UnionToIntersection<InferMethodsFromCapability<U>>
+    : never,
+> {
+  constructor(config: Config<C>) {
     this.#config = {
       bearerToken: config.bearerToken,
       sessionUrl: config.sessionUrl,
-      capabilities: Array.from(config.capabilities ?? []),
+      capabilities: config.capabilities,
     };
 
-    this.#capabilityUrnByEntity = new Map(
-      this.#config.capabilities.flatMap(({}) => entities.map((entity) => [entity, urn] as const)),
+    this.#entityToUrn = Object.fromEntries(
+      this.#config.capabilities.flatMap((c) => c.entities.map((entity) => [entity, c.urn])),
     );
-  }
 
-  readonly #config: Required<Config>;
+    this.#session = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
+      this.#sessionSync = result;
+      return result;
+    });
 
-  readonly #capabilityUrnByEntity: ReadonlyMap<string, string>;
+    this.api = this.#initApi();
 
-  readonly #batcher = new Batcher<MethodCall<unknown>>(async (batch) => {
-    try {
-      const methodCalls = batch.map((b) => b.input);
+    this.#batcher = new Batcher<MethodCall<unknown>>(async (batch) => {
+      try {
+        const methodCalls = batch.map((b) => b.input);
 
-      // Determine which URNs are needed
-      const capabilityUrns = new Set<string>(
-        methodCalls.flatMap(({ method }) => {
-          const capabilities = new Set<string>([CORE_CAPABILITY]);
-          const [entity] = /^[^/]+/.exec(method)!;
-          const urn = this.#capabilityUrnByEntity.get(entity);
-          if (urn) {
-            capabilities.add(urn);
+        // Determine which URNs are needed
+        const capabilityUrns = new Set<string>(
+          methodCalls.flatMap(({ method }) => {
+            const capabilities = new Set<string>([CORE_CAPABILITY]);
+            const [entity] = /^[^/]+/.exec(method)!;
+            const urn = this.#entityToUrn[entity];
+            if (urn) {
+              capabilities.add(urn);
+            }
+            return [...capabilities];
+          }),
+        );
+
+        // Submit request via transport
+        const session = await this.#session;
+        const request: JmapRequest = {
+          using: [...capabilityUrns],
+          methodCalls: methodCalls.map((c) => c.toInvocation()),
+        };
+        const response = await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
+
+        // Organize results by method call ID
+        const resultById = new Map(
+          response.methodResponses.map((invocation) => {
+            const result = new MethodCallResult(invocation);
+            return [result.id, result];
+          }),
+        );
+
+        // Process each method call
+        for (const { input: methodCall, handle } of batch) {
+          const result = resultById.get(methodCall.id);
+          if (!result) {
+            handle.reject(new Error(`No response for method call "${methodCall.id}"`));
+            continue;
           }
-          return [...capabilities];
-        }),
-      );
 
-      // Submit request via transport
-      const session = await this.getSession();
-      const request: JmapRequest = {
-        using: [...capabilityUrns],
-        methodCalls: methodCalls.map((c) => c.toInvocation()),
-      };
-      const response = await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
-
-      // Organize results by method call ID
-      const resultById = new Map(
-        response.methodResponses.map((invocation) => {
-          const result = new MethodCallResult(invocation);
-          return [result.id, result];
-        }),
-      );
-
-      // Process each method call
-      for (const { input: methodCall, handle } of batch) {
-        const result = resultById.get(methodCall.id);
-        if (!result) {
-          handle.reject(new Error(`No response for method call "${methodCall.id}"`));
-          continue;
+          const { data } = result;
+          if (result.method === "error") {
+            handle.reject(
+              JmapError.isProblemDetails(data)
+                ? new JmapError("Error in method call", data)
+                : new Error("Unknown error in method call", { cause: data }),
+            );
+          } else {
+            handle.resolve(data);
+          }
         }
-
-        const { data } = result;
-        if (result.method === "error") {
-          handle.reject(
-            JmapError.isProblemDetails(data)
-              ? new JmapError("Error in method call", data)
-              : new Error("Unknown error in method call", { cause: data }),
-          );
-        } else {
-          handle.resolve(data);
+      } catch (error) {
+        for (const { handle } of batch) {
+          handle.reject(error);
         }
       }
-    } catch (error) {
-      for (const { handle } of batch) {
-        handle.reject(error);
-      }
-    }
-  });
-
-  readonly #api = this.#initApi();
-
-  get api() {
-    return this.#api;
+    });
   }
 
-  #sessionPromise: Promise<Session> | undefined;
-  #session: Session | undefined;
+  readonly #config: Config<C>;
 
-  getSession(): Promise<Session> {
-    if (!this.#sessionPromise) {
-      this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
-        this.#session = result;
-        return result;
-      });
-    }
-    return this.#sessionPromise;
-  }
+  readonly #entityToUrn: Record<string, string>;
+
+  readonly #session: Promise<Session>;
+
+  #sessionSync: Session | undefined;
+
+  readonly #batcher: Batcher<MethodCall<unknown>>;
+
+  readonly api: API;
 
   getSessionSync(): Session {
-    if (!this.#session) {
+    if (!this.#sessionSync) {
       throw new Error("Session not yet resolved");
     }
 
-    return this.#session;
+    return this.#sessionSync;
   }
 
   async #fetchJson<T>(url: string | URL, body: string | null = null): Promise<T> {
@@ -132,17 +133,16 @@ export class Client<M extends CapabilityMethods> {
 
     const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
 
-    const payload: unknown = await (isJsonResponse ? response.json() : response.text());
+    const payload = await (isJsonResponse ? response.json() : response.text());
 
     if (!response.ok) {
       throw new Error(`JMAP request failed (${response.status})`, { cause: payload });
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return payload as T;
+    return payload;
   }
 
-  #initApi(): Api {
+  #initApi(): API {
     const batcher = this.#batcher;
     const entityProxies = new Map<string, object>();
     const transformArgs = (args: JsonObject) => {
@@ -164,18 +164,16 @@ export class Client<M extends CapabilityMethods> {
       return transformed;
     };
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return new Proxy(Object.create(null) as Api, {
-      get(_target, entity) {
+    return new Proxy<API>(Object.create(null), {
+      get(_, entity) {
         if (typeof entity !== "string") {
           return undefined;
         }
 
         let methods = entityProxies.get(entity);
         if (methods === undefined) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-          methods = new Proxy(Object.create(null) as object, {
-            get(_methodTarget, method) {
+          methods = new Proxy(Object.create(null), {
+            get(__, method) {
               if (typeof method !== "string" || method === "then") {
                 return undefined;
               }
@@ -188,7 +186,7 @@ export class Client<M extends CapabilityMethods> {
                 );
             },
           });
-          entityProxies.set(entity, methods);
+          entityProxies.set(entity, methods!);
         }
         return methods;
       },
