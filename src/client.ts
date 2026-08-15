@@ -22,11 +22,16 @@ export class Client<
     ? UnionToIntersection<InferMethodsFromCapability<U>>
     : never,
 > {
-  constructor(config: Config<C>) {
+  constructor({
+    bearerToken,
+    sessionUrl,
+    // TODO: Always incorporate known JMAP capabilities & accept more for type union
+    capabilities,
+  }: Config<C>) {
     this.#config = {
-      bearerToken: config.bearerToken,
-      sessionUrl: config.sessionUrl,
-      capabilities: config.capabilities,
+      bearerToken,
+      sessionUrl,
+      capabilities,
     };
 
     this.#entityToUrn = Object.fromEntries(
@@ -47,13 +52,13 @@ export class Client<
         // Determine which URNs are needed
         const capabilityUrns = new Set<string>(
           methodCalls.flatMap(({ method }) => {
-            const capabilities = new Set<string>([CORE_CAPABILITY]);
+            const urns = new Set<string>([CORE_CAPABILITY]);
             const [entity] = /^[^/]+/.exec(method)!;
             const urn = this.#entityToUrn[entity];
             if (urn) {
-              capabilities.add(urn);
+              urns.add(urn);
             }
-            return [...capabilities];
+            return [...urns];
           }),
         );
 
