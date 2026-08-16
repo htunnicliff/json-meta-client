@@ -2,7 +2,12 @@ import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
 import type { JsonObject, UnionToIntersection } from "type-fest";
 
 import { Batcher } from "./batcher.ts";
-import type { Capability, CapabilityMethods, InferMethodsFromCapability } from "./capability.ts";
+import type {
+  Augment,
+  Capability,
+  CapabilityMethods,
+  InferMethodsFromCapability,
+} from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import { replaceNestedResultRefKeys } from "./ref.ts";
@@ -19,7 +24,7 @@ interface Config<C extends ReadonlyArray<Capability<string, CapabilityMethods<st
 export class Client<
   C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>,
   API extends C extends ReadonlyArray<infer U>
-    ? UnionToIntersection<InferMethodsFromCapability<U>>
+    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>>
     : never,
 > {
   constructor({

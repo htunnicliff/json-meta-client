@@ -44,13 +44,21 @@ export const mail = defineCapability({
 }>();
 
 declare namespace Mailbox {
-  export namespace Get {
-    export type Args = OptionalAccountId<AllowRefsInArgs<GetArguments<JMapMailbox>>>;
+  // export namespace Get {
+  //   export type Args = OptionalAccountId<AllowRefsInArgs<GetArguments<JMapMailbox>>>;
 
-    export type Result<A> = BatchResult<
-      MethodCall<UnpackRefs<A>>,
-      GetResponse<JMapMailbox, UnpackRefs<A> & { accountId: ID }>
-    >;
+  //   export type Result<A> = BatchResult<
+  //     MethodCall<UnpackRefs<A>>,
+  //     GetResponse<JMapMailbox, UnpackRefs<A> & { accountId: ID }>
+  //   >;
+
+  //   export type Method = <const A extends Args>(args: A) => Result<A>;
+  // }
+
+  export namespace Get {
+    export type Args = GetArguments<JMapMailbox>;
+
+    export type Result<A> = GetResponse<JMapMailbox, A>;
 
     export type Method = <const A extends Args>(args: A) => Result<A>;
   }

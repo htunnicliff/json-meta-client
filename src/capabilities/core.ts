@@ -1,6 +1,4 @@
-import type { BatchResult } from "../batcher.ts";
 import { defineCapability } from "../capability.ts";
-import type { MethodCall } from "../method-calls.ts";
 
 export const core = defineCapability({
   urn: "urn:ietf:params:jmap:core",
@@ -15,7 +13,7 @@ declare namespace Core {
   export namespace Get {
     type Args = Record<string, any>;
 
-    type Result<A> = BatchResult<MethodCall<A>, A>;
+    type Result<A> = A;
 
     export type Method = <const A extends Args>(args: A) => Result<A>;
   }

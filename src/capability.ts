@@ -1,3 +1,8 @@
+import type { BatchResult } from "./batcher.ts";
+import type { MethodCall } from "./method-calls.ts";
+import type { UnpackRefs } from "./ref.ts";
+import type { AllowRefsInArgs, OptionalAccountId } from "./types.ts";
+
 /**
  * The primary type used to define JMAP calls for
  * one or more entities.
@@ -15,10 +20,23 @@
  * };
  * ```
  */
-export type CapabilityMethods<Entity extends string> = Record<
-  Entity,
-  Record<string, (...args: any[]) => any>
->;
+export type CapabilityMethods<Entity extends string> = {
+  [key in Entity]: {
+    [method: string]: (arg: any) => any;
+  };
+};
+
+export type Augment<T extends CapabilityMethods<string>> = {
+  [Entity in keyof T]: {
+    [Method in keyof T[Entity]]: T[Entity][Method] extends (
+      arg: infer OriginalArgs,
+    ) => infer OriginalReturn
+      ? <WrappedArgs extends OptionalAccountId<AllowRefsInArgs<OriginalArgs>>>(
+          arg: WrappedArgs,
+        ) => BatchResult<MethodCall<UnpackRefs<WrappedArgs>>, OriginalReturn>
+      : never;
+  };
+};
 
 /**
  * A partially-configured capability that supports using
