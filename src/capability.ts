@@ -45,7 +45,7 @@ export type Augment<T extends CapabilityMethods<string>> = {
  */
 export interface ConfigurableCapability<Entity extends string> {
   urn: string;
-  entities: Entity[];
+  entities: ReadonlyArray<Entity>;
   withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M>;
 }
 
@@ -57,7 +57,7 @@ export interface ConfigurableCapability<Entity extends string> {
  */
 export interface Capability<Entity extends string, _Methods extends CapabilityMethods<Entity>> {
   urn: string;
-  entities: Entity[];
+  entities: ReadonlyArray<Entity>;
 }
 
 /**
@@ -80,7 +80,7 @@ export function defineCapability<const Entity extends string>({
   entities,
 }: {
   urn: string;
-  entities: Entity[];
+  entities: ReadonlyArray<Entity>;
 }): ConfigurableCapability<Entity> {
   return {
     urn,

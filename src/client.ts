@@ -1,7 +1,11 @@
-import type { Request as JmapRequest, Response, Session } from "jmap-rfc-types";
+import type { Request as JmapRequest, Response as JmapResponse, Session } from "jmap-rfc-types";
 import type { JsonObject, UnionToIntersection } from "type-fest";
 
 import { Batcher } from "./batcher.ts";
+import { core } from "./capabilities/core.ts";
+import { mail } from "./capabilities/mail.ts";
+import { submission } from "./capabilities/submission.ts";
+import { vacationresponse } from "./capabilities/vacationresponse.ts";
 import type {
   Augment,
   Capability,
@@ -12,30 +16,50 @@ import { JmapError } from "./error.ts";
 import { MethodCall, MethodCallResult } from "./method-calls.ts";
 import { replaceNestedResultRefKeys } from "./ref.ts";
 
-const CORE_CAPABILITY = "urn:ietf:params:jmap:core";
-const MAIL_CAPABILITY = "urn:ietf:params:jmap:mail";
+const builtInCapabilities = [core, mail, submission, vacationresponse];
+
+type BaseAPI =
+  typeof builtInCapabilities extends ReadonlyArray<infer U>
+    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>>
+    : never;
 
 interface Config<C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>> {
   bearerToken: string;
   sessionUrl: string;
-  capabilities: C;
+  capabilities?: C;
 }
 
 export class Client<
   C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>,
   API extends C extends ReadonlyArray<infer U>
-    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>>
-    : never,
+    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>> & BaseAPI
+    : BaseAPI,
 > {
-  constructor({
-    bearerToken,
-    sessionUrl,
-    // TODO: Always incorporate known JMAP capabilities & accept more for type union
-    capabilities,
-  }: Config<C>) {
+  readonly #config: Required<Config<C>>;
+
+  readonly #entityToUrn: Record<string, string>;
+
+  readonly #session: Promise<Session>;
+
+  #sessionSync: Session | undefined;
+
+  readonly #batcher: Batcher<MethodCall<unknown>>;
+
+  readonly api: API;
+
+  constructor({ bearerToken, sessionUrl, capabilities: extraCapabilities }: Config<C>) {
+    const capabilities: Array<Capability<string, CapabilityMethods<string>>> = [
+      ...builtInCapabilities,
+    ];
+
+    if (extraCapabilities) {
+      capabilities.push(...extraCapabilities);
+    }
+
     this.#config = {
       bearerToken,
       sessionUrl,
+      // @ts-expect-error - TODO: Fix this internal type
       capabilities,
     };
 
@@ -57,7 +81,7 @@ export class Client<
         // Determine which URNs are needed
         const capabilityUrns = new Set<string>(
           methodCalls.flatMap(({ method }) => {
-            const urns = new Set<string>([CORE_CAPABILITY]);
+            const urns = new Set<string>();
             const [entity] = /^[^/]+/.exec(method)!;
             const urn = this.#entityToUrn[entity];
             if (urn) {
@@ -70,10 +94,13 @@ export class Client<
         // Submit request via transport
         const session = await this.#session;
         const request: JmapRequest = {
-          using: [...capabilityUrns],
+          using: [core.urn, ...capabilityUrns],
           methodCalls: methodCalls.map((c) => c.toInvocation()),
         };
-        const response = await this.#fetchJson<Response>(session.apiUrl, JSON.stringify(request));
+        const response = await this.#fetchJson<JmapResponse>(
+          session.apiUrl,
+          JSON.stringify(request),
+        );
 
         // Organize results by method call ID
         const resultById = new Map(
@@ -109,18 +136,6 @@ export class Client<
       }
     });
   }
-
-  readonly #config: Config<C>;
-
-  readonly #entityToUrn: Record<string, string>;
-
-  readonly #session: Promise<Session>;
-
-  #sessionSync: Session | undefined;
-
-  readonly #batcher: Batcher<MethodCall<unknown>>;
-
-  readonly api: API;
 
   getSessionSync(): Session {
     if (!this.#sessionSync) {
@@ -166,7 +181,7 @@ export class Client<
       ) {
         Object.defineProperty(transformed, "accountId", {
           // Session is not ready when this property is defined
-          get: () => this.getSessionSync().primaryAccounts[MAIL_CAPABILITY],
+          get: () => this.getSessionSync().primaryAccounts[mail.urn],
           enumerable: true,
         });
       }
@@ -187,13 +202,16 @@ export class Client<
               if (typeof method !== "string" || method === "then") {
                 return undefined;
               }
-              return (args: JsonObject) =>
-                batcher.enqueue(
-                  new MethodCall({
-                    method: `${entity}/${method}`,
-                    args: transformArgs(args),
-                  }),
-                );
+
+              const actualMethod = `${entity}/${method}`;
+
+              return (args: JsonObject) => {
+                const call = new MethodCall({
+                  method: actualMethod,
+                  args: transformArgs(args),
+                });
+                return batcher.enqueue(call);
+              };
             },
           });
           entityProxies.set(entity, methods!);
