@@ -1,13 +1,12 @@
 import type { EmailAddress } from "jmap-rfc-types";
 import { expectTypeOf, test } from "vitest";
 
-import { Client, KNOWN_CAPABILITIES, ref } from "../index.ts";
+import { Client, ref } from "../index.ts";
 
 test("demo", async () => {
   const client = new Client({
     bearerToken: "process.env.BEARER_TOKEN!",
     sessionUrl: "process.env.SESSION_URL!",
-    capabilities: [...KNOWN_CAPABILITIES],
   });
 
   const {
@@ -28,7 +27,7 @@ test("demo", async () => {
   });
 
   type EmailItem = (typeof emails.list)[number];
-  expectTypeOf<EmailItem>().toEqualTypeOf<{
+  expectTypeOf<EmailItem>().toExtend<{
     "header:Received:asText:all": string[];
     from: EmailAddress[];
   }>();

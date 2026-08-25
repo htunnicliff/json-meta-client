@@ -1,12 +1,11 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import { Client, KNOWN_CAPABILITIES, ref } from "../index.ts";
+import { Client, ref } from "../index.ts";
 import type { Ref } from "../ref.ts";
 
 const client = new Client({
   bearerToken: "token",
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: KNOWN_CAPABILITIES,
 });
 
 describe("Api accepts typed result references", () => {

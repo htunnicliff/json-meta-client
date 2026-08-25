@@ -1,7 +1,7 @@
 import type { Invocation } from "jmap-rfc-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Client, JmapError, KNOWN_CAPABILITIES, ref } from "../index.ts";
+import { Client, JmapError, ref } from "../index.ts";
 
 const SESSION_URL = "https://jmap.example.com/.well-known/jmap";
 const API_URL = "https://jmap.example.com/api";
@@ -61,7 +61,6 @@ function makeClient() {
   return new Client({
     bearerToken: "secret-token",
     sessionUrl: SESSION_URL,
-    capabilities: KNOWN_CAPABILITIES,
   });
 }
 
@@ -225,12 +224,12 @@ describe("Client result references", () => {
       const [queryCall, getCall] = body.methodCalls;
       return jsonResponse({
         methodResponses: [
-          inv("Mailbox/query", { ids: ["mb1", "mb2"], queryState: "q0", position: 0 }, queryCall[2]),
           inv(
-            "Mailbox/get",
-            { list: [{ id: "mb1" }, { id: "mb2" }], notFound: [] },
-            getCall[2],
+            "Mailbox/query",
+            { ids: ["mb1", "mb2"], queryState: "q0", position: 0 },
+            queryCall[2],
           ),
+          inv("Mailbox/get", { list: [{ id: "mb1" }, { id: "mb2" }], notFound: [] }, getCall[2]),
         ],
         sessionState: "s0",
       });
