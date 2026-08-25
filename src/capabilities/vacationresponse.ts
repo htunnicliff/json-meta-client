@@ -1,3 +1,5 @@
+import type { VacationResponseContracts } from "jmap-rfc-types";
+
 import { defineCapability } from "../capability.ts";
 
 export const vacationresponse = defineCapability({
@@ -5,6 +7,7 @@ export const vacationresponse = defineCapability({
   entities: ["VacationResponse"],
 }).withMethods<{
   VacationResponse: {
-    // TODO
+    get: VacationResponseContracts.Get.Method;
+    set: VacationResponseContracts.Set.Method;
   };
 }>();

@@ -1,11 +1,16 @@
+import type { BlobContracts } from "jmap-rfc-types";
+
 import { defineCapability } from "../capability.ts";
 
 export const core = defineCapability({
   urn: "urn:ietf:params:jmap:core",
-  entities: ["Core"],
+  entities: ["Core", "Blob"],
 }).withMethods<{
   Core: {
     get: Core.Get.Method;
+  };
+  Blob: {
+    copy: BlobContracts.Copy.Method;
   };
 }>();
 

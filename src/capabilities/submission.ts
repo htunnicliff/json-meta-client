@@ -1,3 +1,5 @@
+import type { EmailSubmissionContracts, IdentityContracts } from "jmap-rfc-types/contracts";
+
 import { defineCapability } from "../capability.ts";
 
 export const submission = defineCapability({
@@ -5,9 +7,15 @@ export const submission = defineCapability({
   entities: ["Identity", "EmailSubmission"],
 }).withMethods<{
   Identity: {
-    // TODO
+    get: IdentityContracts.Get.Method;
+    set: IdentityContracts.Set.Method;
+    changes: IdentityContracts.Changes.Method;
   };
   EmailSubmission: {
-    // TODO
+    get: EmailSubmissionContracts.Get.Method;
+    set: EmailSubmissionContracts.Set.Method;
+    query: EmailSubmissionContracts.Query.Method;
+    queryChanges: EmailSubmissionContracts.QueryChanges.Method;
+    changes: EmailSubmissionContracts.Changes.Method;
   };
 }>();
