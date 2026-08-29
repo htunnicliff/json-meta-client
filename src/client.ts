@@ -63,9 +63,17 @@ export class Client<
       capabilities,
     };
 
-    this.#entityToUrn = Object.fromEntries(
-      this.#config.capabilities.flatMap((c) => c.entities.map((entity) => [entity, c.urn])),
-    );
+    this.#entityToUrn = {};
+    for (const { urn, entities } of this.#config.capabilities) {
+      for (const entity of entities) {
+        if (Object.hasOwn(this.#entityToUrn, entity)) {
+          throw new Error(`Entity "${entity}" has already been added`);
+        }
+
+        this.#entityToUrn[entity] = urn;
+      }
+    }
+    Object.freeze(this.#entityToUrn);
 
     this.#session = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
       this.#sessionSync = result;
@@ -135,6 +143,10 @@ export class Client<
         }
       }
     });
+  }
+
+  get session(): Promise<Session> {
+    return this.#session;
   }
 
   getSessionSync(): Session {
