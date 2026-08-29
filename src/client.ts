@@ -94,20 +94,17 @@ export class Client<
         // Determine which URNs are needed
         const capabilityUrns = new Set<string>(
           methodCalls.flatMap(({ method }) => {
-            const urns = new Set<string>();
             const [entity] = /^[^/]+/.exec(method)!;
             const urn = this.#entityToUrn[entity];
-            if (urn) {
-              urns.add(urn);
-            }
-            return [...urns];
+            return urn ? [urn] : [];
           }),
         );
+        capabilityUrns.add(core.urn);
 
         // Submit request via transport
         const session = await this.#session;
         const request: JmapRequest = {
-          using: [core.urn, ...capabilityUrns],
+          using: [...capabilityUrns],
           methodCalls: methodCalls.map((c) => c.toInvocation()),
         };
         const response = await this.#fetchJson<JmapResponse>(
