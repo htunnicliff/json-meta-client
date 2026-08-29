@@ -1,7 +1,6 @@
 import type { Request as JmapRequest, Response as JmapResponse, Session } from "jmap-rfc-types";
 import type { JsonObject, UnionToIntersection } from "type-fest";
 
-import { Batcher } from "./batcher.ts";
 import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import { submission } from "./capabilities/submission.ts";
@@ -13,8 +12,9 @@ import type {
   InferMethodsFromCapability,
 } from "./capability.ts";
 import { JmapError } from "./error.ts";
-import { MethodCall, MethodCallResult } from "./method-calls.ts";
-import { replaceNestedResultRefKeys } from "./ref.ts";
+import { Batcher } from "./internal/batcher.ts";
+import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
+import { replaceNestedResultRefKeys } from "./internal/refs.ts";
 
 const builtInCapabilities = [core, mail, submission, vacationresponse];
 

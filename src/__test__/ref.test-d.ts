@@ -1,8 +1,9 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { BatchResult } from "../batcher.ts";
-import type { MethodCall } from "../method-calls.ts";
-import { ref, type ExtractByPointer, type PointerPaths, type Ref } from "../ref.ts";
+import type { BatchResult } from "../internal/batcher.ts";
+import type { MethodCall } from "../internal/method-calls.ts";
+import { ExtractByPointer, PointerPaths } from "../internal/types.ts";
+import { Ref, ref } from "../ref.ts";
 
 // ─── Simple object shape ──────────────────────────────────────────────────
 type User = {

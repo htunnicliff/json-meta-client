@@ -1,7 +1,7 @@
-import type { BatchResult } from "./batcher.ts";
-import type { MethodCall } from "./method-calls.ts";
+import type { BatchResult } from "./internal/batcher.ts";
+import type { MethodCall } from "./internal/method-calls.ts";
+import type { AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
 import type { UnpackRefs } from "./ref.ts";
-import type { AllowRefsInArgs, OptionalAccountId } from "./types.ts";
 
 /**
  * The primary type used to define JMAP calls for
