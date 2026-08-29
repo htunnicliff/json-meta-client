@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       jmap-rfc-types:
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.4.0
+        version: 0.4.0
       type-fest:
         specifier: ^5.8.0
         version: 5.8.0
@@ -1353,8 +1353,8 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
-  jmap-rfc-types@0.3.1:
-    resolution: {integrity: sha512-xOTyOFe4ih2TPykggamMhzbeZknMH/lwmzbHApexv6w9QVa2invGvPdHefWVMxulYm/4uRgasL1F18h9Hn2ltw==}
+  jmap-rfc-types@0.4.0:
+    resolution: {integrity: sha512-dIc3b70ua1JKG41kxhllRJi1yDvkerZf6xW31YQBkkPEBMP/N6opyEz47OjU20+4Ar1FOfyqIPg1xm2mK6P5Tg==}
 
   js-yaml@3.15.0:
     resolution: {integrity: sha512-ttBQIIQPDeLjpPOohtUdXuXUVoA2uIB6fEH9HyJ7234s5mBJ5wTx20njxplLZQgLaOfpmPQA7X2t5AX6tIPbog==}
@@ -2978,7 +2978,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  jmap-rfc-types@0.3.1:
+  jmap-rfc-types@0.4.0:
     dependencies:
       type-fest: 5.8.0
 

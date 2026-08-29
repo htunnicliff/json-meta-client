@@ -1,4 +1,8 @@
-import type { BlobContracts, PushSubscriptionContracts } from "jmap-rfc-types/contracts";
+import type {
+  BlobContracts,
+  CoreContracts,
+  PushSubscriptionContracts,
+} from "jmap-rfc-types/contracts";
 
 import { defineCapability } from "../capability.ts";
 
@@ -7,7 +11,7 @@ export const core = defineCapability({
   entities: ["Core", "Blob", "PushSubscription"],
 }).withMethods<{
   Core: {
-    get: Core.Get.Method;
+    get: CoreContracts.Get.Method;
   };
   Blob: {
     copy: BlobContracts.Copy.Method;
@@ -17,13 +21,3 @@ export const core = defineCapability({
     set: PushSubscriptionContracts.Set.Method;
   };
 }>();
-
-declare namespace Core {
-  export namespace Get {
-    type Args = Record<string, any>;
-
-    type Result<A> = A;
-
-    export type Method = <const A extends Args>(args: A) => Result<A>;
-  }
-}
