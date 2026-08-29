@@ -26,6 +26,7 @@ describe("JmapError.isProblemDetails", () => {
 
   it("rejects null and non-objects", () => {
     expect(JmapError.isProblemDetails(null)).toBe(false);
+    // oxlint-disable-next-line unicorn/no-useless-undefined
     expect(JmapError.isProblemDetails(undefined)).toBe(false);
     expect(JmapError.isProblemDetails("type")).toBe(false);
     expect(JmapError.isProblemDetails(123)).toBe(false);

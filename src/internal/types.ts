@@ -1,3 +1,4 @@
+// oxlint-disable no-inline-comments
 import type { Paths, Replace, SetOptional } from "type-fest";
 
 import type { AllowRefs } from "../ref.ts";

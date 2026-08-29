@@ -155,20 +155,20 @@ describe("PointerPaths", () => {
   it("includes property, index, and wildcard paths", () => {
     type Paths = PointerPaths<User>;
 
-    expectTypeOf<"/name">().toMatchTypeOf<Paths>();
-    expectTypeOf<"/friends">().toMatchTypeOf<Paths>();
-    expectTypeOf<"/friends/0">().toMatchTypeOf<Paths>();
-    expectTypeOf<"/friends/*">().toMatchTypeOf<Paths>();
-    expectTypeOf<"/friends/*/id">().toMatchTypeOf<Paths>();
-    expectTypeOf<"/friends/0/username">().toMatchTypeOf<Paths>();
+    expectTypeOf<"/name">().toExtend<Paths>();
+    expectTypeOf<"/friends">().toExtend<Paths>();
+    expectTypeOf<"/friends/0">().toExtend<Paths>();
+    expectTypeOf<"/friends/*">().toExtend<Paths>();
+    expectTypeOf<"/friends/*/id">().toExtend<Paths>();
+    expectTypeOf<"/friends/0/username">().toExtend<Paths>();
   });
 
   it("excludes paths ExtractByPointer cannot resolve", () => {
     type Paths = PointerPaths<User>;
 
-    expectTypeOf<"/nope">().not.toMatchTypeOf<Paths>();
-    expectTypeOf<"/age/0">().not.toMatchTypeOf<Paths>();
-    expectTypeOf<"/name/*/extra">().not.toMatchTypeOf<Paths>();
+    expectTypeOf<"/nope">().not.toExtend<Paths>();
+    expectTypeOf<"/age/0">().not.toExtend<Paths>();
+    expectTypeOf<"/name/*/extra">().not.toExtend<Paths>();
   });
 });
 
@@ -191,6 +191,7 @@ describe("ref()", () => {
     expectTypeOf(headerRef).toEqualTypeOf<Ref<string>>();
   });
 
+  // oxlint-disable-next-line vitest/expect-expect
   it("rejects pointers that ExtractByPointer cannot resolve", () => {
     // @ts-expect-error — wildcard on a non-array
     ref(userCall, "/name/*/extra");
