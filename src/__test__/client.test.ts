@@ -12,7 +12,7 @@ describe("Client", () => {
     const client = new Client(DEFAULT_OPTIONS);
     expect(client).toHaveProperty("api");
     expect(client).toHaveProperty("session");
-    expect(client).toHaveProperty("getSessionSync");
+    expect(client).toHaveProperty("refreshSession");
   });
 
   it("is frozen", () => {
@@ -43,9 +43,5 @@ describe("Client", () => {
       const client = new Client(DEFAULT_OPTIONS);
       expect(client.session).toBeInstanceOf(Promise);
     });
-  });
-
-  describe("#session", () => {
-    //
   });
 });

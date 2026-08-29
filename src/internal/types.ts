@@ -1,5 +1,5 @@
 // oxlint-disable no-inline-comments
-import type { Paths, Replace, SetOptional } from "type-fest";
+import type { JsonValue, Paths, Replace, SetOptional } from "type-fest";
 
 import type { AllowRefs } from "../ref.ts";
 
@@ -89,3 +89,5 @@ export type PointerPaths<T> =
       ? WithArrayWildcards<DotPathToPointer<Path>>
       : never
     : never;
+
+export type Middleware = (payload: JsonValue) => JsonValue;

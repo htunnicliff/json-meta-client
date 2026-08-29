@@ -55,7 +55,10 @@ export interface ConfigurableCapability<Entity extends string> {
  * - Known urn (value)
  * - Known methods (type)
  */
-export interface Capability<Entity extends string, _Methods extends CapabilityMethods<Entity>> {
+export interface Capability<
+  Entity extends string,
+  _Methods extends CapabilityMethods<Entity> = CapabilityMethods<Entity>,
+> {
   urn: string;
   entities: ReadonlyArray<Entity>;
 }
