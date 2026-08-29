@@ -23,9 +23,11 @@ type BaseAPI =
     ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>>
     : never;
 
-interface Config<C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>> {
+export interface Config<
+  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>> = [],
+> {
   bearerToken: string;
-  sessionUrl: string;
+  sessionUrl: string | URL;
   capabilities?: C;
 }
 
@@ -56,6 +58,10 @@ export class Client<
       capabilities.push(...extraCapabilities);
     }
 
+    if (!URL.canParse(sessionUrl)) {
+      throw new Error("Invalid session URL", { cause: sessionUrl });
+    }
+
     this.#config = {
       bearerToken,
       sessionUrl,
@@ -73,7 +79,6 @@ export class Client<
         this.#entityToUrn[entity] = urn;
       }
     }
-    Object.freeze(this.#entityToUrn);
 
     this.#session = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
       this.#sessionSync = result;
@@ -143,6 +148,8 @@ export class Client<
         }
       }
     });
+
+    Object.freeze(this);
   }
 
   get session(): Promise<Session> {
