@@ -8,6 +8,7 @@ words:
   - oxlint
   - tsgolint
   - tunnicliff
+  - htunnicliff
   - unstub
   - vacationresponse
 ignorePaths:
