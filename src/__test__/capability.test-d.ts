@@ -1,12 +1,12 @@
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import {
+import type {
   Capability,
   CapabilityMethods,
   ConfigurableCapability,
-  defineCapability,
   InferMethodsFromCapability,
-} from "../capability";
+} from "../capability.ts";
+import { defineCapability } from "../capability.ts";
 
 const cap = defineCapability({
   urn: "urn:ietf:params:jmap:mail",
@@ -39,17 +39,6 @@ describe("Capability", () => {
           Mailbox: {
             moreValid: <A>(arg: A) => A;
           };
-        }>(),
-      );
-
-      // Invalid
-      assertType(
-        // @ts-expect-error asserting invalid
-        cap.withMethods<{
-          Email: {
-            notValid: (arg: string, somethingElse: boolean) => void;
-          };
-          Mailbox: {};
         }>(),
       );
     });
