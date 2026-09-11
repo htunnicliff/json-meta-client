@@ -35,7 +35,8 @@
     "fmt:check": "oxfmt --check",
     "spelling:check": "cspell .",
     "version": "pnpm run build && changeset version && pnpm install",
-    "publish": "pnpm run build && changeset publish"
+    "publish": "pnpm run build && changeset publish",
+    "prepare": "husky"
   },
   "dependencies": {
     "jmap-rfc-types": "0.4.0",
@@ -46,6 +47,7 @@
     "@changesets/cli": "3.0.2",
     "@types/node": "26.1.1",
     "cspell": "10.0.1",
+    "husky": "^9.1.7",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",
     "oxlint-tsgolint": "0.24.0",

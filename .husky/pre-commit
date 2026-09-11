@@ -1,0 +1,3 @@
+pnpm lint
+pnpm spelling:check
+pnpm fmt:check

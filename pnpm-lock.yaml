@@ -27,6 +27,9 @@ importers:
       cspell:
         specifier: 10.0.1
         version: 10.0.1
+      husky:
+        specifier: ^9.1.7
+        version: 9.1.7
       oxfmt:
         specifier: 0.58.0
         version: 0.58.0
@@ -1238,6 +1241,11 @@ packages:
 
   human-id@4.2.0:
     resolution: {integrity: sha512-K3GbkIWqyvvlpfhBPlbEvD97TtqBpAYA4kt+cn2lD2x2HuohzZCibcA2nOlnJT6exqvJLggoB5nv2dNf192nEA==}
+    hasBin: true
+
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
     hasBin: true
 
   import-fresh@4.0.0:
@@ -2609,6 +2617,8 @@ snapshots:
   hookable@6.1.1: {}
 
   human-id@4.2.0: {}
+
+  husky@9.1.7: {}
 
   import-fresh@4.0.0: {}
 
