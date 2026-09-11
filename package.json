@@ -4,6 +4,7 @@
   "bugs": {
     "url": "https://github.com/htunnicliff/json-meta-client/issues"
   },
+  "license": "MIT",
   "author": {
     "name": "Hunter Tunnicliff",
     "email": "hunter@tunnicliff.co"
