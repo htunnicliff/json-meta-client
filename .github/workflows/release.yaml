@@ -39,14 +39,13 @@ jobs:
       - run: pnpm install
 
       - name: Create release pull request or publish to npm
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: pnpm run version
-          publish: pnpm run publish
-          commit: "Release"
-          title: "Release"
-          commitMode: github-api
-          createGithubReleases: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm run version
+          publish-script: pnpm run publish
+          commit-message: "Release"
+          pr-title: "Release"
+          create-github-releases: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
