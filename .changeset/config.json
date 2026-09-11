@@ -1,9 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
-  "changelog": [
-    "@changesets/changelog-github",
-    { "repo": "htunnicliff/json-meta-client" }
-  ],
+  "changelog": ["@changesets/changelog-github", { "repo": "htunnicliff/json-meta-client" }],
   "commit": false,
   "fixed": [],
   "linked": [],
