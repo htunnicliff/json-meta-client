@@ -15,11 +15,8 @@
   },
   "files": [
     "dist",
-    "src",
     "package.json",
-    "!**/__test/**",
-    "!**/*.test.*",
-    "README.md"
+    "LICENSE"
   ],
   "type": "module",
   "exports": {
