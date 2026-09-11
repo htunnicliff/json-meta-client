@@ -2,5 +2,13 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "ignorePatterns": [],
   "sortPackageJson": true,
-  "sortImports": true
+  "sortImports": true,
+  "overrides": [
+    {
+      "files": ["README.md"],
+      "options": {
+        "printWidth": 60
+      }
+    }
+  ]
 }
