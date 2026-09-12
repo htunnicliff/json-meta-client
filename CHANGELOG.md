@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.3.2
+
+### Patch Changes
+
+- [`2d1dfa0`](https://github.com/htunnicliff/json-meta-client/commit/2d1dfa06794eac0f270a696192ce9dee94138597) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add license to npm files
+
 ## 0.3.1
 
 ### Patch Changes
