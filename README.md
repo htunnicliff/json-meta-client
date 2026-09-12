@@ -16,6 +16,7 @@ A [JMAP][jmap] client compatible with Node.js and the browser.
 
 #### Planned
 
+- [`RFC 9610`][rfc9610] - JMAP for Contacts
 - [`RFC 9749`][rfc9749] - VAPID for JMAP Push
 - [`RFC 9670`][rfc9670] - JMAP Sharing
 - [`RFC 8887`][rfc8887] - JMAP Subprotocol for WebSocket
@@ -192,6 +193,7 @@ The following capabilities are built-in and come with full TypeScript support:
 [rfc9219]: https://jmap.io/spec/rfc9219/
 [rfc9404]: https://jmap.io/spec/rfc9404/
 [rfc9425]: https://jmap.io/spec/rfc9425/
+[rfc9610]: https://jmap.io/spec/rfc9610/
 [rfc9661]: https://jmap.io/spec/rfc9661/
 [rfc9670]: https://jmap.io/spec/rfc9670/
 [rfc9749]: https://jmap.io/spec/rfc9749/
