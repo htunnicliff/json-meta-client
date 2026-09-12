@@ -6,7 +6,9 @@
     "suspicious": "error",
     "perf": "error"
   },
-  "rules": {},
+  "rules": {
+    "no-shadow": "off"
+  },
   "env": {
     "builtin": true
   },
