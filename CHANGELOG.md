@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.3.3
+
+### Patch Changes
+
+- [#6](https://github.com/htunnicliff/json-meta-client/pull/6) [`83792b0`](https://github.com/htunnicliff/json-meta-client/commit/83792b012b9969236e0a4d532bcd2bbec2f0d932) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Mark the package as side-effect free so bundlers can safely tree-shake unused exports.
+
 ## 0.3.2
 
 ### Patch Changes
