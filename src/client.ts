@@ -1,4 +1,4 @@
-import type { Request as JmapRequest, Response as JmapResponse, Session } from "jmap-rfc-types";
+import type { JMAPRequest, JMAPResponse, Session } from "jmap-rfc-types";
 import type { UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
@@ -87,12 +87,12 @@ export class Client<
         );
         capabilityUrns.add(core.urn);
 
-        const request: JmapRequest = {
+        const request: JMAPRequest = {
           using: [...capabilityUrns],
           methodCalls: methodCalls.map((c) => c.toInvocation()),
         };
 
-        const response = await this.#fetchJson<JmapResponse>(
+        const response = await this.#fetchJson<JMAPResponse>(
           (await this.session).apiUrl,
           JSON.stringify(request),
         );
@@ -138,14 +138,14 @@ export class Client<
     return this.#sessionPromise ?? this.refreshSession();
   }
 
-  refreshSession(): Promise<Session> {
+  refreshSession = (): Promise<Session> => {
     this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
       this.#session = result;
       return result;
     });
 
     return this.#sessionPromise;
-  }
+  };
 
   #fetchJson = async <T>(url: string | URL, body: string | null = null): Promise<T> => {
     const response = await fetch(url, {
