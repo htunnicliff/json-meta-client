@@ -1,0 +1,3 @@
+# Configure one shared WebSocket transport
+
+`client.api` will use a transport selected when the client is configured, with HTTP remaining the default. Explicitly selecting WebSocket will fail if the Session does not advertise a valid RFC 8887 capability rather than silently falling back to HTTP. When WebSocket is selected, one lazily opened connection will multiplex API traffic and push notifications; callers may also open it early or close it explicitly. This preserves the existing API surface and behavior while avoiding separate request and push connections, at the cost of coupling both features to one connection lifecycle.
