@@ -3,40 +3,36 @@ import type { MethodCall } from "./internal/method-calls.ts";
 import type { AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
 import type { UnpackRefs } from "./ref.ts";
 
+export interface MethodContract {
+  readonly input: unknown;
+  readonly output: unknown;
+}
+
+export type Apply<Contract extends MethodContract, Input> = (Contract & {
+  readonly input: Input;
+})["output"];
+
 /**
  * The primary type used to define JMAP calls for
  * one or more entities.
- *
- * @example
- * ```ts
- * type Methods = {
- *   Email: {
- *       get: <A>(args: A) => SomeResult<A>;
- *       query: <A>(args: A) => SomeOtherResult<A>;
- *   };
- *   Thread: {};
- *   Mailbox: {};
- *   SearchSnippet: {};
- * };
- * ```
  */
 export type CapabilityMethods<Entity extends string> = {
   [key in Entity]: {
-    [method: string]: (arg: any) => any;
+    [method: string]: MethodContract;
   };
 };
 
 export type Augment<T extends CapabilityMethods<string>> = {
   [Entity in keyof T]: {
-    [Method in keyof T[Entity]]: T[Entity][Method] extends (
-      arg: infer OriginalArgs,
-    ) => infer OriginalReturn
-      ? <WrappedArgs extends OptionalAccountId<AllowRefsInArgs<OriginalArgs>>>(
-          arg: WrappedArgs,
-        ) => BatchResult<MethodCall<UnpackRefs<WrappedArgs>>, OriginalReturn>
-      : never;
+    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method]>;
   };
 };
+
+type AugmentMethod<Contract extends MethodContract> = <
+  const Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
+>(
+  args: Args,
+) => BatchResult<MethodCall<UnpackRefs<Args>>, Apply<Contract, UnpackRefs<Args>>>;
 
 /**
  * A partially-configured capability that supports using
