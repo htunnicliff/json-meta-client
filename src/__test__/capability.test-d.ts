@@ -1,6 +1,7 @@
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import type {
+  Apply,
   Capability,
   CapabilityMethods,
   ConfigurableCapability,
@@ -27,17 +28,28 @@ describe("Capability", () => {
       expectTypeOf(cap.withMethods()).toEqualTypeOf<Expected>();
     });
 
-    it("enforces only one parameter in method arguments", () => {
+    it("enforces MethodContract adherence", () => {
+      interface StillValid {
+        input: Array<unknown>;
+        output: this["input"];
+      }
+
       // Valid
       assertType(
         cap.withMethods<{
           Email: {
-            valid: (arg: string) => boolean;
-            alsoValid: (arg: any) => boolean;
-            stillValid: <A extends Array<unknown>>(arg: A) => A;
+            valid: {
+              input: string;
+              output: boolean;
+            };
+            alsoValid: {
+              input: any;
+              output: boolean;
+            };
+            stillValid: StillValid;
           };
           Mailbox: {
-            moreValid: <A>(arg: A) => A;
+            // ...
           };
         }>(),
       );
@@ -50,28 +62,72 @@ describe("InferMethodsFromCapability", () => {
     type Input = InferMethodsFromCapability<typeof cap>;
     type Expected = {
       Email: {
-        [method: string]: (arg: any) => any;
+        [method: string]: {
+          input: unknown;
+          output: unknown;
+        };
       };
       Mailbox: {
-        [method: string]: (arg: any) => any;
+        [method: string]: {
+          input: unknown;
+          output: unknown;
+        };
       };
     };
     expectTypeOf<Input>().toEqualTypeOf<Expected>();
   });
 
   it("infers correct methods from a configured capability", () => {
+    type ContractInput = Record<string, unknown>;
+    type ContractOutput<A extends ContractInput> = A & string;
+    interface Contract {
+      input: ContractInput;
+      output: ContractOutput<this["input"]>;
+    }
+
     type Methods = {
       Email: {
-        get: (something: string) => boolean;
+        get: {
+          input: string;
+          output: boolean;
+        };
       };
       Mailbox: {
-        another: <A extends Record<string, unknown>>(args: A) => A & string;
+        another: Contract;
       };
     };
 
     const configured = cap.withMethods<Methods>();
+
     type Input = InferMethodsFromCapability<typeof configured>;
 
     expectTypeOf<Input>().toEqualTypeOf<Methods>();
+  });
+});
+
+describe("Apply<Contract, Input>", () => {
+  it("replaces initial input with given input", () => {
+    type Input = { foo: boolean; bar: string[] };
+    type Output<A> = { fizz: A[] };
+
+    interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+
+    expectTypeOf<
+      Apply<
+        Contract,
+        {
+          foo: true;
+          bar: ["stuff"];
+        }
+      >
+    >().toExtend<{
+      fizz: {
+        foo: true;
+        bar: ["stuff"];
+      }[];
+    }>();
   });
 });

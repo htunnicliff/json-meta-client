@@ -6,7 +6,6 @@ export default defineConfig({
     environment: "node",
     typecheck: {
       enabled: true,
-      ignoreSourceErrors: true,
       tsconfig: "./tsconfig.typecheck.json",
     },
   },

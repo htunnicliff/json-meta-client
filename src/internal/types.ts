@@ -1,10 +1,14 @@
 // oxlint-disable no-inline-comments
-import type { JsonValue, Paths, Replace, SetOptional } from "type-fest";
+import type { JsonValue, Paths, Replace, SetOptional, SetRequired } from "type-fest";
 
 import type { AllowRefs } from "../ref.ts";
 
 export type OptionalAccountId<Args> = Args extends { accountId: unknown }
   ? SetOptional<Args, "accountId">
+  : Args;
+
+export type AddBackAccountId<Args> = Args extends { accountId?: unknown }
+  ? SetRequired<Args, "accountId">
   : Args;
 
 /** Allow a result reference in place of any argument value (including nested). */

@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       jmap-rfc-types:
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: https://pkg.pr.new/jmap-rfc-types@83156ee
+        version: https://pkg.pr.new/jmap-rfc-types@83156ee
       type-fest:
         specifier: ^5.8.0
         version: 5.8.0
@@ -1321,8 +1321,9 @@ packages:
   jju@1.4.0:
     resolution: {integrity: sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA==}
 
-  jmap-rfc-types@0.4.0:
-    resolution: {integrity: sha512-dIc3b70ua1JKG41kxhllRJi1yDvkerZf6xW31YQBkkPEBMP/N6opyEz47OjU20+4Ar1FOfyqIPg1xm2mK6P5Tg==}
+  jmap-rfc-types@https://pkg.pr.new/jmap-rfc-types@83156ee:
+    resolution: {integrity: sha512-ZEPdvjSzynW3lw3kafjvSYwtyfIQOMKrdSwajrF+IyX8WgEM50CRl+FmvO28rkUv8BmUudQxnJnTLZXk2zLFhw==, tarball: https://pkg.pr.new/jmap-rfc-types@83156ee}
+    version: 0.0.0-preview-83156ee
 
   json-stringify-safe@5.0.1:
     resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
@@ -2777,7 +2778,7 @@ snapshots:
 
   jju@1.4.0: {}
 
-  jmap-rfc-types@0.4.0:
+  jmap-rfc-types@https://pkg.pr.new/jmap-rfc-types@83156ee:
     dependencies:
       type-fest: 5.8.0
 

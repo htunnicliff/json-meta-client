@@ -1,4 +1,4 @@
-import type { JMAPRequest, JMAPResponse, Session } from "jmap-rfc-types";
+import type { Request as JMAPRequest, Response as JMAPResponse, Session } from "jmap-rfc-types";
 import type { UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";

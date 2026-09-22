@@ -295,7 +295,10 @@ describe("Client", () => {
         entities: ["Example"],
       }).withMethods<{
         Example: {
-          get: (args: { value: string }) => { value: string };
+          get: {
+            input: { value: string };
+            output: { value: string };
+          };
         };
       }>();
 

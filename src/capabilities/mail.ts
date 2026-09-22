@@ -12,27 +12,27 @@ export const mail = defineCapability({
   entities: ["Mailbox", "Thread", "Email", "SearchSnippet"],
 }).withMethods<{
   Mailbox: {
-    get: MailboxContracts.Get.Method;
-    set: MailboxContracts.Set.Method;
-    changes: MailboxContracts.Changes.Method;
-    query: MailboxContracts.Query.Method;
-    queryChanges: MailboxContracts.QueryChanges.Method;
+    get: MailboxContracts.Get.Contract;
+    set: MailboxContracts.Set.Contract;
+    changes: MailboxContracts.Changes.Contract;
+    query: MailboxContracts.Query.Contract;
+    queryChanges: MailboxContracts.QueryChanges.Contract;
   };
   Thread: {
-    get: ThreadContracts.Get.Method;
-    changes: ThreadContracts.Changes.Method;
+    get: ThreadContracts.Get.Contract;
+    changes: ThreadContracts.Changes.Contract;
   };
   Email: {
-    get: EmailContracts.Get.Method;
-    changes: EmailContracts.Changes.Method;
-    query: EmailContracts.Query.Method;
-    queryChanges: EmailContracts.QueryChanges.Method;
-    set: EmailContracts.Set.Method;
-    copy: EmailContracts.Copy.Method;
-    import: EmailContracts.Import.Method;
-    parse: EmailContracts.Parse.Method;
+    get: EmailContracts.Get.Contract;
+    changes: EmailContracts.Changes.Contract;
+    query: EmailContracts.Query.Contract;
+    queryChanges: EmailContracts.QueryChanges.Contract;
+    set: EmailContracts.Set.Contract;
+    copy: EmailContracts.Copy.Contract;
+    import: EmailContracts.Import.Contract;
+    parse: EmailContracts.Parse.Contract;
   };
   SearchSnippet: {
-    get: SearchSnippetContracts.Get.Method;
+    get: SearchSnippetContracts.Get.Contract;
   };
 }>();

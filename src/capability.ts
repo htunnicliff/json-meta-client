@@ -1,15 +1,15 @@
 import type { BatchResult } from "./internal/batcher.ts";
 import type { MethodCall } from "./internal/method-calls.ts";
-import type { AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
+import type { AddBackAccountId, AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
 import type { UnpackRefs } from "./ref.ts";
 
 export interface MethodContract {
-  readonly input: unknown;
-  readonly output: unknown;
+  input: unknown;
+  output: unknown;
 }
 
 export type Apply<Contract extends MethodContract, Input> = (Contract & {
-  readonly input: Input;
+  input: Input;
 })["output"];
 
 /**
@@ -29,10 +29,11 @@ export type Augment<T extends CapabilityMethods<string>> = {
 };
 
 type AugmentMethod<Contract extends MethodContract> = <
-  const Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
+  Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
+  RealArgs extends AddBackAccountId<UnpackRefs<Args>>,
 >(
   args: Args,
-) => BatchResult<MethodCall<UnpackRefs<Args>>, Apply<Contract, UnpackRefs<Args>>>;
+) => BatchResult<MethodCall<RealArgs>, Apply<Contract, RealArgs>>;
 
 /**
  * A partially-configured capability that supports using
