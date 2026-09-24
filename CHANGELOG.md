@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.4.0
+
+### Minor Changes
+
+- [#8](https://github.com/htunnicliff/json-meta-client/pull/8) [`8b52bea`](https://github.com/htunnicliff/json-meta-client/commit/8b52beaaceec33cdac834049e40c0fd13d76cb8b) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Adopt improved contract types and fix broken `{Entity}/get` properties filtering.
+
 ## 0.3.3
 
 ### Patch Changes
