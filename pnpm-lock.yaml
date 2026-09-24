@@ -16,7 +16,7 @@ importers:
         version: 5.8.0
     devDependencies:
       '@arethetypeswrong/core':
-        specifier: ^0.18.5
+        specifier: 0.18.5
         version: 0.18.5
       '@changesets/changelog-github':
         specifier: 1.0.1
@@ -31,10 +31,10 @@ importers:
         specifier: 10.0.1
         version: 10.0.1
       husky:
-        specifier: ^9.1.7
+        specifier: 9.1.7
         version: 9.1.7
       nock:
-        specifier: ^14.0.17
+        specifier: 14.0.17
         version: 14.0.17
       oxfmt:
         specifier: 0.58.0
@@ -49,7 +49,7 @@ importers:
         specifier: 0.0.88
         version: 0.0.88
       publint:
-        specifier: ^0.3.24
+        specifier: 0.3.24
         version: 0.3.24
       tsdown:
         specifier: 0.22.7
