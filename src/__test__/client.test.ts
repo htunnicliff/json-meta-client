@@ -307,7 +307,7 @@ describe("Client", () => {
         };
       }>();
 
-      client = new Client({
+      const client = new Client({
         capabilities: [example],
         sessionUrl,
         bearerToken,

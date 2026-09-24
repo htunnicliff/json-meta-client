@@ -1,4 +1,6 @@
+// oxlint-disable typescript/no-unnecessary-type-arguments
 import type {
+  CoreContracts,
   Email,
   EmailAddress,
   GetArguments,
@@ -7,13 +9,14 @@ import type {
   Mailbox,
   MailboxRole,
 } from "jmap-rfc-types";
-import { describe, expectTypeOf, it } from "vitest";
+import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import { defineCapability } from "../capability.ts";
+import { defineCapability, type AugmentMethod, type MethodContract } from "../capability.ts";
 import { Client } from "../client.ts";
 import type { BatchResult } from "../internal/batcher.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
-import type { AllowRefs } from "../ref.ts";
+import type { AllowRefsInArgs } from "../internal/types.ts";
+import { ref, type AllowRefs, type Ref } from "../ref.ts";
 
 const host = "https://example.test";
 const bearerToken = "<opaque-token>";
@@ -176,6 +179,81 @@ describe("Client", () => {
           list: readonly Example[];
           notFound: ReadonlyArray<ID>;
         }>();
+      });
+    });
+
+    describe("when using a custom capability lacking withMethod types", () => {
+      const untyped = defineCapability({
+        urn: "some:special:urn",
+        entities: ["Something", "AnotherThing"],
+      });
+
+      const client = new Client({
+        sessionUrl,
+        bearerToken,
+        capabilities: [untyped],
+      });
+
+      it("still has built-ins", () => {
+        expectTypeOf(client.api).toHaveProperty("Email");
+        expectTypeOf(client.api).toHaveProperty("Core");
+        expectTypeOf(client.api).toHaveProperty("Blob");
+        expectTypeOf(client.api).toHaveProperty("VacationResponse");
+      });
+
+      it("allows any string for entity methods", async () => {
+        // Has entity types
+        expectTypeOf(client.api).toHaveProperty("Something");
+        expectTypeOf(client.api).toHaveProperty("AnotherThing");
+
+        // Allows any string for method calls
+        expectTypeOf(client.api.Something).toEqualTypeOf<{
+          [x: string]: AugmentMethod<MethodContract>;
+        }>();
+        expectTypeOf(client.api.AnotherThing).toEqualTypeOf<{
+          [x: string]: AugmentMethod<MethodContract>;
+        }>();
+      });
+
+      it("has `Augmented<MethodContract>` for all arbitrary methods", async () => {
+        // The `undefined` union value is only true when `noUncheckedIndexedAccess` is enabled
+        expectTypeOf(client.api.Something.someRandomMethod).toEqualTypeOf<
+          AugmentMethod<MethodContract> | undefined
+        >();
+        expectTypeOf(client.api.AnotherThing.anotherMethod).toEqualTypeOf<
+          AugmentMethod<MethodContract> | undefined
+        >();
+
+        // Sanity check against a built-in
+        expectTypeOf(client.api.Core.get).toEqualTypeOf<
+          AugmentMethod<CoreContracts.Get.Contract>
+        >();
+
+        // Args are unknown
+        type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>;
+        expectTypeOf<Args>().toEqualTypeOf<[args: AllowRefsInArgs<unknown>]>();
+        expectTypeOf<Args>().toExtend<[object]>();
+        expectTypeOf<Args>().toExtend<[{}]>();
+
+        // Uses unknown BatchResult type
+        const pending = client.api.Something.aRandomMethod!({
+          madeUp: "argument",
+          stuff: ["<foo-id>"],
+        });
+        expectTypeOf(pending).toEqualTypeOf<
+          BatchResult<MethodCall<{ madeUp: string; stuff: string[] }>, unknown>
+        >();
+
+        // Supports refs with arbitrary pointers
+        expectTypeOf(ref(pending, "/stuff")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(ref(pending, "/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
+
+        // @ts-expect-error - "/${string}" is required
+        assertType(ref(pending, "invalid"));
+
+        // Result is unknown
+        const result = await pending;
+        expectTypeOf(result).toBeUnknown();
       });
     });
   });

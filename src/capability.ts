@@ -28,7 +28,8 @@ export type Augment<T extends CapabilityMethods<string>> = {
   };
 };
 
-type AugmentMethod<Contract extends MethodContract> = <
+/** @internal */
+export type AugmentMethod<Contract extends MethodContract> = <
   Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
   RealArgs extends AddBackAccountId<UnpackRefs<Args>>,
 >(

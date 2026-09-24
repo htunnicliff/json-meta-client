@@ -1,5 +1,5 @@
 // oxlint-disable no-inline-comments
-import type { JsonValue, Paths, Replace, SetOptional, SetRequired } from "type-fest";
+import type { IsUnknown, JsonValue, Paths, Replace, SetOptional, SetRequired } from "type-fest";
 
 import type { AllowRefs } from "../ref.ts";
 
@@ -24,7 +24,8 @@ export type AllowRefsInArgs<Args> = {
  - Array wildcard: /list/<star>/name maps through every element, collecting results into an array (per RFC 8620 §3.7)
  Returns never for invalid paths (e.g., applying a wildcard to a non-array).
 */
-export type ExtractByPointer<T, Pointer extends string> = _EBS<Pointer, T>;
+export type ExtractByPointer<T, Pointer extends string> =
+  IsUnknown<T> extends true ? unknown : _EBS<Pointer, T>;
 
 /** Strip leading slash then dispatch to recursive handler */
 type _EBS<P extends string, T> = P extends `/${infer Rest}` ? _EBR<T, Rest> : never;

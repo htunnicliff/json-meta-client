@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineCapability } from "../capability";
+import { defineCapability } from "../capability.ts";
 
 const cap = defineCapability({
   urn: "urn:ietf:params:jmap:mail",
