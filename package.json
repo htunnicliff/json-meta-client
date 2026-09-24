@@ -38,7 +38,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "jmap-rfc-types": "https://pkg.pr.new/jmap-rfc-types@3dda858",
+    "jmap-rfc-types": "^0.5.0",
     "type-fest": "^5.8.0"
   },
   "devDependencies": {
