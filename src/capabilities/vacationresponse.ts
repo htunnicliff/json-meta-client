@@ -7,7 +7,7 @@ export const vacationresponse = defineCapability({
   entities: ["VacationResponse"],
 }).withMethods<{
   VacationResponse: {
-    get: VacationResponseContracts.Get.Method;
-    set: VacationResponseContracts.Set.Method;
+    get: VacationResponseContracts.Get.Contract;
+    set: VacationResponseContracts.Set.Contract;
   };
 }>();

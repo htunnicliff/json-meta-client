@@ -1,5 +1,5 @@
-import type { ResultReference } from "jmap-rfc-types";
-import type { Primitive } from "type-fest";
+import type { ExtendedJSONPointer, ResultReference } from "jmap-rfc-types";
+import type { IsUnknown, Primitive } from "type-fest";
 
 import type { BatchResult } from "./internal/batcher.ts";
 import type { MethodCall } from "./internal/method-calls.ts";
@@ -49,7 +49,10 @@ export type UnpackRefs<T> =
             ? { [K in keyof T]: UnpackRefs<T[K]> }
             : T;
 
-export function ref<Output, const Pointer extends PointerPaths<Output>>(
+export function ref<
+  Output,
+  const Pointer extends IsUnknown<Output> extends true ? ExtendedJSONPointer : PointerPaths<Output>,
+>(
   methodCall: BatchResult<MethodCall<unknown>, Output>,
   pointer: Pointer,
 ): Ref<ExtractByPointer<Output, Pointer>> {

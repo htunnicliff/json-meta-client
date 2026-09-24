@@ -11,13 +11,13 @@ export const core = defineCapability({
   entities: ["Core", "Blob", "PushSubscription"],
 }).withMethods<{
   Core: {
-    get: CoreContracts.Get.Method;
+    get: CoreContracts.Get.Contract;
   };
   Blob: {
-    copy: BlobContracts.Copy.Method;
+    copy: BlobContracts.Copy.Contract;
   };
   PushSubscription: {
-    get: PushSubscriptionContracts.Get.Method;
-    set: PushSubscriptionContracts.Set.Method;
+    get: PushSubscriptionContracts.Get.Contract;
+    set: PushSubscriptionContracts.Set.Contract;
   };
 }>();

@@ -7,15 +7,15 @@ export const submission = defineCapability({
   entities: ["Identity", "EmailSubmission"],
 }).withMethods<{
   Identity: {
-    get: IdentityContracts.Get.Method;
-    set: IdentityContracts.Set.Method;
-    changes: IdentityContracts.Changes.Method;
+    get: IdentityContracts.Get.Contract;
+    set: IdentityContracts.Set.Contract;
+    changes: IdentityContracts.Changes.Contract;
   };
   EmailSubmission: {
-    get: EmailSubmissionContracts.Get.Method;
-    set: EmailSubmissionContracts.Set.Method;
-    query: EmailSubmissionContracts.Query.Method;
-    queryChanges: EmailSubmissionContracts.QueryChanges.Method;
-    changes: EmailSubmissionContracts.Changes.Method;
+    get: EmailSubmissionContracts.Get.Contract;
+    set: EmailSubmissionContracts.Set.Contract;
+    query: EmailSubmissionContracts.Query.Contract;
+    queryChanges: EmailSubmissionContracts.QueryChanges.Contract;
+    changes: EmailSubmissionContracts.Changes.Contract;
   };
 }>();
