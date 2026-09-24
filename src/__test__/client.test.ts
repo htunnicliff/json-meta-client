@@ -1,11 +1,16 @@
-import { JMAPRequest, JMAPResponse, ProblemDetails, Session } from "jmap-rfc-types";
-import nock, { Scope } from "nock";
+import type {
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  ProblemDetails,
+  Session,
+} from "jmap-rfc-types";
+import nock, { type Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineCapability } from "../capability.ts";
 import { Client } from "../client.ts";
 import { JmapError } from "../error.ts";
-import { Middleware } from "../internal/types.ts";
+import type { Middleware } from "../internal/types.ts";
 import { ref } from "../ref.ts";
 
 // ------ Fixtures ----------------------------------------
