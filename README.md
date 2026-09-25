@@ -7,25 +7,6 @@
 
 A [JMAP][jmap] client compatible with Node.js and the browser.
 
-### Standards
-
-#### Implemented
-
-- [`RFC 8620`][rfc8620] - JMAP
-- [`RFC 8621`][rfc8621] - JMAP for Mail
-
-#### Planned
-
-- [`RFC 9610`][rfc9610] - JMAP for Contacts
-- [`RFC 9749`][rfc9749] - VAPID for JMAP Push
-- [`RFC 9670`][rfc9670] - JMAP Sharing
-- [`RFC 8887`][rfc8887] - JMAP Subprotocol for WebSocket
-- [`RFC 9425`][rfc9425] - JMAP Quotas
-- [`RFC 9404`][rfc9404] - JMAP Blob Management
-- [`RFC 9661`][rfc9661] - JMAP Sieve Scripts Management
-- [`RFC 9007`][rfc9007] - JMAP MDN Handling
-- [`RFC 9219`][rfc9219] - JMAP S/MIME Signature Verification
-
 ## Installation
 
 ```sh
