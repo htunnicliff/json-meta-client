@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.6.0
+
+### Minor Changes
+
+- [`64e2884`](https://github.com/htunnicliff/json-meta-client/commit/64e28841e439104f32c9eb93ed549d2bb862a893) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added any-typed contacts capability
+
 ## 0.5.0
 
 ### Minor Changes
