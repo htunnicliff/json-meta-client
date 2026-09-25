@@ -13,3 +13,4 @@ words:
   - vacationresponse
 ignorePaths:
   - pnpm-lock.yaml
+  - dist/
