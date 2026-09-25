@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.6.1
+
+### Patch Changes
+
+- [`06ada60`](https://github.com/htunnicliff/json-meta-client/commit/06ada602f2d35f016b3731d075f0f6c500583fda) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Simplify README formatting
+
 ## 0.6.0
 
 ### Minor Changes
