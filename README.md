@@ -26,18 +26,7 @@ const client = new Client({
 });
 ```
 
-Issue a single JMAP request:
-
-<table>
-<thead>
-<tr>
-  <th>Code</th>
-  <th>Resulting JMAP Request</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
+#### Issue a single JMAP request
 
 ```ts
 const response = await client.api.Mailbox.query({
@@ -48,8 +37,8 @@ const response = await client.api.Mailbox.query({
 const [inboxId] = response.ids;
 ```
 
-</td>
-<td>
+<details>
+<summary>View JMAP request</summary>
 
 ```json
 {
@@ -71,23 +60,11 @@ const [inboxId] = response.ids;
 }
 ```
 
-</td>
-</tr>
-</tbody>
-</table>
+</details>
 
-Issue a _batch_ of JMAP requests to take advantage of result references[^1]:
+#### Issue a _batch_ of JMAP requests
 
-<table>
-<thead>
-<tr>
-  <th>Code</th>
-  <th>Resulting JMAP Request</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
+This takes advantage of result references[^1]
 
 ```ts
 import { ref } from "json-meta-client";
@@ -103,8 +80,8 @@ const emails = await client.api.Email.get({
 });
 ```
 
-</td>
-<td>
+<details>
+<summary>View JMAP request</summary>
 
 ```json
 {
@@ -138,21 +115,7 @@ const emails = await client.api.Email.get({
 }
 ```
 
-</td>
-</tr>
-</tbody>
-</table>
-
-## Capabilities
-
-The following capabilities are built-in and come with full TypeScript support:
-
-| URN                                     | Entities                                      |
-| --------------------------------------- | --------------------------------------------- |
-| `urn:ietf:params:jmap:core`             | `Blob`, `Core`, `PushSubscription`            |
-| `urn:ietf:params:jmap:mail`             | `Email`, `Mailbox`, `Thread`, `SearchSnippet` |
-| `urn:ietf:params:jmap:submission`       | `EmailSubmission` ,`Identity`                 |
-| `urn:ietf:params:jmap:vacationresponse` | `VacationResponse`                            |
+</details>
 
 ## Architecture
 
