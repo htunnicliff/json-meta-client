@@ -41,6 +41,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "eventsource-client": "^1.2.0",
     "jmap-rfc-types": "^0.5.0",
     "type-fest": "^5.8.0"
   },

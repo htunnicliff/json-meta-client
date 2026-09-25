@@ -1,10 +1,13 @@
+// oxlint-disable typescript/no-unsafe-type-assertion
 import type {
   BlobDownloadParams,
   BlobUploadParams,
   BlobUploadResponse,
+  EventSourceArguments,
   Request as JMAPRequest,
   Response as JMAPResponse,
   Session,
+  StateChange,
 } from "jmap-rfc-types";
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
@@ -30,10 +33,13 @@ import type { Middleware } from "./internal/types.ts";
 
 const DEFAULT_CAPABILITIES = [core, mail, submission, vacationresponse];
 
-type BaseAPI =
-  typeof DEFAULT_CAPABILITIES extends ReadonlyArray<infer U>
-    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>>
-    : never;
+type DefaultCapabilities = typeof DEFAULT_CAPABILITIES extends ReadonlyArray<infer U> ? U : never;
+
+type DefaultCapabilityMethods = UnionToIntersection<
+  InferMethodsFromCapability<DefaultCapabilities>
+>;
+
+type BaseAPI = Augment<DefaultCapabilityMethods>;
 
 export interface Config<
   C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>> = [],
@@ -209,4 +215,68 @@ export class Client<
       return response;
     },
   };
+
+  onStateChange = async (
+    handler: (change: StateChangePayload) => void,
+    { pingSeconds = 30, signal }: OnStateChangeOptions = {},
+  ) => {
+    const session = await this.session;
+    const primaryAccountId = session.primaryAccounts[mail.urn]!;
+    const url = expandURITemplate(session.eventSourceUrl, {
+      types: "*",
+      // spellchecker:disable-next-line
+      closeafter: "no",
+      ping: pingSeconds.toFixed(0),
+    } satisfies EventSourceArguments);
+    const { createEventSource } = await import("eventsource-client");
+    const eventSource = createEventSource({
+      url,
+      headers: {
+        authorization: `Bearer ${this.#config.bearerToken}`,
+      },
+      onMessage: (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload["@type"] !== "StateChange") {
+            return;
+          }
+          const { changed } = payload as StateChange;
+          for (const [accountId, changes] of Object.entries(changed)) {
+            for (const [entity, state] of Object.entries(changes)) {
+              handler({
+                entity,
+                state,
+                accountId,
+                isPrimaryAccount: accountId === primaryAccountId,
+              });
+            }
+          }
+        } catch {
+          //
+        }
+      },
+    });
+    signal?.addEventListener("abort", () => eventSource.close());
+    return {
+      [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
+    };
+  };
 }
+
+export type StateChangePayload = {
+  /** The account that the change occurred in  */
+  accountId: string;
+  /** Whether the account ID is that of the primary account */
+  isPrimaryAccount: boolean;
+  /** The type of entity that saw a change */
+  entity: string;
+  /** An opaque string that can be passed to `{Entity}/queryChanges`  */
+  state: string;
+};
+
+export type OnStateChangeOptions = {
+  /** An abort signal that can terminate the event source */
+  signal?: AbortSignal;
+  /** An interval in seconds to request that the server send pings */
+  pingSeconds?: number;
+};

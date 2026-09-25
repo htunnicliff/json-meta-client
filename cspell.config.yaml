@@ -11,6 +11,7 @@ words:
   - htunnicliff
   - unstub
   - vacationresponse
+  - eventsource
 ignorePaths:
   - pnpm-lock.yaml
   - dist/
