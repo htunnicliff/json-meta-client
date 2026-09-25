@@ -1,4 +1,5 @@
 import type {
+  BlobUploadResponse,
   Request as JMAPRequest,
   Response as JMAPResponse,
   ProblemDetails,
@@ -22,6 +23,8 @@ const sessionUrlPath = new URL(sessionUrl).pathname;
 const accountId = "<primary-account-id>";
 const apiUrl = `${host}/special-jmap-api`;
 const apiUrlPath = new URL(apiUrl).pathname;
+const uploadUrl = `${host}/upload/{accountId}`;
+const downloadUrl = `${host}/download/{accountId}/{blobId}?type={type}&name={name}`;
 const sessionState = "<opaque-session-state>";
 
 const DEFAULT_SESSION = {
@@ -29,6 +32,8 @@ const DEFAULT_SESSION = {
   primaryAccounts: {
     "urn:ietf:params:jmap:mail": accountId,
   },
+  uploadUrl,
+  downloadUrl,
 } satisfies Partial<Session>;
 
 // ------ Mocking Utils -----------------------------------
@@ -354,6 +359,57 @@ describe("Client", () => {
       expect(mockMiddleware).toHaveReturnedWith({ foo: true });
 
       expect(apiScope.isDone()).toBe(true);
+    });
+  });
+
+  describe("blob.upload", () => {
+    it("posts body to correct url", async () => {
+      const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
+
+      const providedResponse: BlobUploadResponse = {
+        accountId,
+        blobId: crypto.randomUUID(),
+        size: blob.size,
+        type: blob.type,
+      };
+
+      const scope = nock(host)
+        .post(`/upload/${encodeURIComponent(accountId)}`)
+        .reply(200, providedResponse);
+
+      const response = await client.blob.upload(blob, { accountId });
+
+      expect(response).toStrictEqual(providedResponse);
+
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  describe("blob.download", () => {
+    it("issues get request to correct url", async () => {
+      const blobId = crypto.randomUUID();
+      const name = "Some $up3r@ special name!";
+
+      const scope = nock(host)
+        .get(
+          `/download/${encodeURIComponent(accountId)}/${encodeURIComponent(blobId)}?type=${encodeURIComponent("application/json")}&name=${encodeURIComponent(name)}`,
+        )
+        .reply(200, {
+          a: ["very", "special", "blob"],
+        });
+
+      const response = await client.blob.download({
+        blobId,
+        name,
+        type: "application/json",
+        accountId,
+      });
+
+      await expect(response.json()).resolves.toStrictEqual({
+        a: ["very", "special", "blob"],
+      });
+
+      expect(scope.isDone()).toBe(true);
     });
   });
 });

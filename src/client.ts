@@ -1,5 +1,12 @@
-import type { Request as JMAPRequest, Response as JMAPResponse, Session } from "jmap-rfc-types";
-import type { UnionToIntersection } from "type-fest";
+import type {
+  BlobDownloadParams,
+  BlobUploadParams,
+  BlobUploadResponse,
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  Session,
+} from "jmap-rfc-types";
+import type { SetOptional, UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
 import { core } from "./capabilities/core.ts";
@@ -14,6 +21,7 @@ import type {
 } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { Batcher } from "./internal/batcher.ts";
+import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
@@ -147,7 +155,7 @@ export class Client<
     return this.#sessionPromise;
   };
 
-  #fetchJson = async <T>(url: string | URL, body: string | null = null): Promise<T> => {
+  #fetchJson = async <T>(url: string | URL, body: BodyInit | null = null): Promise<T> => {
     const response = await fetch(url, {
       method: body === null ? "GET" : "POST",
       headers: {
@@ -167,5 +175,38 @@ export class Client<
     }
 
     return payload;
+  };
+
+  blob = {
+    upload: async (
+      body: BodyInit,
+      params: SetOptional<BlobUploadParams, "accountId"> = {},
+    ): Promise<BlobUploadResponse> => {
+      const session = await this.session;
+      const url = expandURITemplate(session.uploadUrl, {
+        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
+      });
+      const data = await this.#fetchJson<BlobUploadResponse>(url, body);
+      return data;
+    },
+    download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
+      const session = await this.session;
+      const url = expandURITemplate(session.downloadUrl, {
+        ...params,
+        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
+      });
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          authorization: `Bearer ${this.#config.bearerToken}`,
+        },
+      });
+      if (!response.ok) {
+        const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
+        const cause = await (isJsonResponse ? response.json() : response.text());
+        throw new Error(`Download request failed (${response.status})`, { cause });
+      }
+      return response;
+    },
   };
 }
