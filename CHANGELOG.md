@@ -1,5 +1,13 @@
 # json-meta-client
 
+## 0.5.0
+
+### Minor Changes
+
+- [`28cce18`](https://github.com/htunnicliff/json-meta-client/commit/28cce18bbf95063a66190870256be4dff63a06be) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added onStateChange event source handling
+
+- [`28a0d27`](https://github.com/htunnicliff/json-meta-client/commit/28a0d2791cc8b305990dd0d9b27d910014978535) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added API for blob uploads and downloads
+
 ## 0.4.0
 
 ### Minor Changes
