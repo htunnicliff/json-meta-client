@@ -12,6 +12,7 @@ import type {
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
+import { contacts } from "./capabilities/contacts.ts";
 import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import { submission } from "./capabilities/submission.ts";
@@ -31,7 +32,7 @@ import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
 
-const DEFAULT_CAPABILITIES = [core, mail, submission, vacationresponse];
+const DEFAULT_CAPABILITIES = [core, mail, submission, vacationresponse, contacts];
 
 type DefaultCapabilities = typeof DEFAULT_CAPABILITIES extends ReadonlyArray<infer U> ? U : never;
 
