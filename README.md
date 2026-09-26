@@ -15,16 +15,23 @@ pnpm add json-meta-client
 
 ## Usage
 
-Create a client:
+Create a client with the capabilities you plan to use:
 
 ```ts
 import { Client } from "json-meta-client";
+import { mail } from "json-meta-client/capabilities";
 
 const client = new Client({
   bearerToken: "<token>",
   sessionUrl: "<session-url>",
+  capabilities: [mail],
 });
 ```
+
+The built-in capabilities are `core`, `mail`, `submission`, `vacationresponse`, and `contacts`,
+available from `json-meta-client/capabilities`.
+Only the entities from the capabilities you pass are available on `client.api`.
+You can also pass capabilities created with `defineCapability`.
 
 #### Issue a single JMAP request
 

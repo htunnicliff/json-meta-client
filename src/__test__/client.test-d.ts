@@ -1,6 +1,5 @@
 // oxlint-disable typescript/no-unnecessary-type-arguments
 import type {
-  CoreContracts,
   Email,
   EmailAddress,
   GetArguments,
@@ -11,6 +10,7 @@ import type {
 } from "jmap-rfc-types";
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
+import { core, mail } from "../capabilities/index.ts";
 import { defineCapability, type AugmentMethod, type MethodContract } from "../capability.ts";
 import { Client } from "../client.ts";
 import type { BatchResult } from "../internal/batcher.ts";
@@ -25,10 +25,31 @@ const sessionUrl = `${host}/.well-known/jmap`;
 const client = new Client({
   bearerToken,
   sessionUrl,
+  capabilities: [core, mail],
 });
+
+// @ts-expect-error - capabilities must be provided
+const invalidClient = new Client({ bearerToken, sessionUrl });
+expectTypeOf(invalidClient).toBeObject();
 
 describe("Client", () => {
   describe("api", () => {
+    it("exposes selected built-ins and excludes unselected ones", () => {
+      expectTypeOf(client.api).toHaveProperty("Email");
+      expectTypeOf(client.api).toHaveProperty("Core");
+      expectTypeOf<
+        "VacationResponse" extends keyof typeof client.api ? true : false
+      >().toEqualTypeOf<false>();
+      expectTypeOf<
+        "ContactCard" extends keyof typeof client.api ? true : false
+      >().toEqualTypeOf<false>();
+    });
+
+    it("has no entity methods when capabilities is empty", () => {
+      const emptyClient = new Client({ bearerToken, sessionUrl, capabilities: [] });
+      expectTypeOf<keyof typeof emptyClient.api>().toEqualTypeOf<never>();
+    });
+
     it("filters entity properties in Email/get requests", async () => {
       const response = await client.api.Email.get({
         ids: ["<pretend-email-id>"],
@@ -108,11 +129,9 @@ describe("Client", () => {
         capabilities: [example],
       });
 
-      it("still has built-ins", () => {
-        expectTypeOf(client.api).toHaveProperty("Email");
-        expectTypeOf(client.api).toHaveProperty("Core");
-        expectTypeOf(client.api).toHaveProperty("Blob");
-        expectTypeOf(client.api).toHaveProperty("VacationResponse");
+      it("only exposes the selected capability", () => {
+        expectTypeOf(client.api).toHaveProperty("Example");
+        expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Example">();
       });
 
       it("respects accountId optionality", () => {
@@ -194,11 +213,8 @@ describe("Client", () => {
         capabilities: [untyped],
       });
 
-      it("still has built-ins", () => {
-        expectTypeOf(client.api).toHaveProperty("Email");
-        expectTypeOf(client.api).toHaveProperty("Core");
-        expectTypeOf(client.api).toHaveProperty("Blob");
-        expectTypeOf(client.api).toHaveProperty("VacationResponse");
+      it("only exposes the selected entities", () => {
+        expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Something" | "AnotherThing">();
       });
 
       it("allows any string for entity methods", async () => {
@@ -222,11 +238,6 @@ describe("Client", () => {
         >();
         expectTypeOf(client.api.AnotherThing.anotherMethod).toEqualTypeOf<
           AugmentMethod<MethodContract> | undefined
-        >();
-
-        // Sanity check against a built-in
-        expectTypeOf(client.api.Core.get).toEqualTypeOf<
-          AugmentMethod<CoreContracts.Get.Contract>
         >();
 
         // Args are unknown
