@@ -12,11 +12,8 @@ import type {
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
-import { contacts } from "./capabilities/contacts.ts";
 import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
-import { submission } from "./capabilities/submission.ts";
-import { vacationresponse } from "./capabilities/vacationresponse.ts";
 import type {
   Augment,
   Capability,
@@ -32,36 +29,29 @@ import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
 
-const DEFAULT_CAPABILITIES = [core, mail, submission, vacationresponse, contacts];
-
-type DefaultCapabilities = typeof DEFAULT_CAPABILITIES extends ReadonlyArray<infer U> ? U : never;
-
-type DefaultCapabilityMethods = UnionToIntersection<
-  InferMethodsFromCapability<DefaultCapabilities>
->;
-
-type BaseAPI = Augment<DefaultCapabilityMethods>;
+type ClientApi<C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>> = [
+  C[number],
+] extends [never]
+  ? object
+  : Augment<UnionToIntersection<InferMethodsFromCapability<C[number]>>>;
 
 export interface Config<
-  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>> = [],
+  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>> = ReadonlyArray<
+    Capability<string, CapabilityMethods<string>>
+  >,
 > {
   bearerToken: string;
   sessionUrl: string | URL;
-  capabilities?: C;
+  capabilities: C;
   middleware?: ReadonlyArray<Middleware>;
 }
 
-export class Client<
-  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>,
-  API extends C extends ReadonlyArray<infer U>
-    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>> & BaseAPI
-    : BaseAPI,
-> {
+export class Client<C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>> {
   readonly #config: Required<Config<C>>;
 
   readonly #entityToUrn: Record<string, string>;
 
-  readonly api: API;
+  readonly api: ClientApi<C>;
 
   #sessionPromise: Promise<Session> | undefined;
 
@@ -75,8 +65,7 @@ export class Client<
     this.#config = {
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
-      // @ts-expect-error - TODO: Fix this internal type
-      capabilities: [...DEFAULT_CAPABILITIES, ...(options.capabilities ?? [])],
+      capabilities: options.capabilities,
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -144,7 +133,7 @@ export class Client<
       }
     });
 
-    this.api = createApi<API>(batcher.enqueue, this.#config.middleware);
+    this.api = createApi<ClientApi<C>>(batcher.enqueue, this.#config.middleware);
 
     Object.freeze(this);
   }

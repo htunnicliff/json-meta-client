@@ -8,6 +8,7 @@ import type {
 import nock, { type Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
 import { Client } from "../client.ts";
 import { JmapError } from "../error.ts";
@@ -50,10 +51,10 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
 
 describe("Client", () => {
   let sessionScope: Scope;
-  let client = new Client({ sessionUrl, bearerToken });
+  let client = new Client({ sessionUrl, bearerToken, capabilities: [mail] });
 
   beforeEach(() => {
-    client = new Client({ sessionUrl, bearerToken });
+    client = new Client({ sessionUrl, bearerToken, capabilities: [mail] });
     sessionScope = mockSession();
   });
 
@@ -84,13 +85,17 @@ describe("Client", () => {
     });
 
     it("throws invalid session URLs", () => {
-      expect(() => new Client({ sessionUrl: "invalid-url", bearerToken })).toThrow(
-        "Invalid session URL",
-      );
+      expect(
+        () => new Client({ sessionUrl: "invalid-url", bearerToken, capabilities: [mail] }),
+      ).toThrow("Invalid session URL");
     });
 
     it("accepts URL instances as session URLs", async () => {
-      const client = new Client({ sessionUrl: new URL(sessionUrl), bearerToken });
+      const client = new Client({
+        sessionUrl: new URL(sessionUrl),
+        bearerToken,
+        capabilities: [mail],
+      });
       await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
       expect(sessionScope.isDone()).toBe(true);
     });
@@ -343,6 +348,7 @@ describe("Client", () => {
         middleware: [mockMiddleware],
         sessionUrl,
         bearerToken,
+        capabilities: [mail],
       });
       expect(mockMiddleware).not.toHaveBeenCalled();
       const query = client.api.Mailbox.query({ limit: 1 });
