@@ -29,6 +29,18 @@ const uploadUrl = `${host}/upload/{accountId}`;
 const downloadUrl = `${host}/download/{accountId}/{blobId}?type={type}&name={name}`;
 const sessionState = "<opaque-session-state>";
 
+const example = defineCapability({
+  urn: "urn:example:test",
+  entities: ["Example"],
+}).withMethods<{
+  Example: {
+    get: {
+      input: { value: string };
+      output: { value: string };
+    };
+  };
+}>();
+
 const DEFAULT_SESSION = {
   apiUrl,
   primaryAccounts: {
@@ -36,6 +48,11 @@ const DEFAULT_SESSION = {
   },
   uploadUrl,
   downloadUrl,
+  capabilities: {
+    [core.urn]: {},
+    [mail.urn]: {},
+    [example.urn]: {},
+  },
 } satisfies Partial<Session>;
 
 // ------ Mocking Utils -----------------------------------
@@ -319,18 +336,6 @@ describe("Client", () => {
     });
 
     it("adds custom capability URNs to requests", async () => {
-      const example = defineCapability({
-        urn: "urn:example:test",
-        entities: ["Example"],
-      }).withMethods<{
-        Example: {
-          get: {
-            input: { value: string };
-            output: { value: string };
-          };
-        };
-      }>();
-
       const client = new Client({
         capabilities: [example],
         sessionUrl,

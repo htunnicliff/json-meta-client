@@ -81,12 +81,29 @@ export class Client<
 
   refreshSession = (): Promise<Session> => {
     this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
+      const isFirstLoad = !this.#session;
       this.#session = result;
+      if (isFirstLoad) {
+        this.#validateSessionCapabilities(this.#session);
+      }
       return result;
     });
 
     return this.#sessionPromise;
   };
+
+  #validateSessionCapabilities(session: Session): void {
+    const configuredUrns = new Set(Object.values(this.#entityToUrn));
+    const availableUrns = new Set(Object.keys(session.capabilities));
+
+    const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
+    if (configuredButNotAvailable.length > 0) {
+      const error = new Error(
+        `json-meta-client was configured with capabilities that are NOT found in the current session: ${configuredButNotAvailable.join(", ")}`,
+      );
+      console.warn(error);
+    }
+  }
 
   static #validateOptions(options: Config<ReadonlyArray<Capability>>): void {
     // Bearer token
