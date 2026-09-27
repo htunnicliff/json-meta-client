@@ -101,7 +101,7 @@ describe("Client", () => {
             bearerToken,
             capabilities: [mail],
           }),
-      ).toThrow("Invalid session URL");
+      ).toThrow("`sessionUrl` must be a valid URL string or URL instance");
     });
 
     it("accepts URL instances as session URLs", async () => {

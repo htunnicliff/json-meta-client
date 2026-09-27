@@ -52,9 +52,7 @@ export class Client<
   #session: Session | undefined;
 
   constructor(options: Config<T>) {
-    if (!URL.canParse(options.sessionUrl)) {
-      throw new Error("Invalid session URL", { cause: options.sessionUrl });
-    }
+    Client.#validateOptions(options);
 
     this.#config = {
       bearerToken: options.bearerToken,
@@ -91,6 +89,46 @@ export class Client<
 
     return this.#sessionPromise;
   };
+
+  static #validateOptions(options: Config<ReadonlyArray<Capability>>): void {
+    // Bearer token
+    if (typeof options.bearerToken !== "string" || options.bearerToken.trim().length === 0) {
+      throw new Error("`bearerToken` must be a non-empty string");
+    }
+
+    // Session URL
+    if (!URL.canParse(options.sessionUrl)) {
+      throw new Error("`sessionUrl` must be a valid URL string or URL instance", {
+        cause: options.sessionUrl,
+      });
+    }
+
+    // Capabilities
+    if (!Array.isArray(options.capabilities)) {
+      throw new Error("`capabilities` must be an array");
+    }
+    for (const capability of options.capabilities) {
+      if (typeof capability.urn !== "string") {
+        throw new Error("Capabilities must have a `urn`", { cause: capability });
+      }
+      if (
+        !Array.isArray(capability.entities) ||
+        !capability.entities.every((entity: unknown) => typeof entity === "string")
+      ) {
+        throw new Error("Capability entries must be an array of entity name strings");
+      }
+    }
+
+    // Middleware
+    if (options.middleware) {
+      if (
+        !Array.isArray(options.middleware) ||
+        !options.middleware.every((fn) => typeof fn === "function")
+      ) {
+        throw new Error("`middleware` must be an array of functions");
+      }
+    }
+  }
 
   #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
     try {
