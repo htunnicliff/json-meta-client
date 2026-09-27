@@ -16,7 +16,7 @@ import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
-import { Batch } from "./internal/batch.ts";
+import { Batch, type Flush } from "./internal/batch.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
@@ -72,65 +72,7 @@ export class Client<
 
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
-    const batch = new Batch<MethodCall<unknown>>(async (jobs) => {
-      try {
-        const methodCalls = jobs.map((b) => b.payload);
-
-        const urnsToUse = new Set<string>();
-
-        for (const { urn } of DEFAULT_CAPABILITIES) {
-          urnsToUse.add(urn);
-        }
-
-        for (const { method } of methodCalls) {
-          const [entity] = /^[^/]+/.exec(method)!;
-          const urn = this.#entityToUrn[entity];
-          if (urn) {
-            urnsToUse.add(urn);
-          }
-        }
-
-        const request: JMAPRequest = {
-          using: [...urnsToUse],
-          methodCalls: methodCalls.map((c) => c.toInvocation()),
-        };
-
-        const response = await this.#fetchJson<JMAPResponse>(
-          (await this.session).apiUrl,
-          JSON.stringify(request),
-        );
-
-        const resultById = new Map(
-          response.methodResponses.map((invocation) => {
-            const result = new MethodCallResult(invocation);
-            return [result.id, result];
-          }),
-        );
-
-        for (const { payload: methodCall, handle } of jobs) {
-          const result = resultById.get(methodCall.id);
-          if (!result) {
-            handle.reject(new Error(`No response for method call "${methodCall.id}"`));
-            continue;
-          }
-
-          const { data } = result;
-          if (result.method === "error") {
-            handle.reject(
-              JmapError.isProblemDetails(data)
-                ? new JmapError("Error in method call", data)
-                : new Error("Unknown error in method call", { cause: data }),
-            );
-          } else {
-            handle.resolve(data);
-          }
-        }
-      } catch (error) {
-        for (const { handle } of jobs) {
-          handle.reject(error);
-        }
-      }
-    });
+    const batch = new Batch(this.#processQueuedMethodCalls);
 
     this.api = createApi<API>(batch.enqueue, this.#config.middleware);
 
@@ -148,6 +90,66 @@ export class Client<
     });
 
     return this.#sessionPromise;
+  };
+
+  #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
+    try {
+      const methodCalls = jobs.map((b) => b.payload);
+
+      const urnsToUse = new Set<string>();
+
+      for (const { urn } of DEFAULT_CAPABILITIES) {
+        urnsToUse.add(urn);
+      }
+
+      for (const { method } of methodCalls) {
+        const [entity] = /^[^/]+/.exec(method)!;
+        const urn = this.#entityToUrn[entity];
+        if (urn) {
+          urnsToUse.add(urn);
+        }
+      }
+
+      const request: JMAPRequest = {
+        using: [...urnsToUse],
+        methodCalls: methodCalls.map((c) => c.toInvocation()),
+      };
+
+      const response = await this.#fetchJson<JMAPResponse>(
+        (await this.session).apiUrl,
+        JSON.stringify(request),
+      );
+
+      const resultById = new Map(
+        response.methodResponses.map((invocation) => {
+          const result = new MethodCallResult(invocation);
+          return [result.id, result];
+        }),
+      );
+
+      for (const { payload: methodCall, handle } of jobs) {
+        const result = resultById.get(methodCall.id);
+        if (!result) {
+          handle.reject(new Error(`No response for method call "${methodCall.id}"`));
+          continue;
+        }
+
+        const { data } = result;
+        if (result.method === "error") {
+          handle.reject(
+            JmapError.isProblemDetails(data)
+              ? new JmapError("Error in method call", data)
+              : new Error("Unknown error in method call", { cause: data }),
+          );
+        } else {
+          handle.resolve(data);
+        }
+      }
+    } catch (error) {
+      for (const { handle } of jobs) {
+        handle.reject(error);
+      }
+    }
   };
 
   #fetchJson = async <T>(url: string | URL, body: BodyInit | null = null): Promise<T> => {

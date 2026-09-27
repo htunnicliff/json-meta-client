@@ -5,7 +5,7 @@ interface Job<Payload, Output = any> {
 
 export type JobResult<Input, Output> = Input & Promise<Output>;
 
-interface Flush<Input> {
+export interface Flush<Input> {
   (jobs: Job<Input>[]): void | Promise<void>;
 }
 
