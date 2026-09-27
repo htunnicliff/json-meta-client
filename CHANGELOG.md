@@ -1,5 +1,13 @@
 # json-meta-client
 
+## 0.8.0
+
+### Minor Changes
+
+- [`5a13bb1`](https://github.com/htunnicliff/json-meta-client/commit/5a13bb14dfb81c73fa06218cff3ab299fbaee01f) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added community capabilities with masked email
+
+- [`df55e6f`](https://github.com/htunnicliff/json-meta-client/commit/df55e6fd5dcd353ccaf64568df4e72c356226950) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Use camel case for capability definitions
+
 ## 0.7.1
 
 ### Patch Changes
