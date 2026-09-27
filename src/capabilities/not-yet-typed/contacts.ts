@@ -13,9 +13,7 @@ import type {
   SetResponse,
 } from "jmap-rfc-types";
 
-import { defineCapability } from "../capability.ts";
-
-// TODO: Add contacts types
+import { defineCapability } from "../../capability.ts";
 
 export const contacts = defineCapability({
   urn: "urn:ietf:params:jmap:contacts",
