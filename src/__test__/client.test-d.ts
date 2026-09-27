@@ -263,5 +263,56 @@ describe("Client", () => {
         expectTypeOf(result).toBeUnknown();
       });
     });
+
+    describe("when using separate capabilities that share entities", () => {
+      const theater = defineCapability({
+        urn: "test:popcorn",
+        entities: ["Popcorn", "HotDog"],
+      }).withMethods<{
+        Popcorn: {};
+        HotDog: {
+          eat: {
+            input: {
+              hunger: number;
+            };
+            output: {
+              id: string;
+            };
+          };
+        };
+      }>();
+
+      const picnic = defineCapability({
+        urn: "test:picnic",
+        entities: ["Burger", "Salad", "HotDog"],
+      }).withMethods<{
+        Burger: {};
+        Salad: {};
+        HotDog: {
+          cook: {
+            input: {
+              buns: "toasted" | "burnt";
+            };
+            output: {
+              char: number;
+            };
+          };
+        };
+      }>();
+
+      it("appropriately intersects entity method types", async () => {
+        const client = new Client({
+          bearerToken,
+          sessionUrl,
+          capabilities: [theater, picnic],
+        });
+
+        // From `theater`
+        expectTypeOf(client.api.HotDog).toHaveProperty("eat");
+
+        // From `picnic`
+        expectTypeOf(client.api.HotDog).toHaveProperty("cook");
+      });
+    });
   });
 });
