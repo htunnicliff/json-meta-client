@@ -29,6 +29,10 @@
       "types": "./dist/capabilities/index.d.mts",
       "default": "./dist/capabilities/index.mjs"
     },
+    "./capabilities/community": {
+      "types": "./dist/capabilities/community/index.d.mts",
+      "default": "./dist/capabilities/community/index.mjs"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

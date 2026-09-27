@@ -12,6 +12,7 @@ words:
   - unstub
   - vacationresponse
   - eventsource
+  - maskedemail
 ignorePaths:
   - pnpm-lock.yaml
   - dist/
