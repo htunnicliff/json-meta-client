@@ -51,7 +51,9 @@ export type UnpackRefs<T> =
 
 export function ref<
   Output,
-  const Pointer extends IsUnknown<Output> extends true ? ExtendedJSONPointer : PointerPaths<Output>,
+  const Pointer extends (IsUnknown<Output> extends true
+    ? ExtendedJSONPointer
+    : PointerPaths<Output>),
 >(
   methodCall: JobResult<MethodCall<unknown>, Output>,
   pointer: Pointer,
