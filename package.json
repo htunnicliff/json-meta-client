@@ -31,6 +31,9 @@
     },
     "./package.json": "./package.json"
   },
+  "publishConfig": {
+    "provenance": true
+  },
   "scripts": {
     "build": "tsdown",
     "types": "tsc --noEmit",
