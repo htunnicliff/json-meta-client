@@ -34,6 +34,7 @@ export interface Config<T extends ReadonlyArray<Capability>> {
   bearerToken: string;
   sessionUrl: string | URL;
   capabilities: T;
+  logger?: Pick<typeof console, "error" | "warn" | "info" | "debug">;
   middleware?: ReadonlyArray<Middleware>;
 }
 
@@ -58,6 +59,7 @@ export class Client<
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
       capabilities: options.capabilities,
+      logger: options.logger ?? console,
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -73,6 +75,10 @@ export class Client<
     this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
 
     Object.freeze(this);
+  }
+
+  get #logger() {
+    return this.#config.logger;
   }
 
   get session(): Promise<Session> {
@@ -101,7 +107,7 @@ export class Client<
       const error = new Error(
         `json-meta-client was configured with capabilities that are NOT found in the current session: ${configuredButNotAvailable.join(", ")}`,
       );
-      console.warn(error);
+      this.#logger.warn(error);
     }
   }
 
