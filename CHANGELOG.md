@@ -1,5 +1,25 @@
 # json-meta-client
 
+## 0.7.0
+
+### Minor Changes
+
+- [`563d24b`](https://github.com/htunnicliff/json-meta-client/commit/563d24b21c195135d2f9b19651e53b3de8e9b5d4) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added partially-typed sieve capability
+
+- [`4ca6611`](https://github.com/htunnicliff/json-meta-client/commit/4ca6611d841ede1b2782e343c39a3124d78714f2) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Required explicit client capabilities and added a dedicated subpath export (`/capabilities`).
+
+  Made `core` an always-included export.
+
+- [`2917c85`](https://github.com/htunnicliff/json-meta-client/commit/2917c858042cd8e9b8a6078e436ac16d3ee278cb) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added partially typed blob expansion capability
+
+- [`fff6382`](https://github.com/htunnicliff/json-meta-client/commit/fff6382c497ce8548769834960807072019f2e76) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add configurable logger
+
+- [`4bb0cf4`](https://github.com/htunnicliff/json-meta-client/commit/4bb0cf4194758bb32116cd1fd57e160d6f2c43b6) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Added runtime options validation
+
+### Patch Changes
+
+- [`bc1cded`](https://github.com/htunnicliff/json-meta-client/commit/bc1cded4464bb0e402814198518a2b42f3d08e0d) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Log warning when capabilities are used but not actually available in a given session
+
 ## 0.6.1
 
 ### Patch Changes
