@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.7.1
+
+### Patch Changes
+
+- Upgraded pnpm and type-fest
+
 ## 0.7.0
 
 ### Minor Changes
