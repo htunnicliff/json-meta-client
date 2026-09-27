@@ -37,7 +37,7 @@ export declare namespace MaskedEmailContracts {
   }
 }
 
-export const maskedemail = defineCapability({
+export const maskedEmail = defineCapability({
   urn: "https://www.fastmail.com/dev/maskedemail",
   entities: ["MaskedEmail"],
 }).withMethods<{

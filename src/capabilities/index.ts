@@ -4,4 +4,4 @@ export { blob } from "./not-yet-typed/blob.ts";
 export { contacts } from "./not-yet-typed/contacts.ts";
 export { sieve } from "./not-yet-typed/sieve.ts";
 export { submission } from "./submission.ts";
-export { vacationresponse } from "./vacationresponse.ts";
+export { vacationResponse } from "./vacation-response.ts";

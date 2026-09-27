@@ -1,1 +1,1 @@
-export { maskedemail } from "./maskedemail.ts";
+export { maskedEmail } from "./masked-email.ts";
