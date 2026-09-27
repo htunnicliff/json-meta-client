@@ -16,7 +16,7 @@ import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
-import { Batch, type Flush } from "./internal/batch.ts";
+import type { Flush } from "./internal/batch.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
@@ -70,9 +70,7 @@ export class Client<
 
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
-    const batch = new Batch(this.#processQueuedMethodCalls);
-
-    this.api = createApi<API>(batch.enqueue, this.#config.middleware);
+    this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
 
     Object.freeze(this);
   }

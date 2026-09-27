@@ -1,11 +1,12 @@
 // oxlint-disable typescript/no-unnecessary-type-parameters
 import type { JsonObject, JsonValue } from "type-fest";
 
+import { Batch, type Flush } from "./internal/batch.ts";
 import { MethodCall } from "./internal/method-calls.ts";
 import type { Middleware } from "./internal/types.ts";
 
 export function createApi<T extends object>(
-  enqueue: (methodCall: MethodCall<unknown>) => unknown,
+  processMethodCalls: Flush<MethodCall<unknown>>,
   middleware: ReadonlyArray<Middleware>,
 ): T {
   const entityProxies = new Map<string, object>();
@@ -17,6 +18,8 @@ export function createApi<T extends object>(
     }
     return transformed;
   };
+
+  const batch = new Batch(processMethodCalls);
 
   return new Proxy<T>(Object.create(null), {
     get(_, entity) {
@@ -34,7 +37,7 @@ export function createApi<T extends object>(
               }
 
               return (args: JsonObject) =>
-                enqueue(
+                batch.enqueue(
                   new MethodCall({
                     method: `${entity}/${method}`,
                     args: applyMiddleware(args),
