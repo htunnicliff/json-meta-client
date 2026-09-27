@@ -60,7 +60,7 @@ describe("Capability", () => {
 describe("InferMethodsFromCapability", () => {
   it("infers any-typed methods from a configurable capability", () => {
     type Input = InferMethodsFromCapability<typeof cap>;
-    type Expected = {
+    interface Expected {
       Email: {
         [method: string]: {
           input: unknown;
@@ -73,7 +73,7 @@ describe("InferMethodsFromCapability", () => {
           output: unknown;
         };
       };
-    };
+    }
     expectTypeOf<Input>().toEqualTypeOf<Expected>();
   });
 
@@ -85,7 +85,7 @@ describe("InferMethodsFromCapability", () => {
       output: ContractOutput<this["input"]>;
     }
 
-    type Methods = {
+    interface Methods {
       Email: {
         get: {
           input: string;
@@ -95,7 +95,7 @@ describe("InferMethodsFromCapability", () => {
       Mailbox: {
         another: Contract;
       };
-    };
+    }
 
     const configured = cap.withMethods<Methods>();
 
@@ -107,8 +107,13 @@ describe("InferMethodsFromCapability", () => {
 
 describe("Apply<Contract, Input>", () => {
   it("replaces initial input with given input", () => {
-    type Input = { foo: boolean; bar: string[] };
-    type Output<A> = { fizz: A[] };
+    interface Input {
+      foo: boolean;
+      bar: string[];
+    }
+    interface Output<A> {
+      fizz: A[];
+    }
 
     interface Contract {
       input: Input;

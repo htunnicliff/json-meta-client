@@ -252,7 +252,7 @@ export class Client<
   };
 }
 
-export type StateChangePayload = {
+export interface StateChangePayload {
   /** The account that the change occurred in  */
   accountId: string;
   /** Whether the account ID is that of the primary account */
@@ -261,11 +261,11 @@ export type StateChangePayload = {
   entity: string;
   /** An opaque string that can be passed to `{Entity}/queryChanges`  */
   state: string;
-};
+}
 
-export type OnStateChangeOptions = {
+export interface OnStateChangeOptions {
   /** An abort signal that can terminate the event source */
   signal?: AbortSignal;
   /** An interval in seconds to request that the server send pings */
   pingSeconds?: number;
-};
+}

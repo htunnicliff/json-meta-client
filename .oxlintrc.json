@@ -7,7 +7,8 @@
     "perf": "error"
   },
   "rules": {
-    "no-shadow": "off"
+    "no-shadow": "off",
+    "typescript/consistent-type-definitions": ["error", "interface"]
   },
   "env": {
     "builtin": true
