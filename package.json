@@ -48,7 +48,7 @@
     "fmt:check": "oxfmt --check",
     "spelling:check": "cspell .",
     "version": "pnpm run build && changeset version && pnpm install",
-    "publish": "pnpm run build && changeset publish",
+    "release": "pnpm run build && changeset publish",
     "prepare": "husky"
   },
   "dependencies": {

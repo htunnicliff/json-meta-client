@@ -43,7 +43,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           version-script: pnpm run version
-          publish-script: pnpm run publish
+          publish-script: pnpm run release
           commit-message: "Release"
           pr-title: "Release"
           create-github-releases: true
