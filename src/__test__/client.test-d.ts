@@ -13,7 +13,7 @@ import { assertType, describe, expectTypeOf, it } from "vitest";
 import { core, mail } from "../capabilities/index.ts";
 import { defineCapability, type AugmentMethod, type MethodContract } from "../capability.ts";
 import { Client, DEFAULT_CAPABILITIES } from "../client.ts";
-import type { BatchResult } from "../internal/batcher.ts";
+import type { JobResult } from "../internal/batch.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
 import type { AllowRefsInArgs } from "../internal/types.ts";
 import { ref, type AllowRefs, type Ref } from "../ref.ts";
@@ -165,7 +165,7 @@ describe("Client", () => {
 
         // Correct batch result type
         expectTypeOf(pending).toEqualTypeOf<
-          BatchResult<
+          JobResult<
             MethodCall<{ ids: string[] }>,
             {
               accountId: ID;
@@ -248,7 +248,7 @@ describe("Client", () => {
           stuff: ["<foo-id>"],
         });
         expectTypeOf(pending).toEqualTypeOf<
-          BatchResult<MethodCall<{ madeUp: string; stuff: string[] }>, unknown>
+          JobResult<MethodCall<{ madeUp: string; stuff: string[] }>, unknown>
         >();
 
         // Supports refs with arbitrary pointers

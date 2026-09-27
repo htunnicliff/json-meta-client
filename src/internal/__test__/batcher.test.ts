@@ -1,14 +1,14 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { Batcher } from "../batcher";
+import { Batch } from "../batch.ts";
 
 vi.useFakeTimers();
 
-describe("Batcher", () => {
+describe("Batch", () => {
   test("flushes inputs enqueued in the same turn together", async () => {
     const receivedBatches: string[][] = [];
-    const batcher = new Batcher<string>((work) => {
-      receivedBatches.push(work.map(({ input }) => input));
+    const batcher = new Batch<string>((jobs) => {
+      receivedBatches.push(jobs.map(({ payload }) => payload));
     });
 
     void batcher.enqueue("first");
@@ -19,9 +19,9 @@ describe("Batcher", () => {
     expect(receivedBatches).toEqual([["first", "second"]]);
   });
 
-  test("returns an input-shaped promise for enqueued work", async () => {
-    const batcher = new Batcher<{ id: string }>((work) => {
-      work[0]?.handle.resolve("completed");
+  test("returns an input-shaped promise for enqueued job", async () => {
+    const batcher = new Batch<{ id: string }>((jobs) => {
+      jobs[0]?.handle.resolve("completed");
     });
 
     const result = batcher.enqueue<string>({ id: "request-1" });
@@ -30,9 +30,9 @@ describe("Batcher", () => {
     await expect(result).resolves.toBe("completed");
   });
 
-  test("resolves enqueued work after an asynchronous flush", async () => {
-    const batcher = new Batcher<string>(async (work) => {
-      work[0]?.handle.resolve("completed");
+  test("resolves enqueued job after an asynchronous flush", async () => {
+    const batcher = new Batch<string>(async (jobs) => {
+      jobs[0]?.handle.resolve("completed");
     });
 
     const result = batcher.enqueue<string>("request-1");
@@ -42,12 +42,12 @@ describe("Batcher", () => {
     await expect(result).resolves.toBe("completed");
   });
 
-  test("flushes work enqueued during a flush in a later batch", async () => {
+  test("flushes job enqueued during a flush in a later batch", async () => {
     const receivedBatches: string[][] = [];
-    const batcher = new Batcher<string>((work) => {
-      receivedBatches.push(work.map(({ input }) => input));
+    const batcher = new Batch<string>((jobs) => {
+      receivedBatches.push(jobs.map(({ payload }) => payload));
 
-      if (work[0]?.input === "first") {
+      if (jobs[0]?.payload === "first") {
         void batcher.enqueue("second");
       }
     });

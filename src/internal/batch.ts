@@ -1,22 +1,22 @@
-interface Work<Input, Output = any> {
-  input: Input;
+interface Job<Payload, Output = any> {
+  payload: Payload;
   handle: PromiseWithResolvers<Output>;
 }
 
-export type BatchResult<Input, Output> = Input & Promise<Output>;
+export type JobResult<Input, Output> = Input & Promise<Output>;
 
 interface Flush<Input> {
-  (batchedWork: Work<Input>[]): void | Promise<void>;
+  (jobs: Job<Input>[]): void | Promise<void>;
 }
 
 /**
- * A utility for scheduling a batch of work to be
+ * A utility for scheduling a batch of jobs to be
  * resolved at the same time
  *
  * @example
  * ```ts
- * const batcher = new Batcher((batchedWork) => {
- *   for (const { input, handle } of batchedWork) {
+ * const batch = new Batch((jobs) => {
+ *   for (const { input, handle } of jobs) {
  *     try {
  *       handle.resolve(doSomething(input));
  *     } catch (error) {
@@ -26,15 +26,15 @@ interface Flush<Input> {
  * });
  * ```
  */
-export class Batcher<Input = unknown> {
+export class Batch<Input = unknown> {
   constructor(flush: Flush<Input>) {
     this.#flush = flush;
   }
 
   /**
-   * All work input yet to be flushed
+   * All jobs yet to be flushed
    */
-  #pendingWork: Work<Input>[] = [];
+  #queue: Job<Input>[] = [];
 
   /**
    * Whether a flush has been queued in the next microtask
@@ -42,25 +42,25 @@ export class Batcher<Input = unknown> {
   #flushPending = false;
 
   /**
-   * Function to process a batch of work
+   * Function to process queued jobs
    */
   #flush: Flush<Input>;
 
   /**
-   * Push some input into the next batch and return a promise for
+   * Push a payload into the queue and return a promise for
    * the result for the given input
    */
-  enqueue = <Output = unknown, I extends Input = Input>(input: I): BatchResult<I, Output> => {
+  enqueue = <Output = unknown, I extends Input = Input>(input: I): JobResult<I, Output> => {
     // Create a promise for providing the output
     const handle = Promise.withResolvers<Output>();
 
-    // Add work to the batch
-    this.#pendingWork.push({ input, handle });
+    // Add job to the queue
+    this.#queue.push({ payload: input, handle });
 
     // Schedule a flush
     this.#scheduleFlush();
 
-    const result: BatchResult<I, Output> = Object.assign(handle.promise, input);
+    const result: JobResult<I, Output> = Object.assign(handle.promise, input);
 
     // Supply the output promise
     return result;
@@ -80,11 +80,11 @@ export class Batcher<Input = unknown> {
         // Mark flush as not pending
         this.#flushPending = false;
 
-        // Get batch of work while emptying pending array
-        const batch = this.#pendingWork.splice(0);
+        // Get queued jobs while emptying pending array
+        const queuedJobs = this.#queue.splice(0);
 
         // Flush batch
-        void this.#flush(batch);
+        void this.#flush(queuedJobs);
       });
     }
   }

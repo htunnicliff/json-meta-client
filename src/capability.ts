@@ -1,4 +1,4 @@
-import type { BatchResult } from "./internal/batcher.ts";
+import type { JobResult } from "./internal/batch.ts";
 import type { MethodCall } from "./internal/method-calls.ts";
 import type { AddBackAccountId, AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
 import type { UnpackRefs } from "./ref.ts";
@@ -34,7 +34,7 @@ export type AugmentMethod<Contract extends MethodContract> = <
   RealArgs extends AddBackAccountId<UnpackRefs<Args>>,
 >(
   args: Args,
-) => BatchResult<MethodCall<RealArgs>, Apply<Contract, RealArgs>>;
+) => JobResult<MethodCall<RealArgs>, Apply<Contract, RealArgs>>;
 
 /**
  * A partially-configured capability that supports using

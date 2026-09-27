@@ -16,7 +16,7 @@ import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
-import { Batcher } from "./internal/batcher.ts";
+import { Batch } from "./internal/batch.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
@@ -72,9 +72,9 @@ export class Client<
 
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
-    const batcher = new Batcher<MethodCall<unknown>>(async (batch) => {
+    const batch = new Batch<MethodCall<unknown>>(async (jobs) => {
       try {
-        const methodCalls = batch.map((b) => b.input);
+        const methodCalls = jobs.map((b) => b.payload);
 
         const urnsToUse = new Set<string>();
 
@@ -107,7 +107,7 @@ export class Client<
           }),
         );
 
-        for (const { input: methodCall, handle } of batch) {
+        for (const { payload: methodCall, handle } of jobs) {
           const result = resultById.get(methodCall.id);
           if (!result) {
             handle.reject(new Error(`No response for method call "${methodCall.id}"`));
@@ -126,13 +126,13 @@ export class Client<
           }
         }
       } catch (error) {
-        for (const { handle } of batch) {
+        for (const { handle } of jobs) {
           handle.reject(error);
         }
       }
     });
 
-    this.api = createApi<API>(batcher.enqueue, this.#config.middleware);
+    this.api = createApi<API>(batch.enqueue, this.#config.middleware);
 
     Object.freeze(this);
   }
