@@ -12,17 +12,9 @@ import type {
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
-import { contacts } from "./capabilities/contacts.ts";
 import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
-import { submission } from "./capabilities/submission.ts";
-import { vacationresponse } from "./capabilities/vacationresponse.ts";
-import type {
-  Augment,
-  Capability,
-  CapabilityMethods,
-  InferMethodsFromCapability,
-} from "./capability.ts";
+import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
 import { Batcher } from "./internal/batcher.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
@@ -32,32 +24,24 @@ import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
 
-const DEFAULT_CAPABILITIES = [core, mail, submission, vacationresponse, contacts];
+export const DEFAULT_CAPABILITIES = [core];
 
-type DefaultCapabilities = typeof DEFAULT_CAPABILITIES extends ReadonlyArray<infer U> ? U : never;
+type ClientApi<T extends ReadonlyArray<Capability>> = T[number] extends never
+  ? object
+  : Augment<UnionToIntersection<InferMethodsFromCapability<T[number]>>>;
 
-type DefaultCapabilityMethods = UnionToIntersection<
-  InferMethodsFromCapability<DefaultCapabilities>
->;
-
-type BaseAPI = Augment<DefaultCapabilityMethods>;
-
-export interface Config<
-  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>> = [],
-> {
+export interface Config<T extends ReadonlyArray<Capability>> {
   bearerToken: string;
   sessionUrl: string | URL;
-  capabilities?: C;
+  capabilities: T;
   middleware?: ReadonlyArray<Middleware>;
 }
 
 export class Client<
-  C extends ReadonlyArray<Capability<string, CapabilityMethods<string>>>,
-  API extends C extends ReadonlyArray<infer U>
-    ? Augment<UnionToIntersection<InferMethodsFromCapability<U>>> & BaseAPI
-    : BaseAPI,
+  T extends ReadonlyArray<Capability>,
+  API extends ClientApi<T> & ClientApi<typeof DEFAULT_CAPABILITIES>,
 > {
-  readonly #config: Required<Config<C>>;
+  readonly #config: Required<Config<T>>;
 
   readonly #entityToUrn: Record<string, string>;
 
@@ -67,7 +51,7 @@ export class Client<
 
   #session: Session | undefined;
 
-  constructor(options: Config<C>) {
+  constructor(options: Config<T>) {
     if (!URL.canParse(options.sessionUrl)) {
       throw new Error("Invalid session URL", { cause: options.sessionUrl });
     }
@@ -75,8 +59,7 @@ export class Client<
     this.#config = {
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
-      // @ts-expect-error - TODO: Fix this internal type
-      capabilities: [...DEFAULT_CAPABILITIES, ...(options.capabilities ?? [])],
+      capabilities: options.capabilities,
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -93,17 +76,22 @@ export class Client<
       try {
         const methodCalls = batch.map((b) => b.input);
 
-        const capabilityUrns = new Set<string>(
-          methodCalls.flatMap(({ method }) => {
-            const [entity] = /^[^/]+/.exec(method)!;
-            const urn = this.#entityToUrn[entity];
-            return urn ? [urn] : [];
-          }),
-        );
-        capabilityUrns.add(core.urn);
+        const urnsToUse = new Set<string>();
+
+        for (const { urn } of DEFAULT_CAPABILITIES) {
+          urnsToUse.add(urn);
+        }
+
+        for (const { method } of methodCalls) {
+          const [entity] = /^[^/]+/.exec(method)!;
+          const urn = this.#entityToUrn[entity];
+          if (urn) {
+            urnsToUse.add(urn);
+          }
+        }
 
         const request: JMAPRequest = {
-          using: [...capabilityUrns],
+          using: [...urnsToUse],
           methodCalls: methodCalls.map((c) => c.toInvocation()),
         };
 

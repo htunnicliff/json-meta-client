@@ -8,6 +8,8 @@ import type {
 import nock, { type Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { core } from "../capabilities/core.ts";
+import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
 import { Client } from "../client.ts";
 import { JmapError } from "../error.ts";
@@ -30,7 +32,7 @@ const sessionState = "<opaque-session-state>";
 const DEFAULT_SESSION = {
   apiUrl,
   primaryAccounts: {
-    "urn:ietf:params:jmap:mail": accountId,
+    [mail.urn]: accountId,
   },
   uploadUrl,
   downloadUrl,
@@ -50,10 +52,18 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
 
 describe("Client", () => {
   let sessionScope: Scope;
-  let client = new Client({ sessionUrl, bearerToken });
+  let client = new Client({
+    sessionUrl,
+    bearerToken,
+    capabilities: [mail],
+  });
 
   beforeEach(() => {
-    client = new Client({ sessionUrl, bearerToken });
+    client = new Client({
+      sessionUrl,
+      bearerToken,
+      capabilities: [mail],
+    });
     sessionScope = mockSession();
   });
 
@@ -84,13 +94,22 @@ describe("Client", () => {
     });
 
     it("throws invalid session URLs", () => {
-      expect(() => new Client({ sessionUrl: "invalid-url", bearerToken })).toThrow(
-        "Invalid session URL",
-      );
+      expect(
+        () =>
+          new Client({
+            sessionUrl: "invalid-url",
+            bearerToken,
+            capabilities: [mail],
+          }),
+      ).toThrow("Invalid session URL");
     });
 
     it("accepts URL instances as session URLs", async () => {
-      const client = new Client({ sessionUrl: new URL(sessionUrl), bearerToken });
+      const client = new Client({
+        sessionUrl: new URL(sessionUrl),
+        bearerToken,
+        capabilities: [mail],
+      });
       await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
       expect(sessionScope.isDone()).toBe(true);
     });
@@ -107,7 +126,7 @@ describe("Client", () => {
 
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [
             [
               "Mailbox/query",
@@ -147,7 +166,7 @@ describe("Client", () => {
       const emailQuery = client.api.Email.query({ limit: 1 });
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [
             ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
             ["Email/query", { accountId, limit: 1 }, emailQuery.id],
@@ -173,7 +192,7 @@ describe("Client", () => {
       const emailGet = client.api.Email.get({ ids: ref(mailboxQuery, "/ids") });
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [
             ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
             [
@@ -204,7 +223,7 @@ describe("Client", () => {
       const query = client.api.Mailbox.query({ accountId: "account-2", limit: 1 });
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [["Mailbox/query", { accountId: "account-2", limit: 1 }, query.id]],
         },
         { methodResponses: [["Mailbox/query", { ids: [] }, query.id]], sessionState },
@@ -223,7 +242,7 @@ describe("Client", () => {
       };
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.id]],
         },
         { methodResponses: [["error", cause, query.id]], sessionState },
@@ -244,7 +263,7 @@ describe("Client", () => {
       const emailQuery = client.api.Email.query({ limit: 1 });
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [
             ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
             ["Email/query", { accountId, limit: 1 }, emailQuery.id],
@@ -322,7 +341,7 @@ describe("Client", () => {
 
       const apiScope = mockApi(
         {
-          using: [example.urn, "urn:ietf:params:jmap:core"],
+          using: [core.urn, example.urn],
           methodCalls: [["Example/get", { accountId, value: "hello" }, get.id]],
         },
         {
@@ -343,12 +362,13 @@ describe("Client", () => {
         middleware: [mockMiddleware],
         sessionUrl,
         bearerToken,
+        capabilities: [mail],
       });
       expect(mockMiddleware).not.toHaveBeenCalled();
       const query = client.api.Mailbox.query({ limit: 1 });
       const apiScope = mockApi(
         {
-          using: ["urn:ietf:params:jmap:mail", "urn:ietf:params:jmap:core"],
+          using: [core.urn, mail.urn],
           methodCalls: [["Mailbox/query", { foo: true }, query.id]],
         },
         { methodResponses: [["Mailbox/query", { ids: [] }, query.id]], sessionState },

@@ -1,8 +1,6 @@
 import type { Capability } from "../capability.ts";
 
-export function mapEntitiesToUrns(
-  capabilities: Iterable<Capability<string>>,
-): Record<string, string> {
+export function mapEntitiesToUrns(capabilities: Iterable<Capability>): Record<string, string> {
   const entityToUrn: Record<string, string> = {};
 
   for (const { urn, entities } of capabilities) {

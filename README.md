@@ -15,14 +15,20 @@ pnpm add json-meta-client
 
 ## Usage
 
-Create a client:
+Create a client with the capabilities your JMAP server supports:
 
 ```ts
 import { Client } from "json-meta-client";
+import {
+  mail,
+  submission,
+  contacts,
+} from "json-meta-client/capabilities";
 
 const client = new Client({
   bearerToken: "<token>",
   sessionUrl: "<session-url>",
+  capabilities: [mail, submission, contacts], // `core` is always included
 });
 ```
 
@@ -62,7 +68,7 @@ const [inboxId] = response.ids;
 
 </details>
 
-#### Issue a _batch_ of JMAP requests
+#### Issue a batch of JMAP requests
 
 This takes advantage of result references[^1]
 

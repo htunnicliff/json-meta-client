@@ -54,7 +54,7 @@ export interface ConfigurableCapability<Entity extends string> {
  * - Known methods (type)
  */
 export interface Capability<
-  Entity extends string,
+  Entity extends string = string,
   _Methods extends CapabilityMethods<Entity> = CapabilityMethods<Entity>,
 > {
   urn: string;
