@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type {
   BlobUploadResponse,
   Request as JMAPRequest,
@@ -62,7 +64,9 @@ function mockSession(): Scope {
 }
 
 function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
-  return nock(host).post(apiUrlPath, request).reply(200, response);
+  return nock(host)
+    .post(apiUrlPath, (body) => isDeepStrictEqual(body, request))
+    .reply(200, response);
 }
 
 // ------ Mocks -------------------------------------------

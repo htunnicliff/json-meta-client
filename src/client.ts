@@ -15,7 +15,14 @@ import { createApi } from "./api.ts";
 import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
-import { JmapError } from "./error.ts";
+import {
+  JmapConfigurationError,
+  JmapError,
+  JmapHttpError,
+  JmapProtocolError,
+  JmapTransportError,
+  type JmapRequestContext,
+} from "./error.ts";
 import type { Flush } from "./internal/batch.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
@@ -53,6 +60,8 @@ export class Client<
   #session: Session | undefined;
 
   constructor(options: Config<T>) {
+    if (!options || typeof options !== "object")
+      throw new JmapConfigurationError("Client options must be an object");
     Client.#validateOptions(options);
 
     this.#config = {
@@ -63,14 +72,18 @@ export class Client<
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
-          if (!this.#session) throw new Error("Session not yet resolved");
+          if (!this.#session) throw new JmapConfigurationError("Session not yet resolved");
           return this.#session;
         }),
         ...(options.middleware ?? []),
       ],
     };
 
-    this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
+    try {
+      this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
+    } catch (cause) {
+      throw new JmapConfigurationError("Invalid capability configuration", { cause });
+    }
 
     this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
 
@@ -87,6 +100,18 @@ export class Client<
 
   refreshSession = (): Promise<Session> => {
     this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
+      if (
+        !isRecord(result) ||
+        typeof result.apiUrl !== "string" ||
+        !URL.canParse(result.apiUrl) ||
+        !isRecord(result.capabilities) ||
+        !isRecord(result.primaryAccounts)
+      ) {
+        throw new JmapProtocolError("Invalid JMAP session", {
+          request: { url: String(this.#config.sessionUrl), method: "GET" },
+          payload: result,
+        });
+      }
       const isFirstLoad = !this.#session;
       this.#session = result;
       if (isFirstLoad) {
@@ -104,7 +129,7 @@ export class Client<
 
     const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
     if (configuredButNotAvailable.length > 0) {
-      const error = new Error(
+      const error = new JmapConfigurationError(
         `json-meta-client was configured with capabilities that are NOT found in the current session: ${configuredButNotAvailable.join(", ")}`,
       );
       this.#logger.warn(error);
@@ -112,41 +137,39 @@ export class Client<
   }
 
   static #validateOptions(options: Config<ReadonlyArray<Capability>>): void {
-    // Bearer token
     if (typeof options.bearerToken !== "string" || options.bearerToken.trim().length === 0) {
-      throw new Error("`bearerToken` must be a non-empty string");
+      throw new JmapConfigurationError("`bearerToken` must be a non-empty string");
     }
 
-    // Session URL
     if (!URL.canParse(options.sessionUrl)) {
-      throw new Error("`sessionUrl` must be a valid URL string or URL instance", {
+      throw new JmapConfigurationError("`sessionUrl` must be a valid URL string or URL instance", {
         cause: options.sessionUrl,
       });
     }
 
-    // Capabilities
     if (!Array.isArray(options.capabilities)) {
-      throw new Error("`capabilities` must be an array");
+      throw new JmapConfigurationError("`capabilities` must be an array");
     }
     for (const capability of options.capabilities) {
-      if (typeof capability.urn !== "string") {
-        throw new Error("Capabilities must have a `urn`", { cause: capability });
+      if (!capability || typeof capability.urn !== "string") {
+        throw new JmapConfigurationError("Capabilities must have a `urn`", { cause: capability });
       }
       if (
         !Array.isArray(capability.entities) ||
         !capability.entities.every((entity: unknown) => typeof entity === "string")
       ) {
-        throw new Error("Capability entries must be an array of entity name strings");
+        throw new JmapConfigurationError(
+          "Capability entries must be an array of entity name strings",
+        );
       }
     }
 
-    // Middleware
-    if (options.middleware) {
+    if (options.middleware !== undefined) {
       if (
         !Array.isArray(options.middleware) ||
         !options.middleware.every((fn) => typeof fn === "function")
       ) {
-        throw new Error("`middleware` must be an array of functions");
+        throw new JmapConfigurationError("`middleware` must be an array of functions");
       }
     }
   }
@@ -169,27 +192,56 @@ export class Client<
         }
       }
 
+      const session = await this.session;
       const request: JMAPRequest = {
         using: [...urnsToUse],
         methodCalls: methodCalls.map((c) => c.toInvocation()),
       };
 
-      const response = await this.#fetchJson<JMAPResponse>(
-        (await this.session).apiUrl,
-        JSON.stringify(request),
-      );
+      let body: string;
+      try {
+        body = JSON.stringify(request);
+      } catch (cause) {
+        throw new JmapConfigurationError("Method arguments cannot be serialized as JSON", {
+          cause,
+        });
+      }
+      const response = await this.#fetchJson<JMAPResponse>(session.apiUrl, body);
 
-      const resultById = new Map(
-        response.methodResponses.map((invocation) => {
-          const result = new MethodCallResult(invocation);
-          return [result.id, result];
-        }),
-      );
+      const context = { request: { url: session.apiUrl, method: "POST" }, payload: response };
+      if (!isRecord(response) || !Array.isArray(response.methodResponses)) {
+        throw new JmapProtocolError("Invalid JMAP method responses", context);
+      }
+      const expectedIds = new Set(methodCalls.map((call) => call.id));
+      const resultById = new Map<string, MethodCallResult<unknown>>();
+      for (const invocation of response.methodResponses) {
+        if (
+          !Array.isArray(invocation) ||
+          invocation.length !== 3 ||
+          typeof invocation[0] !== "string" ||
+          !isRecord(invocation[1]) ||
+          typeof invocation[2] !== "string" ||
+          !expectedIds.has(invocation[2])
+        ) {
+          throw new JmapProtocolError("Invalid or unassociated method response", context);
+        }
+        const result = new MethodCallResult<unknown>([invocation[0], invocation[1], invocation[2]]);
+        const call = methodCalls.find((entry) => entry.id === result.id)!;
+        if (result.method !== call.method && result.method !== "error") continue;
+        if (resultById.has(result.id))
+          throw new JmapProtocolError("Duplicate method response ID", context);
+        resultById.set(result.id, result);
+      }
 
       for (const { payload: methodCall, handle } of jobs) {
         const result = resultById.get(methodCall.id);
         if (!result) {
-          handle.reject(new Error(`No response for method call "${methodCall.id}"`));
+          handle.reject(
+            new JmapProtocolError(`No response for method call "${methodCall.id}"`, {
+              ...context,
+              methodCall: methodCall.toInvocation(),
+            }),
+          );
           continue;
         }
 
@@ -197,8 +249,24 @@ export class Client<
         if (result.method === "error") {
           handle.reject(
             JmapError.isProblemDetails(data)
-              ? new JmapError("Error in method call", data)
-              : new Error("Unknown error in method call", { cause: data }),
+              ? new JmapError(
+                  typeof data.description === "string"
+                    ? data.description
+                    : `Error in ${methodCall.method}: ${data.type}`,
+                  data,
+                  methodCall.toInvocation(),
+                )
+              : new JmapProtocolError("Invalid method error", {
+                  ...context,
+                  methodCall: methodCall.toInvocation(),
+                }),
+          );
+        } else if (result.method !== methodCall.method) {
+          handle.reject(
+            new JmapProtocolError("Unexpected method response name", {
+              ...context,
+              methodCall: methodCall.toInvocation(),
+            }),
           );
         } else {
           handle.resolve(data);
@@ -211,9 +279,37 @@ export class Client<
     }
   };
 
+  #fetchResponse = async (url: string | URL, init: RequestInit): Promise<Response> => {
+    const request = { url: String(url), method: init.method ?? "GET" };
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (cause) {
+      throw new JmapTransportError("JMAP transport failed", request, cause);
+    }
+    if (!response.ok) {
+      let payload: unknown;
+      let cause: unknown;
+      try {
+        const text = await response.text();
+        payload = text;
+        if (/\bjson\b/i.test(response.headers.get("content-type") ?? ""))
+          payload = JSON.parse(text);
+      } catch (error) {
+        cause = error;
+      }
+      throw new JmapHttpError(response, request, payload, cause);
+    }
+    return response;
+  };
+
   #fetchJson = async <T>(url: string | URL, body: BodyInit | null = null): Promise<T> => {
-    const response = await fetch(url, {
+    const request: JmapRequestContext = {
+      url: String(url),
       method: body === null ? "GET" : "POST",
+    };
+    const response = await this.#fetchResponse(url, {
+      method: request.method,
       headers: {
         authorization: `Bearer ${this.#config.bearerToken}`,
         accept: "application/json",
@@ -221,16 +317,11 @@ export class Client<
       },
       body,
     });
-
-    const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
-
-    const payload = await (isJsonResponse ? response.json() : response.text());
-
-    if (!response.ok) {
-      throw new Error(`JMAP request failed (${response.status})`, { cause: payload });
+    try {
+      return await response.json();
+    } catch (cause) {
+      throw new JmapProtocolError("Invalid JSON response", { request, response, cause });
     }
-
-    return payload;
   };
 
   blob = {
@@ -239,29 +330,42 @@ export class Client<
       params: SetOptional<BlobUploadParams, "accountId"> = {},
     ): Promise<BlobUploadResponse> => {
       const session = await this.session;
+      if (typeof session.uploadUrl !== "string")
+        throw new JmapProtocolError("Missing upload URL", { payload: session });
       const url = expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
       const data = await this.#fetchJson<BlobUploadResponse>(url, body);
+      if (
+        !isRecord(data) ||
+        typeof data.accountId !== "string" ||
+        typeof data.blobId !== "string" ||
+        typeof data.type !== "string" ||
+        typeof data.size !== "number" ||
+        !Number.isFinite(data.size) ||
+        data.size < 0
+      ) {
+        throw new JmapProtocolError("Invalid blob upload response", {
+          request: { url, method: "POST" },
+          payload: data,
+        });
+      }
       return data;
     },
     download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
       const session = await this.session;
+      if (typeof session.downloadUrl !== "string")
+        throw new JmapProtocolError("Missing download URL", { payload: session });
       const url = expandURITemplate(session.downloadUrl, {
         ...params,
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const response = await fetch(url, {
+      const response = await this.#fetchResponse(url, {
         method: "GET",
         headers: {
           authorization: `Bearer ${this.#config.bearerToken}`,
         },
       });
-      if (!response.ok) {
-        const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
-        const cause = await (isJsonResponse ? response.json() : response.text());
-        throw new Error(`Download request failed (${response.status})`, { cause });
-      }
       return response;
     },
   };
@@ -272,6 +376,8 @@ export class Client<
   ) => {
     const session = await this.session;
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
+    if (typeof session.eventSourceUrl !== "string")
+      throw new JmapProtocolError("Missing event source URL", { payload: session });
     const url = expandURITemplate(session.eventSourceUrl, {
       types: "*",
       // spellchecker:disable-next-line
@@ -329,4 +435,8 @@ export interface OnStateChangeOptions {
   signal?: AbortSignal;
   /** An interval in seconds to request that the server send pings */
   pingSeconds?: number;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
