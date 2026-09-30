@@ -1,7 +1,8 @@
+import type { SetOptional, SetRequired, Simplify } from "type-fest";
+
 import type { JobResult } from "./internal/batch.ts";
 import type { MethodCall } from "./internal/method-calls.ts";
-import type { AddBackAccountId, AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
-import type { UnpackRefs } from "./ref.ts";
+import type { AllowRefs, UnpackRefs } from "./ref.ts";
 
 export interface MethodContract {
   input: unknown;
@@ -28,13 +29,31 @@ export type Augment<T extends CapabilityMethods<string>> = {
   };
 };
 
-/** @internal */
+export type MethodArguments<Contract extends MethodContract> = {
+  [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
+} extends infer Args
+  ? Args extends { accountId: unknown }
+    ? SetOptional<Args, "accountId">
+    : Args
+  : never;
+
+export type EffectiveMethodInput<Contract extends MethodContract, Args> =
+  UnpackRefs<Args> extends infer Input
+    ? "accountId" extends keyof Input
+      ? SetRequired<Input, "accountId">
+      : Contract["input"] extends { accountId: infer AccountId }
+        ? Simplify<Input & { accountId: AccountId }>
+        : Input
+    : never;
+
 export type AugmentMethod<Contract extends MethodContract> = <
-  Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
-  RealArgs extends AddBackAccountId<UnpackRefs<Args>>,
+  Args extends MethodArguments<Contract>,
 >(
   args: Args,
-) => JobResult<MethodCall<RealArgs>, Apply<Contract, RealArgs>>;
+) => JobResult<
+  MethodCall<EffectiveMethodInput<Contract, Args>>,
+  Apply<Contract, EffectiveMethodInput<Contract, Args>>
+>;
 
 /**
  * A partially-configured capability that supports using

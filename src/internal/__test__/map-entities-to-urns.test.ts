@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapEntitiesToUrns } from "../map-entities-to-urns";
+import { mapEntitiesToUrns } from "../map-entities-to-urns.ts";
 describe("mapEntitiesToUrns", () => {
   it("maps entities to urns for a single capability", () => {
     expect(
