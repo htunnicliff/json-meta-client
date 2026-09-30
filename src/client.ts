@@ -51,7 +51,7 @@ export class Client<
 > {
   readonly #config: Required<Config<T>>;
 
-  readonly #entityToUrn: Record<string, string>;
+  readonly #entityToUrn: Record<string, string[]>;
 
   readonly api: API;
 
@@ -124,7 +124,7 @@ export class Client<
   };
 
   #validateSessionCapabilities(session: Session): void {
-    const configuredUrns = new Set(Object.values(this.#entityToUrn));
+    const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
     const availableUrns = new Set(Object.keys(session.capabilities));
 
     const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
@@ -186,8 +186,7 @@ export class Client<
 
       for (const { method } of methodCalls) {
         const [entity] = /^[^/]+/.exec(method)!;
-        const urn = this.#entityToUrn[entity];
-        if (urn) {
+        for (const urn of this.#entityToUrn[entity] ?? []) {
           urnsToUse.add(urn);
         }
       }

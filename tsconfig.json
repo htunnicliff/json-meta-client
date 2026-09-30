@@ -9,6 +9,11 @@
 
     // Environment Settings
     "module": "nodenext",
+    "paths": {
+      "json-meta-client": ["./src/index.ts"],
+      "json-meta-client/capabilities": ["./src/capabilities/index.ts"],
+      "json-meta-client/capabilities/community": ["./src/capabilities/community/index.ts"]
+    },
     "target": "esnext",
     "types": [],
     "rewriteRelativeImportExtensions": true,

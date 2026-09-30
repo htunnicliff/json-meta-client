@@ -123,6 +123,10 @@ const emails = await client.api.Email.get({
 
 </details>
 
+## Custom capabilities
+
+Define typed or untyped JMAP extensions with `defineCapability()` and `.withMethods()`. See the [custom capability guide](./docs/custom-capabilities.md) for a complete example, argument-dependent results, and shared entity behavior.
+
 ## Architecture
 
 ### Method contracts and inference

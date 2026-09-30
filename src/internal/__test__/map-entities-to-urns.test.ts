@@ -1,63 +1,37 @@
 import { describe, expect, it } from "vitest";
 
 import { mapEntitiesToUrns } from "../map-entities-to-urns.ts";
+
 describe("mapEntitiesToUrns", () => {
-  it("maps entities to urns for a single capability", () => {
+  it("maps entities to every contributing capability in registration order", () => {
     expect(
       mapEntitiesToUrns([
-        {
-          urn: "urn:foo:thing",
-          entities: ["Thing1", "Thing2"],
-        },
+        { urn: "urn:foo:thing", entities: ["Thing", "Other"] },
+        { urn: "urn:zip:zap", entities: ["Thing", "Widget"] },
       ]),
-    ).toStrictEqual({
-      Thing1: "urn:foo:thing",
-      Thing2: "urn:foo:thing",
+    ).toEqual({
+      Thing: ["urn:foo:thing", "urn:zip:zap"],
+      Other: ["urn:foo:thing"],
+      Widget: ["urn:zip:zap"],
     });
   });
 
-  it("maps entities to urns for multiple capabilities", () => {
+  it("deduplicates repeated registrations of the same URN", () => {
     expect(
       mapEntitiesToUrns([
-        {
-          urn: "urn:foo:thing",
-          entities: ["Thing1", "Thing2"],
-        },
-        {
-          urn: "urn:zap:zip",
-          entities: ["Widget", "Whatsit", "Wow"],
-        },
+        { urn: "urn:foo:thing", entities: ["Thing", "Thing"] },
+        { urn: "urn:foo:thing", entities: ["Thing"] },
       ]),
-    ).toStrictEqual({
-      Thing1: "urn:foo:thing",
-      Thing2: "urn:foo:thing",
-      Widget: "urn:zap:zip",
-      Whatsit: "urn:zap:zip",
-      Wow: "urn:zap:zip",
-    });
+    ).toEqual({ Thing: ["urn:foo:thing"] });
   });
 
-  it("throws when an entity is passed in more than once", () => {
-    expect(() =>
-      mapEntitiesToUrns([
-        {
-          urn: "urn:foo:thing",
-          entities: ["Thing1", "Thing2", "Thing2"],
-        },
-      ]),
-    ).toThrow('Entity "Thing2" has already been added');
-
-    expect(() =>
-      mapEntitiesToUrns([
-        {
-          urn: "urn:foo:thing",
-          entities: ["Thing1", "Thing2"],
-        },
-        {
-          urn: "urn:zip:zap",
-          entities: ["Almost", "Unique", "Enough", "Thing1"],
-        },
-      ]),
-    ).toThrow('Entity "Thing1" has already been added');
+  it("supports entity names that match Object prototype properties", () => {
+    const entities = mapEntitiesToUrns([
+      { urn: "urn:foo:thing", entities: ["__proto__", "constructor", "toString"] },
+    ]);
+    expect(Object.getPrototypeOf(entities)).toBeNull();
+    expect(entities["__proto__"]).toEqual(["urn:foo:thing"]);
+    expect(entities["constructor"]).toEqual(["urn:foo:thing"]);
+    expect(entities["toString"]).toEqual(["urn:foo:thing"]);
   });
 });
