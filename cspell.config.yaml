@@ -16,6 +16,9 @@ words:
   - htunnicliff
   - unstub
   - eventsource
+  - microtask
+  - microtasks
+  - vacationresponse
 ignorePaths:
   - pnpm-lock.yaml
   - dist/

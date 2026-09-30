@@ -24,8 +24,8 @@ arguments rather than batching; the client does not rewrite or paginate
 those calls. Core `maxSizeUpload` and `maxConcurrentUpload` apply to the
 separate blob upload endpoint. These method and upload limits remain
 server-enforced; automatic pagination and upload scheduling are separate
-features. The current API has no method-call cancellation, `AbortSignal`,
-or manual flush operation.
+features. There is no manual flush operation. Per-call `AbortSignal`
+behavior is described in [cancellation](cancellation.md).
 
 ## Core capability audit
 
