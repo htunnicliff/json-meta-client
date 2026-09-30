@@ -1,6 +1,11 @@
 version: "0.2"
 language: en
 words:
+  - rocksdb
+  - pyzor
+  - Stalwart
+  - webadmin
+  - interop
   - Batchable
   - capnweb
   - JMAP

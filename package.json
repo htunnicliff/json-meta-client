@@ -49,7 +49,8 @@
     "spelling:check": "cspell .",
     "version": "pnpm run build && changeset version && pnpm install",
     "release": "pnpm run build && changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:interop": "pnpm build && node interop/run.mjs"
   },
   "dependencies": {
     "eventsource-client": "^1.2.0",

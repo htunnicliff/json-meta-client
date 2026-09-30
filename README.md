@@ -127,6 +127,10 @@ const emails = await client.api.Email.get({
 
 Define typed or untyped JMAP extensions with `defineCapability()` and `.withMethods()`. See the [custom capability guide](./docs/custom-capabilities.md) for a complete example, argument-dependent results, and shared entity behavior.
 
+## Interoperability tests
+
+Run `pnpm test:interop` to test the public client against a pinned real Stalwart JMAP server. See the [local setup and coverage](./interop/README.md).
+
 ## Architecture
 
 ### Method contracts and inference
