@@ -11,6 +11,7 @@ import {
 } from "../capability.ts";
 import { Client } from "../client.ts";
 import type { JobResult } from "../internal/batch.ts";
+import type { MethodCallOptions } from "../internal/method-calls.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
 import { ref, type Ref } from "../ref.ts";
 
@@ -164,7 +165,9 @@ describe("method contract boundaries", () => {
   });
 
   it("retains untyped methods and their inferred pending arguments", () => {
-    expectTypeOf<Parameters<AugmentMethod<MethodContract>>>().toEqualTypeOf<[args: {}]>();
+    expectTypeOf<Parameters<AugmentMethod<MethodContract>>>().toEqualTypeOf<
+      [args: {}, options?: MethodCallOptions]
+    >();
     expectTypeOf<EffectiveMethodInput<MethodContract, { madeUp: Ref<"value"> }>>().toEqualTypeOf<{
       madeUp: "value";
     }>();

@@ -16,6 +16,7 @@ import { core } from "./capabilities/core.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import {
+  JmapAbortError,
   JmapConfigurationError,
   JmapError,
   JmapHttpError,
@@ -25,8 +26,10 @@ import {
   type JmapRequestContext,
 } from "./error.ts";
 import type { Flush } from "./internal/batch.ts";
+import { abortable, cancellationScope } from "./internal/cancellation.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
+import type { MethodCallOptions } from "./internal/method-calls.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
@@ -57,7 +60,7 @@ export class Client<
 > {
   readonly #config: Required<Config<T>>;
 
-  readonly #entityToUrn: Record<string, string[]>;
+  readonly #entityToUrns: Record<string, string[]>;
 
   readonly api: API;
 
@@ -88,7 +91,7 @@ export class Client<
     };
 
     try {
-      this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
+      this.#entityToUrns = mapEntitiesToUrns(this.#config.capabilities);
     } catch (cause) {
       throw new JmapConfigurationError("Invalid capability configuration", { cause });
     }
@@ -113,7 +116,8 @@ export class Client<
         typeof result.apiUrl !== "string" ||
         !URL.canParse(result.apiUrl) ||
         !isRecord(result.capabilities) ||
-        !isRecord(result.primaryAccounts)
+        !isRecord(result.primaryAccounts) ||
+        !Object.values(result.primaryAccounts).every((value) => typeof value === "string")
       ) {
         throw new JmapProtocolError("Invalid JMAP session", {
           request: { url: String(this.#config.sessionUrl), method: "GET" },
@@ -132,7 +136,7 @@ export class Client<
   };
 
   #validateSessionCapabilities(session: Session): void {
-    const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
+    const configuredUrns = new Set(Object.values(this.#entityToUrns).flat());
     const availableUrns = new Set(Object.keys(session.capabilities));
 
     const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
@@ -191,7 +195,7 @@ export class Client<
 
     for (const { method } of methodCalls) {
       const [entity] = /^[^/]+/.exec(method)!;
-      for (const urn of this.#entityToUrn[entity] ?? []) {
+      for (const urn of this.#entityToUrns[entity] ?? []) {
         urnsToUse.add(urn);
       }
     }
@@ -226,8 +230,13 @@ export class Client<
   }
 
   #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
+    const discovery = cancellationScope(jobs);
     try {
-      const session = await this.session;
+      if (discovery.active().length === 0) return;
+      const session = await abortable(this.session, discovery.signal);
+      jobs = discovery.active();
+      discovery.dispose();
+      if (jobs.length === 0) return;
       const limits = this.#requestLimits(session);
       const methodCalls = jobs.map((job) => job.payload);
       if (limits.maxConcurrentRequests === 0) {
@@ -255,33 +264,53 @@ export class Client<
         );
         for (const call of calls) jobById.get(call.id)!.handle.reject(error);
       }
-      await requests.reduce(
-        (previous, calls) =>
-          previous.then(async () => {
-            const release = await this.#requestConcurrency.acquire(limits.maxConcurrentRequests);
-            try {
-              await this.#sendMethodCalls(
-                calls.map((call) => jobById.get(call.id)!),
-                session,
-              );
-            } finally {
-              release();
-            }
-          }),
-        Promise.resolve(),
-      );
+      const scopedRequests = requests.map((calls) => {
+        const requestJobs = calls.map((call) => jobById.get(call.id)!);
+        return { requestJobs, scope: cancellationScope(requestJobs) };
+      });
+      try {
+        await scopedRequests.reduce(
+          (previous, { requestJobs, scope }) =>
+            previous.then(async () => {
+              if (scope.active().length === 0) return;
+              let release: (() => void) | undefined;
+              try {
+                release = await this.#requestConcurrency.acquire(
+                  limits.maxConcurrentRequests,
+                  scope.signal,
+                );
+                await this.#sendMethodCalls(requestJobs, session, scope);
+              } catch (error) {
+                for (const job of requestJobs) job.handle.reject(error);
+              } finally {
+                release?.();
+                scope.dispose();
+              }
+            }),
+          Promise.resolve(),
+        );
+      } finally {
+        for (const { scope } of scopedRequests) scope.dispose();
+      }
     } catch (error) {
       for (const { handle } of jobs) handle.reject(error);
+    } finally {
+      discovery.dispose();
     }
   };
 
-  #sendMethodCalls = async (jobs: Parameters<Flush<MethodCall<unknown>>>[0], session: Session) => {
+  #sendMethodCalls = async (
+    jobs: Parameters<Flush<MethodCall<unknown>>>[0],
+    session: Session,
+    scope: ReturnType<typeof cancellationScope>,
+  ) => {
     try {
+      jobs = scope.active();
+      if (jobs.length === 0) return;
       const methodCalls = jobs.map((job) => job.payload);
-      const response = await this.#fetchJson<JMAPResponse>(
-        session.apiUrl,
-        this.#serializeRequest(methodCalls),
-      );
+      const body = this.#serializeRequest(methodCalls);
+      scope.markSent();
+      const response = await this.#fetchJson<JMAPResponse>(session.apiUrl, body, scope.signal);
 
       const context = { request: { url: session.apiUrl, method: "POST" }, payload: response };
       if (!isRecord(response) || !Array.isArray(response.methodResponses)) {
@@ -358,19 +387,22 @@ export class Client<
     const request = { url: String(url), method: init.method ?? "GET" };
     let response: Response;
     try {
-      response = await fetch(url, init);
+      if (init.signal?.aborted) throw new JmapAbortError(init.signal.reason);
+      response = await abortable(fetch(url, init), init.signal ?? undefined);
     } catch (cause) {
+      if (init.signal?.aborted) throw new JmapAbortError(init.signal.reason);
       throw new JmapTransportError("JMAP transport failed", request, cause);
     }
     if (!response.ok) {
       let payload: unknown;
       let cause: unknown;
       try {
-        const text = await response.text();
+        const text = await abortable(response.text(), init.signal ?? undefined);
         payload = text;
         if (/\bjson\b/i.test(response.headers.get("content-type") ?? ""))
           payload = JSON.parse(text);
       } catch (error) {
+        if (init.signal?.aborted) throw new JmapAbortError(init.signal.reason);
         cause = error;
       }
       throw new JmapHttpError(response, request, payload, cause);
@@ -378,7 +410,11 @@ export class Client<
     return response;
   };
 
-  #fetchJson = async <T>(url: string | URL, body: BodyInit | null = null): Promise<T> => {
+  #fetchJson = async <T>(
+    url: string | URL,
+    body: BodyInit | null = null,
+    signal?: AbortSignal,
+  ): Promise<T> => {
     const request: JmapRequestContext = {
       url: String(url),
       method: body === null ? "GET" : "POST",
@@ -391,11 +427,24 @@ export class Client<
         "content-type": "application/json",
       },
       body,
+      signal,
     });
+    let text: string;
     try {
-      return await response.json();
+      text = await abortable(response.text(), signal);
     } catch (cause) {
-      throw new JmapProtocolError("Invalid JSON response", { request, response, cause });
+      if (signal?.aborted) throw new JmapAbortError(signal.reason);
+      throw new JmapTransportError("JMAP response body could not be read", request, cause);
+    }
+    try {
+      return JSON.parse(text);
+    } catch (cause) {
+      throw new JmapProtocolError("Invalid JSON response", {
+        request,
+        response,
+        payload: text,
+        cause,
+      });
     }
   };
 
@@ -403,14 +452,16 @@ export class Client<
     upload: async (
       body: BodyInit,
       params: SetOptional<BlobUploadParams, "accountId"> = {},
+      options: MethodCallOptions = {},
     ): Promise<BlobUploadResponse> => {
-      const session = await this.session;
+      if (options.signal?.aborted) throw new JmapAbortError(options.signal.reason);
+      const session = await abortable(this.session, options.signal);
       if (typeof session.uploadUrl !== "string")
         throw new JmapProtocolError("Missing upload URL", { payload: session });
       const url = expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const data = await this.#fetchJson<BlobUploadResponse>(url, body);
+      const data = await this.#fetchJson<BlobUploadResponse>(url, body, options.signal);
       if (
         !isRecord(data) ||
         typeof data.accountId !== "string" ||
@@ -427,8 +478,12 @@ export class Client<
       }
       return data;
     },
-    download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
-      const session = await this.session;
+    download: async (
+      params: SetOptional<BlobDownloadParams, "accountId">,
+      options: MethodCallOptions = {},
+    ): Promise<Response> => {
+      if (options.signal?.aborted) throw new JmapAbortError(options.signal.reason);
+      const session = await abortable(this.session, options.signal);
       if (typeof session.downloadUrl !== "string")
         throw new JmapProtocolError("Missing download URL", { payload: session });
       const url = expandURITemplate(session.downloadUrl, {
@@ -436,6 +491,7 @@ export class Client<
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
       const response = await this.#fetchResponse(url, {
+        signal: options.signal,
         method: "GET",
         headers: {
           authorization: `Bearer ${this.#config.bearerToken}`,
@@ -449,7 +505,8 @@ export class Client<
     handler: (change: StateChangePayload) => void,
     { pingSeconds = 30, signal }: OnStateChangeOptions = {},
   ) => {
-    const session = await this.session;
+    if (signal?.aborted) throw new JmapAbortError(signal.reason);
+    const session = await abortable(this.session, signal);
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
     if (typeof session.eventSourceUrl !== "string")
       throw new JmapProtocolError("Missing event source URL", { payload: session });
@@ -459,7 +516,8 @@ export class Client<
       closeafter: "no",
       ping: pingSeconds.toFixed(0),
     } satisfies EventSourceArguments);
-    const { createEventSource } = await import("eventsource-client");
+    const { createEventSource } = await abortable(import("eventsource-client"), signal);
+    if (signal?.aborted) throw new JmapAbortError(signal.reason);
     const eventSource = createEventSource({
       url,
       headers: {
@@ -487,9 +545,13 @@ export class Client<
         }
       },
     });
-    signal?.addEventListener("abort", () => eventSource.close());
+    const close = () => {
+      signal?.removeEventListener("abort", close);
+      eventSource.close();
+    };
+    signal?.addEventListener("abort", close, { once: true });
     return {
-      [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
+      [Symbol.dispose ?? "disconnect"]: close,
     };
   };
 }

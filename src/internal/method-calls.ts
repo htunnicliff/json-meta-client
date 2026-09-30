@@ -1,6 +1,10 @@
 // oxlint-disable unicorn/no-thenable typescript/no-unnecessary-type-parameters typescript/no-unsafe-type-assertion
 import type { Invocation } from "jmap-rfc-types";
 
+export interface MethodCallOptions {
+  readonly signal?: AbortSignal;
+}
+
 interface MethodCallParams<T> {
   readonly method: string;
   readonly args: T;

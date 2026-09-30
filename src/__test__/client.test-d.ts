@@ -19,6 +19,7 @@ import {
 } from "../capability.ts";
 import { Client, DEFAULT_CAPABILITIES } from "../client.ts";
 import type { JobResult } from "../internal/batch.ts";
+import type { MethodCallOptions } from "../internal/method-calls.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
 import { ref, type AllowRefs, type Ref } from "../ref.ts";
 
@@ -242,9 +243,11 @@ describe("Client", () => {
 
         // Args are unknown
         type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>;
-        expectTypeOf<Args>().toEqualTypeOf<[args: MethodArguments<MethodContract>]>();
-        expectTypeOf<Args>().toExtend<[object]>();
-        expectTypeOf<Args>().toExtend<[{}]>();
+        expectTypeOf<Args>().toEqualTypeOf<
+          [args: MethodArguments<MethodContract>, options?: MethodCallOptions]
+        >();
+        expectTypeOf<Args>().toExtend<[object, MethodCallOptions?]>();
+        expectTypeOf<Args>().toExtend<[{}, MethodCallOptions?]>();
 
         // Uses unknown BatchResult type
         const pending = client.api.Something.aRandomMethod!({

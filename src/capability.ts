@@ -1,7 +1,7 @@
 import type { SetOptional, SetRequired, Simplify } from "type-fest";
 
 import type { JobResult } from "./internal/batch.ts";
-import type { MethodCall } from "./internal/method-calls.ts";
+import type { MethodCall, MethodCallOptions } from "./internal/method-calls.ts";
 import type { AllowRefs, UnpackRefs } from "./ref.ts";
 
 export interface MethodContract {
@@ -50,6 +50,7 @@ export type AugmentMethod<Contract extends MethodContract> = <
   Args extends MethodArguments<Contract>,
 >(
   args: Args,
+  options?: MethodCallOptions,
 ) => JobResult<
   MethodCall<EffectiveMethodInput<Contract, Args>>,
   Apply<Contract, EffectiveMethodInput<Contract, Args>>

@@ -208,4 +208,29 @@ describe("public structured errors", () => {
       client().blob.download({ accountId: "a", blobId: "b", name: "n", type: "text/plain" }),
     ).rejects.toMatchObject({ kind: "http", status: 404, payload: "missing" });
   });
+  it("classifies body read failures as transport errors", async () => {
+    const cause = new Error("connection interrupted");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(cause);
+              },
+            }),
+          ),
+      ),
+    );
+    await expect(client().session).rejects.toMatchObject({ kind: "transport", cause });
+  });
+
+  it("rejects invalid session account IDs as server protocol failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ...session, primaryAccounts: { mail: 42 } })),
+    );
+    await expect(client().session).rejects.toBeInstanceOf(JmapProtocolError);
+  });
 });

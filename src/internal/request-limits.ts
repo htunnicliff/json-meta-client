@@ -1,3 +1,4 @@
+import { JmapAbortError } from "../error.ts";
 import { isRef } from "../ref.ts";
 import type { MethodCall } from "./method-calls.ts";
 
@@ -49,8 +50,10 @@ export function referencedMethodCallIds(
   }
   if (seen.has(value)) return [];
   seen.add(value);
-  return Object.entries(value).flatMap(([key, item]: [string, unknown]) =>
-    referencedMethodCallIds(item, key.startsWith("#"), seen),
+  return Object.entries(Object.getOwnPropertyDescriptors(value)).flatMap(([key, descriptor]) =>
+    "value" in descriptor
+      ? referencedMethodCallIds(descriptor.value, key.startsWith("#"), seen)
+      : [],
   );
 }
 
@@ -115,11 +118,28 @@ export function partitionMethodCalls(
 
 export class RequestConcurrency {
   #active = 0;
-  #waiting: { maximum: number; resolve: (release: () => void) => void }[] = [];
+  #waiting: { maximum: number; resolve: (release: () => void) => void; cleanup: () => void }[] = [];
 
-  acquire(maximum = Infinity): Promise<() => void> {
-    return new Promise((resolve) => {
-      this.#waiting.push({ maximum, resolve });
+  acquire(maximum = Infinity, signal?: AbortSignal): Promise<() => void> {
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        const index = this.#waiting.indexOf(entry);
+        if (index >= 0) this.#waiting.splice(index, 1);
+        signal?.removeEventListener("abort", abort);
+        reject(new JmapAbortError(signal?.reason));
+        this.#drain();
+      };
+      const entry = {
+        maximum,
+        resolve,
+        cleanup: () => signal?.removeEventListener("abort", abort),
+      };
+      if (signal?.aborted) {
+        reject(new JmapAbortError(signal.reason));
+        return;
+      }
+      signal?.addEventListener("abort", abort, { once: true });
+      this.#waiting.push(entry);
       this.#drain();
     });
   }
@@ -128,6 +148,7 @@ export class RequestConcurrency {
     while (this.#waiting.length > 0 && this.#active < this.#waiting[0]!.maximum) {
       const next = this.#waiting.shift()!;
       this.#active++;
+      next.cleanup();
       next.resolve(() => {
         this.#active--;
         this.#drain();

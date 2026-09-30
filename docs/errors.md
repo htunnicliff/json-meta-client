@@ -9,8 +9,9 @@ All intentional client failures extend `JmapClientError`, exported from `json-me
 | `JmapTransportError`                             | `transport`     | `request` and the original fetch exception in `cause`                                                                 |
 | `JmapProtocolError`                              | `protocol`      | Available `request`, `response`, `payload`, `methodCall`, and parsing `cause`                                         |
 | `JmapConfigurationError`                         | `configuration` | Invalid client options or unsupported usage, with an underlying `cause` when available                                |
+| `JmapRequestLimitError`                          | `request-limit` | Advertised `limit`, `maximum`, attempted `actual`, affected `methodCallIds`, and `request`                            |
 
-| `JmapRequestLimitError` | `request-limit` | Advertised `limit`, `maximum`, attempted `actual`, affected `methodCallIds`, and `request` |
+| `JmapAbortError` | `abort` | Standard `name: "AbortError"`, signal `reason`, and matching `cause` |
 
 `request` contains the URL and HTTP method; it does not include authorization headers. `response` is the original Fetch Response. Its body may already have been consumed. HTTP failures keep their HTTP category even if the error body contains malformed JSON; `payload` retains the raw text and `cause` identifies the parsing failure. Without a parsing failure, the HTTP payload also remains available as `cause` for compatibility.
 

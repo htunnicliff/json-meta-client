@@ -139,3 +139,13 @@ export class JmapRequestLimitError extends JmapClientError {
     this.request = request;
   }
 }
+
+export class JmapAbortError extends JmapClientError {
+  readonly reason: unknown;
+
+  constructor(reason?: unknown) {
+    super("JMAP operation was aborted", "abort", { cause: reason });
+    this.name = "AbortError";
+    this.reason = reason;
+  }
+}
