@@ -84,8 +84,18 @@ export class Batch<Input = unknown> {
         const queuedJobs = this.#queue.splice(0);
 
         // Flush batch
-        void this.#flush(queuedJobs);
+        void this.#process(queuedJobs);
       });
+    }
+  }
+
+  async #process(jobs: Job<Input>[]): Promise<void> {
+    try {
+      await this.#flush(jobs);
+    } catch (error) {
+      for (const { handle } of jobs) {
+        handle.reject(error);
+      }
     }
   }
 }
