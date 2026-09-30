@@ -11,11 +11,16 @@ import type {
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { core, mail } from "../capabilities/index.ts";
-import { defineCapability, type AugmentMethod, type MethodContract } from "../capability.ts";
+import {
+  defineCapability,
+  type AugmentMethod,
+  type MethodArguments,
+  type MethodContract,
+} from "../capability.ts";
 import { Client, DEFAULT_CAPABILITIES } from "../client.ts";
 import type { JobResult } from "../internal/batch.ts";
+import type { MethodCallOptions } from "../internal/method-calls.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
-import type { AllowRefsInArgs } from "../internal/types.ts";
 import { ref, type AllowRefs, type Ref } from "../ref.ts";
 
 const host = "https://example.test";
@@ -166,7 +171,7 @@ describe("Client", () => {
         // Correct batch result type
         expectTypeOf(pending).toEqualTypeOf<
           JobResult<
-            MethodCall<{ ids: string[] }>,
+            MethodCall<{ ids: string[]; accountId: ID }>,
             {
               accountId: ID;
               state: string;
@@ -238,9 +243,11 @@ describe("Client", () => {
 
         // Args are unknown
         type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>;
-        expectTypeOf<Args>().toEqualTypeOf<[args: AllowRefsInArgs<unknown>]>();
-        expectTypeOf<Args>().toExtend<[object]>();
-        expectTypeOf<Args>().toExtend<[{}]>();
+        expectTypeOf<Args>().toEqualTypeOf<
+          [args: MethodArguments<MethodContract>, options?: MethodCallOptions]
+        >();
+        expectTypeOf<Args>().toExtend<[object, MethodCallOptions?]>();
+        expectTypeOf<Args>().toExtend<[{}, MethodCallOptions?]>();
 
         // Uses unknown BatchResult type
         const pending = client.api.Something.aRandomMethod!({

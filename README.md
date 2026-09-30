@@ -3,148 +3,70 @@
 > [!WARNING]
 > This library is alpha software.
 
-## Overview
+A typed [JMAP](https://jmap.io/) client for Node.js and browsers.
+Choose your server's capabilities, then call methods such as
+`client.api.Email.query()`. The client builds the protocol requests
+and batches calls made together.
 
-A [JMAP][jmap] client compatible with Node.js and the browser.
-
-## Installation
+## Quick start
 
 ```sh
 pnpm add json-meta-client
 ```
 
-## Usage
-
-Create a client with the capabilities your JMAP server supports:
+Provide the session URL and bearer token supplied by your JMAP
+service:
 
 ```ts
-import { Client } from "json-meta-client";
-import {
-  mail,
-  submission,
-  contacts,
-} from "json-meta-client/capabilities";
+import { Client, ref } from "json-meta-client";
+import { mail } from "json-meta-client/capabilities";
 
 const client = new Client({
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
   bearerToken: "<token>",
-  sessionUrl: "<session-url>",
-  capabilities: [mail, submission, contacts], // `core` is always included
+  capabilities: [mail],
 });
-```
 
-#### Issue a single JMAP request
-
-```ts
-const response = await client.api.Mailbox.query({
+const inboxes = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
+const inboxId = inboxes.ids[0];
+if (!inboxId) throw new Error("No inbox found");
 
-const [inboxId] = response.ids;
-```
-
-<details>
-<summary>View JMAP request</summary>
-
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "accountId": "<primary-account-id>",
-        "filter": { "role": "inbox" },
-        "limit": 1
-      },
-      "<opaque id>"
-    ]
-  ]
-}
-```
-
-</details>
-
-#### Issue a batch of JMAP requests
-
-This takes advantage of result references[^1]
-
-```ts
-import { ref } from "json-meta-client";
-
-// Note the lack of `await` here:
-const emailsQuery = client.api.Email.query({
-  inMailbox: inboxId,
+const query = client.api.Email.query({
+  filter: { inMailbox: inboxId },
   limit: 10,
 });
-
 const emails = await client.api.Email.get({
-  ids: ref(emailsQuery, "/ids"),
+  ids: ref(query, "/ids"),
+  properties: ["id", "subject", "from"],
 });
+console.log(emails.list);
 ```
 
-<details>
-<summary>View JMAP request</summary>
+This example finds the inbox, then queries and fetches its emails.
+The email query and get run in one request if they fit the server's
+limits: `ref()` tells the server to pass the query's IDs to the get
+method. Core methods are available on every client. Calls that omit
+`accountId` use the primary mail account; pass an ID to use another account.
 
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "accountId": "<primary-account-id>",
-        "inMailbox": "<inbox-id>",
-        "limit": 10
-      },
-      "<opaque id #1>"
-    ],
-    [
-      "Email/get",
-      {
-        "accountId": "<primary-account-id>",
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "<opaque id #1>",
-          "path": "/ids"
-        }
-      },
-      "<opaque id #2>"
-    ]
-  ]
-}
-```
+## Documentation
 
-</details>
+- [Getting started](docs/getting-started.md): authentication,
+  session discovery, Node.js, browsers, and accounts.
+- [Capabilities](docs/capabilities.md) and
+  [custom capability authoring](docs/custom-capabilities.md).
+- [Batching](docs/batching.md),
+  [server request limits](docs/request-limits.md), and
+  [result references](docs/results-and-references.md).
+- [Errors](docs/errors.md), [cancellation](docs/cancellation.md),
+  [blobs and events](docs/blobs-and-events.md),
+  and [middleware](docs/middleware.md).
+- [Public API reference](docs/api-reference.md) and
+  [method contracts and inference](docs/method-contracts.md).
+- [Executable examples](examples/README.md) and
+  [real-server interoperability tests](interop/README.md).
 
-## Architecture
-
-### Proxies for Method Calls
-
-> TODO: Discuss the use of a Proxy for determining method calls
-
-### Deferred Request Batching
-
-> TODO: Discuss the use of [batcher][batcher] for grouping requests via promise mechanics
-
-[^1]: [RFC 8620 § 3.7 - References to Previous Method Results](https://jmap.io/spec/rfc8620/#section-3.7)
-
-[jmap]: https://jmap.io/
-[rfc8620]: https://jmap.io/spec/rfc8620/
-[rfc8621]: https://jmap.io/spec/rfc8621/
-[rfc8887]: https://jmap.io/spec/rfc8887/
-[rfc9007]: https://jmap.io/spec/rfc9007/
-[rfc9219]: https://jmap.io/spec/rfc9219/
-[rfc9404]: https://jmap.io/spec/rfc9404/
-[rfc9425]: https://jmap.io/spec/rfc9425/
-[rfc9610]: https://jmap.io/spec/rfc9610/
-[rfc9661]: https://jmap.io/spec/rfc9661/
-[rfc9670]: https://jmap.io/spec/rfc9670/
-[rfc9749]: https://jmap.io/spec/rfc9749/
-[batcher]: ./src/internal/batcher.ts
+See [supported package imports](docs/package-api.md) for export details
+and compatibility checks.

@@ -1,6 +1,10 @@
-interface Job<Payload, Output = any> {
+import { JmapAbortError } from "../error.ts";
+
+export interface Job<Payload, Output = any> {
   payload: Payload;
   handle: PromiseWithResolvers<Output>;
+  signal?: AbortSignal;
+  readonly canceled: boolean;
 }
 
 export type JobResult<Input, Output> = Input & Promise<Output>;
@@ -50,20 +54,43 @@ export class Batch<Input = unknown> {
    * Push a payload into the queue and return a promise for
    * the result for the given input
    */
-  enqueue = <Output = unknown, I extends Input = Input>(input: I): JobResult<I, Output> => {
-    // Create a promise for providing the output
-    const handle = Promise.withResolvers<Output>();
-
-    // Add job to the queue
-    this.#queue.push({ payload: input, handle });
-
-    // Schedule a flush
+  enqueue = <Output = unknown, I extends Input = Input>(
+    input: I,
+    signal?: AbortSignal,
+  ): JobResult<I, Output> => {
+    const deferred = Promise.withResolvers<Output>();
+    let settled = false;
+    let canceled = false;
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const handle: PromiseWithResolvers<Output> = {
+      promise: deferred.promise,
+      resolve: (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        deferred.resolve(value);
+      },
+      reject: (reason) => {
+        if (settled) return;
+        canceled = reason instanceof JmapAbortError;
+        settled = true;
+        cleanup();
+        deferred.reject(reason);
+      },
+    };
+    const abort = () => handle.reject(new JmapAbortError(signal?.reason));
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+    this.#queue.push({
+      payload: input,
+      handle,
+      signal,
+      get canceled() {
+        return canceled;
+      },
+    });
     this.#scheduleFlush();
-
-    const result: JobResult<I, Output> = Object.assign(handle.promise, input);
-
-    // Supply the output promise
-    return result;
+    return Object.assign(handle.promise, input);
   };
 
   /**
@@ -84,8 +111,18 @@ export class Batch<Input = unknown> {
         const queuedJobs = this.#queue.splice(0);
 
         // Flush batch
-        void this.#flush(queuedJobs);
+        void this.#process(queuedJobs);
       });
+    }
+  }
+
+  async #process(jobs: Job<Input>[]): Promise<void> {
+    try {
+      await this.#flush(jobs);
+    } catch (error) {
+      for (const { handle } of jobs) {
+        handle.reject(error);
+      }
     }
   }
 }

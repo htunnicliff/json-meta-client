@@ -18,13 +18,17 @@ type Entities = "Email" | "Mailbox";
 
 describe("Capability", () => {
   it("produces a configurable capability with entity types", () => {
-    type Expected = ConfigurableCapability<Entities>;
+    type Expected = ConfigurableCapability<Entities, "urn:ietf:params:jmap:mail">;
     expectTypeOf(cap).toEqualTypeOf<Expected>();
   });
 
   describe("withMethods", () => {
     it("produces a plain capability with entity and method types", () => {
-      type Expected = Capability<Entities, CapabilityMethods<Entities>>;
+      type Expected = Capability<
+        Entities,
+        CapabilityMethods<Entities>,
+        "urn:ietf:params:jmap:mail"
+      >;
       expectTypeOf(cap.withMethods()).toEqualTypeOf<Expected>();
     });
 

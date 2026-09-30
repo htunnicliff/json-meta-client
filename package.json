@@ -15,6 +15,7 @@
   },
   "files": [
     "dist",
+    "docs",
     "package.json",
     "LICENSE"
   ],
@@ -49,7 +50,10 @@
     "spelling:check": "cspell .",
     "version": "pnpm run build && changeset version && pnpm install",
     "release": "pnpm run build && changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:interop": "pnpm build && node interop/run.mjs",
+    "examples:check": "tsc --project tsconfig.examples.json",
+    "test:package": "tsdown && node --test tests/package-api.test.mjs"
   },
   "dependencies": {
     "eventsource-client": "^1.2.0",

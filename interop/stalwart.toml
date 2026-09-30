@@ -1,0 +1,39 @@
+[server]
+hostname = "'localhost'"
+http.url = "'{URL}'"
+
+[server.listener.http]
+bind = ["127.0.0.1:{PORT}"]
+protocol = "http"
+
+[storage]
+data = "rocksdb"
+fts = "rocksdb"
+blob = "rocksdb"
+lookup = "rocksdb"
+directory = "internal"
+
+[store.rocksdb]
+type = "rocksdb"
+path = "{DATA}"
+
+[directory.internal]
+type = "internal"
+store = "rocksdb"
+
+[authentication.fallback-admin]
+user = "admin"
+secret = "interop-admin-password"
+
+[spam-filter.pyzor]
+enable = false
+
+[tracer.stdout]
+type = "stdout"
+level = "info"
+ansi = false
+enable = true
+
+[webadmin]
+resource = "file://{WEBADMIN}"
+auto-update = false

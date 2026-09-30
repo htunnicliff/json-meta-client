@@ -2,7 +2,7 @@
 import type { JsonObject, JsonValue } from "type-fest";
 
 import { Batch, type Flush } from "./internal/batch.ts";
-import { MethodCall } from "./internal/method-calls.ts";
+import { MethodCall, type MethodCallOptions } from "./internal/method-calls.ts";
 import type { Middleware } from "./internal/types.ts";
 
 export function createApi<T extends object>(
@@ -11,10 +11,10 @@ export function createApi<T extends object>(
 ): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): JsonValue => {
+  const applyMiddleware = (payload: JsonObject, method: string): JsonValue => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
-      transformed = fn(transformed);
+      transformed = fn(transformed, { method });
     }
     return transformed;
   };
@@ -36,12 +36,15 @@ export function createApi<T extends object>(
                 return undefined;
               }
 
-              return (args: JsonObject) =>
+              return (args: JsonObject, options: MethodCallOptions = {}) =>
                 batch.enqueue(
                   new MethodCall({
                     method: `${entity}/${method}`,
-                    args: applyMiddleware(args),
+                    args: options.signal?.aborted
+                      ? args
+                      : applyMiddleware(args, `${entity}/${method}`),
                   }),
+                  options.signal,
                 );
             },
           }),

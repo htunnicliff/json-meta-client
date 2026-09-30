@@ -1,7 +1,8 @@
+import type { SetOptional, SetRequired, Simplify } from "type-fest";
+
 import type { JobResult } from "./internal/batch.ts";
-import type { MethodCall } from "./internal/method-calls.ts";
-import type { AddBackAccountId, AllowRefsInArgs, OptionalAccountId } from "./internal/types.ts";
-import type { UnpackRefs } from "./ref.ts";
+import type { MethodCall, MethodCallOptions } from "./internal/method-calls.ts";
+import type { AllowRefs, UnpackRefs } from "./ref.ts";
 
 export interface MethodContract {
   input: unknown;
@@ -28,23 +29,42 @@ export type Augment<T extends CapabilityMethods<string>> = {
   };
 };
 
-/** @internal */
+export type MethodArguments<Contract extends MethodContract> = {
+  [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
+} extends infer Args
+  ? Args extends { accountId: unknown }
+    ? SetOptional<Args, "accountId">
+    : Args
+  : never;
+
+export type EffectiveMethodInput<Contract extends MethodContract, Args> =
+  UnpackRefs<Args> extends infer Input
+    ? "accountId" extends keyof Input
+      ? SetRequired<Input, "accountId">
+      : Contract["input"] extends { accountId: infer AccountId }
+        ? Simplify<Input & { accountId: AccountId }>
+        : Input
+    : never;
+
 export type AugmentMethod<Contract extends MethodContract> = <
-  Args extends OptionalAccountId<AllowRefsInArgs<Contract["input"]>>,
-  RealArgs extends AddBackAccountId<UnpackRefs<Args>>,
+  Args extends MethodArguments<Contract>,
 >(
   args: Args,
-) => JobResult<MethodCall<RealArgs>, Apply<Contract, RealArgs>>;
+  options?: MethodCallOptions,
+) => JobResult<
+  MethodCall<EffectiveMethodInput<Contract, Args>>,
+  Apply<Contract, EffectiveMethodInput<Contract, Args>>
+>;
 
 /**
  * A partially-configured capability that supports using
  * layers of generics. The first layer captures the {@link Entity}
  * type, while the second layer captures the {@link CapabilityMethods}
  */
-export interface ConfigurableCapability<Entity extends string> {
-  urn: string;
+export interface ConfigurableCapability<Entity extends string, Urn extends string = string> {
+  urn: Urn;
   entities: ReadonlyArray<Entity>;
-  withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M>;
+  withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M, Urn>;
 }
 
 /**
@@ -56,8 +76,9 @@ export interface ConfigurableCapability<Entity extends string> {
 export interface Capability<
   Entity extends string = string,
   _Methods extends CapabilityMethods<Entity> = CapabilityMethods<Entity>,
+  Urn extends string = string,
 > {
-  urn: string;
+  urn: Urn;
   entities: ReadonlyArray<Entity>;
 }
 
@@ -76,13 +97,13 @@ export type InferMethodsFromCapability<C> =
  * const Core = defineCapability({ })
  * ```
  */
-export function defineCapability<const Entity extends string>({
+export function defineCapability<const Entity extends string, const Urn extends string = string>({
   urn,
   entities,
 }: {
-  urn: string;
+  urn: Urn;
   entities: ReadonlyArray<Entity>;
-}): ConfigurableCapability<Entity> {
+}): ConfigurableCapability<Entity, Urn> {
   return {
     urn,
     entities,
