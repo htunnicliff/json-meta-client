@@ -2,4 +2,12 @@
 "json-meta-client": minor
 ---
 
-Define explicit package exports and expose ClientOptions, PendingMethodCall, Middleware, method context, call options, structured errors, and community entity types from supported entry points. Remove incidental root exports and replace the nonexistent Core.get declaration with argument-dependent Core.echo. Preserve explicit account references during injection and skip automatic account injection for echo. Validate real packed consumers in Node and browser bundlers, including strict declaration resolution and preserved class names in minified output.
+Define explicit supported package exports. Add public types for client options,
+pending calls, middleware context, call options, and community entities, along
+with structured error classes. Rename `Config` to `ClientOptions` and make
+incidental root exports private.
+
+Replace the nonexistent `Core.get` declaration with `Core.echo`, whose result
+type follows its arguments. Skip account injection for echo and preserve
+explicit account references. Verify the packed package in Node and browser
+bundlers, including strict type resolution and preserved error class names.

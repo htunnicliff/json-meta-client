@@ -2,10 +2,10 @@
 
 ## Uploading and downloading
 
-Blob HTTP operations use URLs from the session document. They are
-separate from `client.api` method calls and are not automatically
-batched with them. The byte upload endpoint is distinct from the
-optional `Blob/upload` JMAP method exposed by the blob capability.
+Use `client.blob` to transfer bytes through the upload and download
+URLs in the session document. These HTTP operations run separately
+from batched API calls. `client.blob.upload()` also differs from the
+optional `Blob/upload` API method provided by the blob capability.
 
 ```ts
 const uploaded = await client.blob.upload(new Blob(["hello"], { type: "text/plain" }), {
@@ -20,28 +20,31 @@ const response = await client.blob.download({
 console.log(await response.text());
 ```
 
-`upload(body, params?, options?)` accepts a fetch `BodyInit` and resolves to
-the JMAP upload response containing `accountId`, `blobId`, `type`,
-and `size`. Omit the upload account only when the session's primary
-mail account is suitable. The current implementation sends an
-`application/json` content-type header, including for raw upload
-bodies; servers may use that type in the uploaded blob metadata.
+`upload(body, params?, options?)` accepts a Fetch `BodyInit` and
+returns metadata containing `accountId`, `blobId`, `type`, and `size`.
+Omitting `accountId` selects the primary mail account.
+
+The client currently sends `Content-Type: application/json` for every
+upload, including raw bytes. The `Blob`'s `text/plain` type in this
+example does not override that header; the server may report the
+header's type in its metadata.
 
 `download(params, options?)` requires `blobId`, `name`, and `type`.
-Its optional `accountId` defaults to the primary mail account. It expands the session's download URL and resolves to the
-native `Response`; choose `text()`, `arrayBuffer()`, `blob()`, or a
-stream according to your use case. Treat `Response.json()` parsing
-errors as ordinary application parsing errors. Failed HTTP
-operations reject with the [structured errors](errors.md).
+The optional `accountId` defaults to the primary mail account. The
+client expands the session's download URL and returns a native
+`Response`. Read it with `text()`, `arrayBuffer()`, `blob()`, or a stream.
+HTTP failures reject with [client errors](errors.md); errors while
+your application parses the returned body, such as with `json()`,
+retain their ordinary Fetch or parsing error types.
 
 Pass `{ signal }` as the third upload argument or second download
 argument to cancel waiting for the session or fetching the blob.
 See [cancellation](cancellation.md). Download response-body
 consumption remains governed by Fetch and its signal.
 
-The library does not impose the session's upload-size or upload
-concurrency limits. Check the server's capabilities before sending
-large bodies. [RFC 8620 sections 6 and 7](https://www.rfc-editor.org/rfc/rfc8620.html#section-6)
+The server enforces upload-size and upload-concurrency limits. The
+client neither validates size nor queues uploads to meet those limits;
+check the session's capabilities when planning large or concurrent uploads. [RFC 8620 sections 6 and 7](https://www.rfc-editor.org/rfc/rfc8620.html#section-6)
 describe the blob endpoints.
 
 ## Event source updates
@@ -64,22 +67,21 @@ subscription[Symbol.dispose]();
 ```
 
 Each `StateChangePayload` contains `entity`, `state`, `accountId`,
-and `isPrimaryAccount`. The primary flag compares the account to
-the session's primary mail account; it does not identify a primary
-account separately for each capability. A state string is an opaque
-protocol token, useful for a corresponding `changes` or
-`queryChanges` call. A notification is not a full entity payload.
+and `isPrimaryAccount`. `isPrimaryAccount` compares the changed account to the primary mail
+account, regardless of the entity's capability. Notifications contain
+state tokens rather than full objects. Use the relevant `changes` or
+`queryChanges` method to retrieve updates; treat state strings as opaque.
 
-`pingSeconds` requests a ping interval and defaults to 30. An
-`AbortSignal` closes the subscription. An already aborted signal
-rejects the subscription operation without opening a stream, and
-a signal can also cancel waiting for session discovery. The returned handle has
-`Symbol.dispose` for explicit resource management; on runtimes
-without that symbol the runtime fallback key is `disconnect`.
-Applications should close subscriptions when their view or client
-is no longer needed. The event source client manages its connection;
-this API does not offer an `onError` callback or expose native
-`EventSource` instances. Malformed event JSON, non-StateChange
-events, and errors thrown by the handler are ignored by this API.
+`pingSeconds` requests a server ping interval, defaulting to 30 seconds.
+Close the subscription when its view or client is no longer needed.
+You can abort its signal or call `subscription[Symbol.dispose]()`;
+runtimes without `Symbol.dispose` use the `disconnect` key instead.
+An already aborted signal prevents the stream from opening, and the
+signal also cancels waiting for session discovery.
+
+The underlying event source client manages the connection. This API
+has no `onError` callback and does not expose a native `EventSource`.
+Malformed event JSON, events other than `StateChange`, and exceptions
+from your handler are ignored.
 For event source protocol behavior, see
 [RFC 8620 section 7.3](https://www.rfc-editor.org/rfc/rfc8620.html#section-7.3).

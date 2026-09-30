@@ -2,4 +2,7 @@
 "json-meta-client": minor
 ---
 
-Add public structured errors for method, HTTP, transport, protocol, and configuration failures, preserving server metadata and original causes. Validate unusable session, method, and upload responses and document error handling.
+Expose error classes for method, HTTP, transport, protocol, and configuration
+failures, with server metadata and original causes. Report unusable session,
+method, and upload responses as protocol errors and document how to handle
+each error category.

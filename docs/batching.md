@@ -1,16 +1,13 @@
 # Automatic batching
 
-Calling a method queues it immediately and returns a promise.
-The client automatically starts a batch at the next microtask
-checkpoint. All calls queued before that flush starts are sent
-in call order, splitting into requests when required by server
-limits. You do not need to await a call to make it eligible to be
-sent.
+Every API call queues a method immediately and returns a promise. The client
+collects calls until the next microtask flush, then sends them in call order.
+Server limits may split a batch across several requests.
 
-Calls issued synchronously share a batch, including independent
-calls. They share a request when the advertised limits allow it.
-Awaiting their promises afterward does not change the batch they
-belong to:
+## Calls that share a batch
+
+Issue calls synchronously to put them in the same batch. Awaiting their promises
+later does not change that grouping:
 
 ```ts
 const a = client.api.Email.query({ limit: 10 });
@@ -19,76 +16,48 @@ await a;
 await b;
 ```
 
-Awaiting a call before issuing the next one creates a boundary:
+These independent calls share a request if they fit the server's limits. Calls
+are queued when invoked, so sending them does not depend on awaiting them.
+
+Await a result before issuing another call when the next call needs its data:
 
 ```ts
 const a = await client.api.Email.query({ limit: 10 });
 const b = await client.api.Email.get({ ids: a.ids });
 ```
 
-These calls produce two requests. Yielding with
-`await Promise.resolve()` after queuing a call also lets the
-scheduled flush start before the following call is queued.
-Microtasks run in the order they were queued: a call from a
-microtask queued before the flush can join that batch; a call
-from a microtask queued after the flush belongs to a new batch.
-Calls from different microtasks therefore only share a request
-when both run before the same flush.
+This produces two requests. To express a dependency within one request instead,
+use a [result reference](results-and-references.md): queue the source first, then
+pass `ref(source, "/ids")` to the dependent call before the same flush.
 
-A batch's membership is fixed when its flush starts, even if the
-client is still loading the session or waiting for the server.
-New calls form another batch, which can be sent and finish while
-the earlier request is still in flight. Separate batches are not
-serialized; await the earlier call if execution order matters.
+## Where a batch ends
 
-Use `ref(pendingCall, "/ids")` to express a dependency without
-awaiting the source call, as in the example above. The client
-sends the reference as a JMAP `#ids` argument; the server resolves
-it. Several calls may reference the same pending call. Queue the
-source first and its dependents before the same flush. References
-are local to one request: `ref()` does not move calls between
-batches or validate that they share a batch. After awaiting a
-source, pass its returned values to the next request instead.
+A batch's membership is fixed when its flush starts. Even if the client is still
+loading the session or waiting for a response, later calls form another batch.
 
-Each call's promise settles using its own response ID, even when
-responses arrive in a different order. A method-level error rejects
-that call and leaves successful calls in the request resolved.
-Dependent calls settle according to their own server responses.
-An HTTP or transport failure rejects all calls in the affected
-request with the same error; other split requests continue. A
-missing method response rejects the corresponding call. A failure while processing the batch rejects
-any promises still pending; promises already settled keep their
-results. Processing failures are handled for both synchronous
-throws and asynchronous rejections. Later batches can still run.
+Microtasks run in queue order. A microtask queued before the flush can add calls
+to its batch; one queued after the flush starts a new batch. For example,
+`await Promise.resolve()` after an API call lets the scheduled flush start before
+the code following the `await` runs.
 
-The client reads `maxCallsInRequest`, `maxSizeRequest`, and
-`maxConcurrentRequests` from the active session's Core capability.
-Calls are partitioned into contiguous requests in their original order.
-The complete JSON body, including `using`, counts toward the UTF-8 byte
-limit. Split requests from one batch run sequentially, including after a
-failed request; separate batches may overlap up to the advertised
-concurrency limit. Queued API requests wait for a free slot. Refreshing
-the session applies new limits to subsequent batches. Omitted limits
-are treated as unbounded; malformed limits produce a protocol error.
+Separate batches can overlap and finish out of order. Await the earlier call
+when execution order matters. Within a batch, requests created to meet server
+limits run sequentially. See [server request limits](request-limits.md) for
+splitting rules and concurrency limits. There is no manual flush operation.
 
-Calls connected by result references stay in the same request. If a
-connected group cannot fit by itself, those calls reject locally with
-`JmapRequestLimitError`; unrelated calls can still run. Interleaved
-references may require an entire contiguous block to stay together to
-preserve call order. If that block cannot fit, all calls in it reject.
-The error exposes `limit`, `maximum`, `actual`, `methodCallIds`, and
-`request`, with `kind: "request-limit"`. A zero concurrency limit also
-rejects locally. No request known to exceed these limits is sent.
+## How calls settle
 
-Core `maxObjectsInGet` and `maxObjectsInSet` constrain individual method
-arguments rather than batching; the client does not rewrite or paginate
-those calls. Core `maxSizeUpload` and `maxConcurrentUpload` apply to the
-separate blob upload endpoint. These method and upload limits remain
-server-enforced; automatic pagination and upload scheduling are separate
-features. There is no manual flush operation. Per-call
-`AbortSignal` behavior, including shared requests and dependent
-references, is described in [cancellation](cancellation.md).
+Each response is matched to its call by ID, so response order does not affect
+which promise receives a result.
 
-See [server request limits](request-limits.md) for the complete Core capability audit.
+- A method error rejects that call. Other calls settle from their own responses,
+  including calls that depend on the failed method.
+- An HTTP or transport failure rejects every call in that request with the same
+  error. Other requests created from the batch still run.
+- A missing method response rejects the call that expected it.
+- A failure during batch processing rejects all promises still pending in the
+  batch. Promises already settled keep their results.
 
-See [result references](results-and-references.md) and [errors](errors.md).
+Both synchronous exceptions and asynchronous failures are handled, and later
+batches can still run. See [errors](errors.md) for error classes and
+[cancellation](cancellation.md) for aborting individual calls in a shared request.

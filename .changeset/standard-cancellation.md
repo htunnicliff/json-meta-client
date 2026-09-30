@@ -2,4 +2,7 @@
 "json-meta-client": minor
 ---
 
-Support AbortSignal options for individual JMAP calls and blob operations. Cancel promises promptly, preserve abort reasons, omit pending canceled dependencies, and abort shared transport only when every associated call is canceled.
+Accept `AbortSignal` options for API calls and blob operations. Canceled
+promises reject promptly and preserve the abort reason. Before sending, omit
+canceled calls and their dependents; after sending, abort a shared HTTP request
+only when every call in it is canceled.

@@ -1,6 +1,7 @@
 # Cancellation
 
-Each method accepts client options as its second argument. These options are never included in the JMAP arguments sent to the server.
+Pass an `AbortSignal` to cancel an API call. Method options are the second
+argument and remain separate from the JMAP arguments sent to the server:
 
 ```ts
 const controller = new AbortController();
@@ -8,27 +9,52 @@ const pending = client.api.Email.get({ ids: ["message-id"] }, { signal: controll
 controller.abort("Message view closed");
 ```
 
-Canceled calls reject promptly with `JmapAbortError`, exported from `json-meta-client`. It extends `JmapClientError`, has `kind: "abort"` and the standard `name: "AbortError"`. The signal's abort reason is available as both `reason` and `cause`.
+The canceled promise rejects promptly with `JmapAbortError`, exported from
+`json-meta-client`. This error extends `JmapClientError`, has `kind: "abort"`
+and `name: "AbortError"`, and preserves the signal's abort reason in both
+`reason` and `cause`.
 
-| Timing                                            | Behavior                                                           |
-| ------------------------------------------------- | ------------------------------------------------------------------ |
-| Signal already aborted                            | Reject the call without running middleware or sending its method   |
-| Waiting for a batch, discovery, or a request slot | Reject immediately and omit the canceled call before sending       |
-| Request already sent, siblings still active       | Reject the canceled promise; retain the shared request and payload |
-| Every call in a sent request canceled             | Abort the shared HTTP request                                      |
-| Call already settled                              | Subsequent cancellation has no effect                              |
+## API calls in shared requests
 
-If a source call is canceled before sending, dependent calls using `ref()` reject with an abort error and are omitted too. This propagates through chains of references. Unrelated calls continue. If the source has already been sent, its server invocation remains available for references; its canceled promise rejects but active dependent calls may still complete normally.
+Cancellation affects a call differently depending on whether its request has
+been sent:
 
-Signals do not cancel shared session discovery needed by other operations. When discovery completes, canceled calls are checked again before sending. Shared transport cancellation uses a standard Fetch `signal`; custom Fetch implementations must honor that signal to stop their own network work. Logical promises still reject promptly when Fetch ignores cancellation.
+| When cancellation occurs                                  | Behavior                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| Signal already aborted when called                        | Rejects without running middleware or sending the method.          |
+| While waiting for a batch, session, or request slot       | Rejects immediately and omits the method from the request.         |
+| After sending, while other calls remain active            | Rejects the canceled promise and lets the shared request continue. |
+| After sending, when every call in the request is canceled | Aborts the shared HTTP request.                                    |
+| After the promise settles                                 | Leaves the result unchanged.                                       |
 
-Blob upload accepts options as a third argument, and download accepts options as a second argument:
+Canceling a source call before sending also cancels calls that depend on it
+through `ref()`. This propagates through chains of references; unrelated calls
+continue. After sending, the source method remains in the server's request, so
+active dependent calls can still complete even though the source promise rejects.
+
+Shared session discovery continues for other operations. Canceled calls are
+checked again after discovery completes and before sending. Custom Fetch
+implementations must honor the standard `signal` to stop network activity; the
+client's promises still reject promptly if Fetch ignores it. Method abort
+listeners are removed when calls settle.
+
+## Blob operations
+
+Upload options are the third argument; download options are the second:
 
 ```ts
 await client.blob.upload(file, { accountId: "account" }, { signal });
 await client.blob.download({ blobId, name: "attachment", type: "application/pdf" }, { signal });
 ```
 
-Their signals cover waiting for session discovery and fetching the blob. A successful download returns the Fetch Response; its Fetch signal also applies while consuming the response body. Abort listeners for method calls are removed when the calls settle. Application middleware exceptions retain their original identity; cancellation before middleware skips it.
+The signal cancels waiting for discovery and fetching the blob. A successful
+download returns a Fetch `Response`; its signal also applies while the response
+body is being consumed.
 
-State change subscriptions accept `signal` in their existing options argument. A pre-aborted signal prevents opening a stream. Canceling during discovery or module loading rejects the subscription promise. Once subscribed, cancellation closes the event stream; explicit disposal also removes its abort listener.
+## State change subscriptions
+
+Pass `signal` in the options for `onStateChange()`. An already aborted signal
+prevents opening a stream. Cancellation while loading the session or event source
+module rejects the subscription promise; cancellation after subscribing closes
+the stream. Explicit disposal also removes the abort listener. See
+[blobs and state changes](blobs-and-events.md) for subscription examples.

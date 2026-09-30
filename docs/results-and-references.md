@@ -1,16 +1,13 @@
 # Results and result references
 
-An API method returns a promise carrying the pending call's
-`id`, `method`, and `args`. Awaiting it returns the method's data,
-not the whole JMAP response envelope. Result IDs match responses
-to promises, so response order does not determine which call
-receives a value.
+An API call returns a promise with `id`, `method`, and `args` metadata.
+Await it to receive the method's data. The client handles the JMAP
+response envelope and matches each response to its promise by call ID.
 
-`ref(pendingCall, pointer)` constructs a JMAP result reference.
-Queue the source before its dependent calls within one batching
-window. Unlike awaiting the source and passing its values, a
-reference lets the server resolve the dependency in the same
-request:
+Use `ref(pendingCall, pointer)` to pass part of a pending result to
+another method in the same request. Queue the source first, followed
+by its dependents, before the [batch flush](batching.md#where-a-batch-ends).
+The server resolves the dependency, so the client can send the calls together:
 
 ```ts
 import { ref } from "json-meta-client";
@@ -27,12 +24,12 @@ const threads = client.api.Thread.get({
 const [emails, threadData] = await Promise.all([messages, threads]);
 ```
 
-The client transforms `ids: ref(query, "/ids")` into the protocol
-argument `"#ids": { name: "Email/query", resultOf: query.id,
-path: "/ids" }`. Built-in middleware performs this transformation
-at argument positions, including nested objects. References can be
-reused by several calls. The source's arguments and results are
-not fetched locally when constructing a reference.
+Here, the email get uses the query's IDs, and the thread get uses
+the emails' thread IDs. Built-in middleware converts
+`ids: ref(query, "/ids")` to the protocol argument
+`"#ids": { name: "Email/query", resultOf: query.id, path: "/ids" }`.
+It also handles references in nested objects. Several calls can reuse
+a reference; constructing one does not fetch or await its source.
 
 ## Pointer paths
 
@@ -51,8 +48,8 @@ and `~1` for `/` in property names. The server evaluates paths and
 reports invalid references as JMAP method errors. The type layer
 supports common named properties, numeric indices, and array
 wildcards, but does not fully model every JSON Pointer escaping
-case. Unknown response types produce unknown reference values;
-permissive `any` contracts provide less protection.
+case. A result typed as `unknown` yields an unknown reference value. Contracts
+using `any` provide less type checking.
 
 For typed results, `ref()` restricts paths to known properties and
 carries the selected value's type into the receiving argument.
@@ -62,9 +59,13 @@ types support capability contracts. Construct references with
 `ref()` rather than assembling plain JSON objects; the client
 recognizes references created by its helper.
 
-References are request-local. The client does not make a previously
-sent source available in a later request. Await the source and pass
-its data when a batching boundary intervenes. See
-[batching](batching.md) for boundaries and request limits, and
+## Request scope
+
+A reference and its source must be in the same request. `ref()` does
+not check their batch membership or move calls between batches. If
+the source has already been sent, await it and pass the returned
+data to the next call. Within a batch, [request splitting](request-limits.md)
+keeps references with their sources or rejects groups that cannot fit.
+See
 [RFC 8620 section 3.7](https://www.rfc-editor.org/rfc/rfc8620.html#section-3.7)
 for server evaluation rules.

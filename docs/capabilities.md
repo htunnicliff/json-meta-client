@@ -1,13 +1,10 @@
 # Capabilities
 
-A JMAP capability identifies a protocol extension by a URN or URL.
-The session advertises server capabilities and each account's
-supported capabilities. The client configuration associates those
-identifiers with entities and TypeScript method contracts.
-A call's entity determines which configured capabilities appear in
-the request's `using` array. When several configured capabilities
-provide an entity, all their identifiers are included. Core is
-always included.
+A capability identifies a JMAP feature by a URN or URL. The session
+document lists the server's capabilities and the capabilities available
+to each account. Configure the client with the features you intend to use.
+Each preset associates a capability identifier with entity names and
+TypeScript method contracts.
 
 ```ts
 import { Client } from "json-meta-client";
@@ -21,11 +18,14 @@ const client = new Client({
 const identities = await client.api.Identity.get({});
 ```
 
-Choose capabilities your service and account support. Adding a
-capability changes the available client method types and request
-`using` values; the server still controls access and availability.
-The initial session check warns about configured identifiers the
-server does not advertise. It does not negotiate replacements.
+Here, `submission` makes `Identity.get` available alongside mail methods.
+Adding a capability changes method types and the request's `using` array;
+access still depends on the server and account. The client warns if the
+initial session omits a configured capability and keeps your configuration.
+
+Each request includes Core and the identifiers of all configured capabilities
+that provide its called entities. If two capabilities provide one entity,
+both identifiers are included, regardless of which method is called.
 
 ## Built-in exports
 
@@ -41,13 +41,13 @@ Import these from `json-meta-client/capabilities`:
 | `contacts`         | `urn:ietf:params:jmap:contacts`         | AddressBook, ContactCard              | Partially typed            |
 | `sieve`            | `urn:ietf:params:jmap:sieve`            | SieveScript                           | Partially typed            |
 
-Core exposes the account-free `Core.echo` identity method, along
-with blob copy and push subscription methods. For example,
+Core exposes `Core.echo`, which returns its arguments without requiring
+an account, along with blob copy and push subscription methods. For example,
 `await client.api.Core.echo({ greeting: "hello" })` returns the same
 JSON object from the server.
 
-The partially typed capabilities contain permissive `any` contracts;
-inspect server documentation and validate responses where needed.
+Partially typed presets use `any` for some contracts. Consult the server's
+protocol documentation and validate those responses in your application.
 The blob extension's `Blob/upload` method differs from
 `client.blob.upload()`, which posts bytes to the session upload URL.
 The mail and submission protocols are described by
@@ -58,9 +58,8 @@ The mail and submission protocols are described by
 Import `maskedEmail` from
 `json-meta-client/capabilities/community`. It exposes typed
 `MaskedEmail/get` and `MaskedEmail/set` for the
-`https://www.fastmail.com/dev/maskedemail` capability. Community
-capabilities are provider extensions rather than standard features
-of every JMAP server. Their URNs must be advertised by your service.
+`https://www.fastmail.com/dev/maskedemail` capability. Your service must advertise this identifier to use it. Community
+capabilities describe provider extensions, so availability varies by service.
 
 For your own extension, see [custom capability authoring](custom-capabilities.md).
 For precise argument and result inference, see

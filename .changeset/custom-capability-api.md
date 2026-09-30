@@ -2,4 +2,7 @@
 "json-meta-client": minor
 ---
 
-Support custom capability authoring with literal URNs, shared entity providers, and documented typed and untyped extension contracts. Include all capability URNs contributing to an entity in requests and session validation.
+Add typed and untyped custom capabilities with literal identifiers and methods
+contributed by multiple capabilities to one entity. Requests now include every
+capability that provides a called entity, and session checks cover all configured
+providers. Document extension contracts and compatibility requirements.

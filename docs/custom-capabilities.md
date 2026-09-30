@@ -1,14 +1,24 @@
 # Custom capabilities
 
-`defineCapability()` is the public extension API for private capabilities, community specifications, and future JMAP capabilities. Import it from `json-meta-client`; capability authors do not need internal modules.
+Use `defineCapability()` to add methods for a private or community extension,
+or a JMAP capability without a built-in preset. Import it from
+`json-meta-client`.
 
-A definition supplies the capability URN and its entity names. The URN identifies the server capability and is added to each request that calls one of its entities. Entity names are the prefixes of JMAP method names, such as `Note` in `Note/get`. Both URNs and entity names retain literal types when supplied as literals.
+A definition has two parts: a capability identifier in `urn` and a list of
+entity names. An entity is the prefix of a method name, such as `Note` in
+`Note/get`. Calling one of those entities includes its capability identifier
+in the request. Literal identifiers and entity names retain their literal types.
 
-Use `.withMethods<Methods>()` to describe each entity's methods. Include every declared entity, using `{}` for an entity with no methods. Each method contract has `input` and `output` fields. These contracts are types only: the client dynamically constructs method calls and does not install handlers or validate server results.
+Add `.withMethods<Methods>()` to describe the methods and their argument and
+result types. Include every declared entity; use `{}` for one with no methods.
+Each method has an `input`/`output` contract. These types guide TypeScript
+inference; the client constructs calls dynamically and leaves response
+validation to your application.
 
 ## A complete typed extension
 
-This example declares two entities and a method whose response depends on the requested properties. It uses only public package imports.
+This example defines `Note` and `Notebook` methods. `Note.get` returns the
+fields named in `properties`, so its result type depends on its arguments.
 
 ```ts
 import { Client, defineCapability, ref, type MethodContract } from "json-meta-client";
@@ -70,11 +80,23 @@ const selected = await client.api.Note.get({
 const titles: readonly Pick<Note, "id" | "title">[] = selected.list;
 ```
 
-For argument-dependent results, use an interface and refer to `this["input"]` in its `output` member. Move nested result shapes into a helper type, as above. The client evaluates that output against the supplied arguments after unwrapping result references. Without `properties`, this example returns complete `Note` values. With `properties`, it returns only the selected fields. A plain `{ input: Input; output: Output }` contract is sufficient when the result does not depend on arguments.
+`NoteGet` uses an interface so `output` can refer to `this["input"]`. The
+helper `NoteGetOutput` uses the property selection to narrow each note.
+Omitting `properties` returns complete notes; supplying it returns the selected
+fields. The client evaluates the result type after unwrapping reference value
+types. For a fixed result, use `{ input: Input; output: Output }` directly, as
+in `query` and `list`.
 
-Required `accountId` fields become optional on client methods. The current default account middleware uses the session's primary **mail** account. For extensions that use a different account, supply `accountId` explicitly, as in this example. The middleware also injects an account ID into object arguments without an `accountId` key even when the contract does not declare one. Include the appropriate account field in contracts for account-scoped JMAP methods.
+Declare `accountId` in contracts for account-scoped methods. The client makes
+a required account field optional for callers and defaults it to the primary
+**mail** account. This extension uses another account, so the calls supply
+`accountId` explicitly. Account injection also applies to object arguments
+without `accountId` or `#accountId` when the contract has no account field;
+`Core.echo` is the exception. See [account selection](getting-started.md#choosing-an-account).
 
-Calls return awaitable jobs with IDs suitable for `ref()`. Result references may replace argument values, including nested values. Contracts describe the actual argument and result types, without references or job wrappers. Type declarations describe server behavior; they provide no runtime response validation.
+Declare protocol values in your contracts. The client supplies the pending
+promise and allows `ref()` in argument values, including nested values, so
+contracts need neither promise wrappers nor reference types.
 
 ## Sharing entities
 
@@ -102,9 +124,21 @@ const client = new Client({
 await client.api.Note.archive({ accountId: "notes-account", ids: ["note-1"] });
 ```
 
-The client exposes both `Note/get` and `Note/archive`. Calling any method on `Note` includes both extension URNs in the request's `using` list because definitions contain entity metadata, not per-method runtime metadata. URNs are deduplicated in registration order. Every configured capability is checked against the session, including multiple providers of a shared entity. Core is always included.
+With both presets configured, the client exposes `Note/get` and `Note/archive`.
+Any `Note` call includes both extension identifiers in `using`: runtime metadata
+associates capabilities with entities rather than individual methods. Identifiers
+are deduplicated in registration order, and Core is always included. The session
+check covers every configured provider of the shared entity.
 
-Duplicate method names use **intersected contracts**, with no first-provider or last-provider override. Identical contracts are supported. All input and output constraints of overlapping contracts must hold simultaneously. Incompatible contracts are unsupported: an input property declared as both `string` and `number` cannot accept either ordinary value; incompatible output properties can become `never`, even when the input remains callable. The client does not detect these conflicts at runtime. Capability authors must ensure duplicate methods describe the same server operation compatibly. Use distinct entity or method names for different operations.
+If both capabilities declare the same method, TypeScript intersects their
+contracts: every input and output constraint must hold. Identical contracts
+work. Incompatible ones can make the method unusable or produce `never` result
+properties. For example, an input property required to be both `string` and
+`number` accepts neither ordinary value.
+
+The client does not detect these conflicts at runtime. Keep duplicate contracts
+compatible descriptions of one server operation, and use distinct entity or
+method names for different operations.
 
 ## Untyped capabilities
 
@@ -125,7 +159,15 @@ const client = new Client({
 const result: unknown = await client.api.Vendor.perform!({ accountId: "vendor-account", value: 1 });
 ```
 
-An untyped capability restricts the entity names visible in TypeScript, allows arbitrary string method names and object argument shapes, and returns `unknown`. The non-null assertion is needed with `noUncheckedIndexedAccess` because arbitrary method names are represented by an index signature. Validate or narrow the result before using it. When an untyped capability shares an entity with a typed capability, known methods retain their typed contracts and additional methods return `unknown`. Runtime proxies do not enforce the declared entity or method names; the server determines whether a method exists. `then`, `catch`, and `finally` are reserved by the method proxy and cannot be JMAP method names.
+TypeScript recognizes `Vendor` but allows any string method name and object
+arguments, with an `unknown` result. Validate or narrow that result before use.
+The `!` assertion is needed with `noUncheckedIndexedAccess`, since arbitrary
+method names use an index signature.
+
+When an untyped capability shares an entity with a typed one, known methods keep
+their contracts and additional methods return `unknown`. Runtime proxies leave
+entity and method validation to the server. The method names `then`, `catch`,
+and `finally` are reserved for promise behavior.
 
 ## Public authoring types
 
@@ -139,4 +181,6 @@ An untyped capability restricts the entity names visible in TypeScript, allows a
 | `Apply<Contract, Input>`              | Evaluate a contract's output for a particular input type.                                |
 | `InferMethodsFromCapability<C>`       | Recover the contract map from a capability.                                              |
 
-`Augment` and `AugmentMethod` are private implementation types for the generated client call signatures. Extension authors should declare contracts with `MethodContract` instead of constructing augmented call signatures. Types reached through `src/internal` are implementation details and are not package entry points.
+Use `MethodContract` to declare extensions and let the client derive call
+signatures. `Augment`, `AugmentMethod`, and modules under `src/internal` are
+private. See [method contracts](method-contracts.md) for the inference steps.

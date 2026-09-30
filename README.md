@@ -3,10 +3,10 @@
 > [!WARNING]
 > This library is alpha software.
 
-A typed [JMAP](https://jmap.io/) client for modern Node.js and
-browsers. Configure the capabilities your server supports, call
-methods such as `client.api.Email.query()`, and let the client
-assemble JMAP requests and batch synchronous calls.
+A typed [JMAP](https://jmap.io/) client for Node.js and browsers.
+Choose your server's capabilities, then call methods such as
+`client.api.Email.query()`. The client builds the protocol requests
+and batches calls made together.
 
 ## Quick start
 
@@ -45,11 +45,11 @@ const emails = await client.api.Email.get({
 console.log(emails.list);
 ```
 
-The mailbox query completes first. The email query and get share
-a batching window; `ref()` asks the server to use the query's IDs
-in the same request when the group fits the server's limits. Core capabilities are always
-included. Omitted `accountId` values use the session's primary
-mail account; specify another account explicitly when needed.
+This example finds the inbox, then queries and fetches its emails.
+The email query and get run in one request if they fit the server's
+limits: `ref()` tells the server to pass the query's IDs to the get
+method. Core methods are available on every client. Calls that omit
+`accountId` use the primary mail account; pass an ID to use another account.
 
 ## Documentation
 
@@ -68,5 +68,5 @@ mail account; specify another account explicitly when needed.
 - [Executable examples](examples/README.md) and
   [real-server interoperability tests](interop/README.md).
 
-Run `pnpm build && pnpm examples:check` to compile the examples
-against the built package's public exports.
+See [supported package imports](docs/package-api.md) for export details
+and compatibility checks.

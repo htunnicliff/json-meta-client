@@ -6,21 +6,19 @@ Install the package in an ESM project:
 pnpm add json-meta-client
 ```
 
-Use a modern JavaScript runtime with native `fetch`, `URL`,
-`crypto.randomUUID`, `queueMicrotask`, and `Promise.withResolvers`.
-The package targets modern JavaScript rather than providing runtime
-polyfills. Repository checks use the Node.js version in
-[.node-version](../.node-version); see [package compatibility](package-api.md)
-for the tested package entry points.
+Your runtime must provide `fetch`, `URL`, `crypto.randomUUID`,
+`queueMicrotask`, and `Promise.withResolvers`; the package includes no
+polyfills. Repository checks use the Node version in
+[.node-version](../.node-version). See [supported package imports](package-api.md)
+for the entry points and compatibility checks.
 
 ## Authentication and discovery
 
-Get a bearer token and session URL from your JMAP service. The
-client sends `Authorization: Bearer <token>` on session, API, blob,
-and event source requests. It does not obtain tokens, perform an
-OAuth flow, or discover a service from an email address. A common
-session URL is `https://your-service/.well-known/jmap`, but use the
-URL supplied by your provider. [RFC 8620 section 2](https://www.rfc-editor.org/rfc/rfc8620.html#section-2)
+Obtain a bearer token and session URL from your JMAP service before
+creating a client. Authentication flows, including OAuth, belong in
+your application. Use your provider's session URL; a common form is
+`https://your-service/.well-known/jmap`. The client sends
+`Authorization: Bearer <token>` on session, API, blob, and event source requests. [RFC 8620 section 2](https://www.rfc-editor.org/rfc/rfc8620.html#section-2)
 describes JMAP session discovery and the session document.
 
 ```ts
@@ -36,24 +34,25 @@ const session = await client.session;
 console.log(session.apiUrl, session.primaryAccounts);
 ```
 
-Creating a client does not fetch the session. `client.session`
-loads it lazily and caches the promise, including a failed load.
-API calls load it automatically before sending requests. Use
-`await client.refreshSession()` to fetch a new session after a
-session failure or a change on the server. The configured token
-is fixed for a client instance; create another client when your
-authentication token changes. `sessionUrl` accepts a URL string
-or a `URL` object. The token must be a nonempty string.
+The first access to `client.session` fetches the session document.
+API calls also load it automatically. The promise is cached, including
+when it rejects; call `await client.refreshSession()` to retry or to
+load changes from the server.
 
-A configured capability absent from the initial session produces
-a logger warning. Configuration selects available client types
-and request capabilities; it does not enable server features.
+`sessionUrl` accepts a URL string or `URL` object. `bearerToken` must
+be a nonempty string and is fixed for the client's lifetime. Create
+a new client when the token changes.
+
+Choose [capabilities](capabilities.md) that your service supports.
+The client warns if a configured capability is absent from the initial
+session. Configuration determines method types and request capabilities;
+the server determines which features are available.
 
 ## Node.js and browsers
 
 The same `Client` configuration works in Node.js and a browser.
-Node.js applications should read credentials from their own secret
-or environment management and import the package as ESM. The
+Import the package as ESM in Node.js and load credentials through
+your application's environment or secret management. The
 [mail example](../examples/mail.ts) reads `JMAP_SESSION_URL` and
 `JMAP_BEARER_TOKEN` from the environment.
 
@@ -77,23 +76,28 @@ const emails = await client.api.Email.get({
 `Email.query` maps to the JMAP method name `Email/query`.
 `Email.get` maps to `Email/get`. Arguments and responses follow the
 corresponding [mail protocol](https://www.rfc-editor.org/rfc/rfc8621.html).
-For `get`, literal property names refine the response type; do not
-read properties you did not request. Responses may include `notFound`, and
-`set` responses can contain per-object failures without a rejected
-method promise. See [error handling](errors.md).
+For `get`, literal property names narrow the response type to the
+requested fields. Check `notFound` for IDs the server could not return.
+Likewise, inspect per-object failures in `set` responses even when the
+method promise resolves. See [error handling](errors.md).
 
-The API uses proxies to create method calls on demand. Entity and
-method names are not a runtime catalog, so `Object.keys(client.api)`
-does not enumerate supported methods. TypeScript knows the methods
-from your configured capabilities. Runtime proxy access does not
-validate that an arbitrary name is supported by the server.
+TypeScript derives method names from your configured capabilities.
+At runtime, proxies construct calls on demand: `Object.keys(client.api)`
+cannot enumerate methods, and accessing a name does not check whether
+the server supports it.
 
-You may omit `accountId` for ordinary account-scoped calls. The
-current default is specifically `session.primaryAccounts[mail.urn]`,
-regardless of the entity's capability. `Core.echo` is account-free
-and skips account injection.
-The same mail default is used for blob uploads and event source
-metadata. An explicitly supplied account ID is preserved.
+### Choosing an account
+
+Omitting `accountId` uses `session.primaryAccounts[mail.urn]`, even
+for entities from other capabilities. Blob uploads and downloads use
+the same default, and event metadata identifies the primary mail account.
+An explicit account ID is preserved.
+
+`Core.echo` is account-free and skips account injection. Other methods
+with object arguments receive the mail default when neither `accountId`
+nor `#accountId` is present, even if their contract has no account field.
+For account-free extension methods, check the protocol arguments and
+use middleware to adjust them if necessary.
 
 Inspect `session.accounts` and `session.primaryAccounts` and pass
 `accountId` when using a shared account, a secondary account, a
@@ -107,9 +111,5 @@ const emails = await client.api.Email.get({
 });
 ```
 
-Blob uploads and downloads default to the primary mail account when
-`accountId` is omitted. Supply it explicitly for other accounts. For an
-account-free protocol method, check its arguments rather than
-assuming the injected mail default has protocol meaning. See
-[capabilities](capabilities.md), [batching](batching.md), and
-[result references](results-and-references.md) for grouped calls.
+Next, learn how to [batch calls](batching.md) or pass results between
+methods in one request with [result references](results-and-references.md).
