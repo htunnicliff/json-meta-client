@@ -11,10 +11,10 @@ export function createApi<T extends object>(
 ): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): JsonValue => {
+  const applyMiddleware = (payload: JsonObject, method: string): JsonValue => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
-      transformed = fn(transformed);
+      transformed = fn(transformed, { method });
     }
     return transformed;
   };
@@ -40,7 +40,9 @@ export function createApi<T extends object>(
                 batch.enqueue(
                   new MethodCall({
                     method: `${entity}/${method}`,
-                    args: options.signal?.aborted ? args : applyMiddleware(args),
+                    args: options.signal?.aborted
+                      ? args
+                      : applyMiddleware(args, `${entity}/${method}`),
                   }),
                   options.signal,
                 );

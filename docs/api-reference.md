@@ -28,7 +28,7 @@ frozen. `ClientOptions<Capabilities>` describes its options:
 | `session`                              | Cached promise for the session document, fetched lazily                           |
 | `refreshSession()`                     | New session-fetch promise, replacing the cached promise                           |
 | `blob.upload(body, params?, options?)` | Promise for blob upload metadata; upload account defaults to primary mail account |
-| `blob.download(params, options?)`      | Promise for native `Response`; requires explicit account and download parameters  |
+| `blob.download(params, options?)`      | Promise for native `Response`; download account defaults to primary mail account  |
 | `onStateChange(handler, options?)`     | Promise for a disposable event subscription                                       |
 
 `PendingMethodCall<Input, Output>` describes the returned promise and its

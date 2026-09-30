@@ -139,4 +139,4 @@ An untyped capability restricts the entity names visible in TypeScript, allows a
 | `Apply<Contract, Input>`              | Evaluate a contract's output for a particular input type.                                |
 | `InferMethodsFromCapability<C>`       | Recover the contract map from a capability.                                              |
 
-`Augment` and `AugmentMethod` are exported compatibility types for the generated client call signatures. Extension authors should declare contracts with `MethodContract` instead of constructing augmented call signatures. Types reached through `src/internal` are implementation details and are not package entry points.
+`Augment` and `AugmentMethod` are private implementation types for the generated client call signatures. Extension authors should declare contracts with `MethodContract` instead of constructing augmented call signatures. Types reached through `src/internal` are implementation details and are not package entry points.

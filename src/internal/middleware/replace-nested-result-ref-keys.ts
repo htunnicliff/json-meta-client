@@ -14,7 +14,7 @@ export const replaceNestedResultRefKeys: Middleware = (payload) => {
       throw new JmapConfigurationError("Method arguments must not contain cycles");
     active.add(value);
     try {
-      if (Array.isArray(value)) return value.map(visit);
+      if (Array.isArray(value)) return value.map((item) => visit(item));
       return Object.fromEntries(
         Object.entries(value).map(([key, nested]) =>
           isRef(nested) ? [`#${key}`, nested] : [key, visit(nested)],

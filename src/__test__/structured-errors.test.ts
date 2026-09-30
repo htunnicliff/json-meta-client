@@ -44,7 +44,7 @@ describe("public structured errors", () => {
   it("retains method details and associates the invocation", async () => {
     const details = { type: "invalidArguments", description: "Bad input", extra: 42 };
     mockApi((id) => ({ methodResponses: [["error", details, id]] }));
-    const call = client().api.Core.get({});
+    const call = client().api.Core.echo({});
     const error = await call.catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(JmapClientError);
     expect(error).toBeInstanceOf(JmapMethodError);
@@ -55,7 +55,7 @@ describe("public structured errors", () => {
       description: details.description,
       details,
       cause: details,
-      methodCall: ["Core/get", {}, call.id],
+      methodCall: ["Core/echo", {}, call.id],
       methodCallId: call.id,
     });
   });
@@ -110,30 +110,30 @@ describe("public structured errors", () => {
 
   it.each([
     () => null,
-    () => ({ methodResponses: [["Core/get", null, "wrong"]] }),
-    () => ({ methodResponses: [["Core/get", {}, "wrong"]] }),
+    () => ({ methodResponses: [["Core/echo", null, "wrong"]] }),
+    () => ({ methodResponses: [["Core/echo", {}, "wrong"]] }),
     () => ({ methodResponses: [] }),
     (id: string) => ({ methodResponses: [["error", {}, id]] }),
     (id: string) => ({
       methodResponses: [
-        ["Core/get", {}, id],
-        ["Core/get", {}, id],
+        ["Core/echo", {}, id],
+        ["Core/echo", {}, id],
       ],
     }),
     (id: string) => ({ methodResponses: [["Other/get", {}, id]] }),
   ])("rejects invalid method responses", async (payload) => {
     mockApi(payload);
-    await expect(client().api.Core.get({})).rejects.toBeInstanceOf(JmapProtocolError);
+    await expect(client().api.Core.echo({})).rejects.toBeInstanceOf(JmapProtocolError);
   });
 
   it("accepts implicit method responses without replacing the requested result", async () => {
     mockApi((id) => ({
       methodResponses: [
-        ["Core/get", { value: 1 }, id],
+        ["Core/echo", { value: 1 }, id],
         ["Other/set", {}, id],
       ],
     }));
-    await expect(client().api.Core.get({})).resolves.toEqual({ value: 1 });
+    await expect(client().api.Core.echo({})).resolves.toEqual({ value: 1 });
   });
 
   it("reports configuration failures before fetching", () => {
@@ -148,7 +148,7 @@ describe("public structured errors", () => {
   it("rejects cyclic method arguments as configuration failures", () => {
     const args: Record<string, unknown> = {};
     Object.defineProperty(args, "self", { value: args, enumerable: true });
-    expect(() => client().api.Core.get(args)).toThrow(JmapConfigurationError);
+    expect(() => client().api.Core.echo(args)).toThrow(JmapConfigurationError);
   });
 
   it("preserves serialization failures as configuration causes", async () => {
@@ -165,7 +165,7 @@ describe("public structured errors", () => {
         },
       ],
     });
-    await expect(instance.api.Core.get({})).rejects.toMatchObject({
+    await expect(instance.api.Core.echo({})).rejects.toMatchObject({
       kind: "configuration",
       cause: expect.any(TypeError),
     });
@@ -183,7 +183,7 @@ describe("public structured errors", () => {
         },
       ],
     });
-    expect(() => instance.api.Core.get({})).toThrow(cause);
+    expect(() => instance.api.Core.echo({})).toThrow(cause);
   });
 
   it("classifies upload data and download failures", async () => {

@@ -1,17 +1,18 @@
-import type {
-  BlobContracts,
-  CoreContracts,
-  PushSubscriptionContracts,
-} from "jmap-rfc-types/contracts";
+import type { BlobContracts, PushSubscriptionContracts } from "jmap-rfc-types/contracts";
 
 import { defineCapability } from "../capability.ts";
+
+export interface CoreEchoContract {
+  input: Record<string, unknown>;
+  output: this["input"];
+}
 
 export const core = defineCapability({
   urn: "urn:ietf:params:jmap:core",
   entities: ["Core", "Blob", "PushSubscription"],
 }).withMethods<{
   Core: {
-    get: CoreContracts.Get.Contract;
+    echo: CoreEchoContract;
   };
   Blob: {
     copy: BlobContracts.Copy.Contract;

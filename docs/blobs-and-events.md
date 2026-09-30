@@ -27,8 +27,8 @@ mail account is suitable. The current implementation sends an
 `application/json` content-type header, including for raw upload
 bodies; servers may use that type in the uploaded blob metadata.
 
-`download(params, options?)` requires `accountId`, `blobId`, `name`, and
-`type`. It expands the session's download URL and resolves to the
+`download(params, options?)` requires `blobId`, `name`, and `type`.
+Its optional `accountId` defaults to the primary mail account. It expands the session's download URL and resolves to the
 native `Response`; choose `text()`, `arrayBuffer()`, `blob()`, or a
 stream according to your use case. Treat `Response.json()` parsing
 errors as ordinary application parsing errors. Failed HTTP

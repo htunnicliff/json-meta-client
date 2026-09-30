@@ -80,4 +80,8 @@ export type PointerPaths<T> =
       : never
     : never;
 
-export type Middleware = (payload: JsonValue) => JsonValue;
+export interface MethodCallContext {
+  readonly method: string;
+}
+
+export type Middleware = (payload: JsonValue, context?: MethodCallContext) => JsonValue;

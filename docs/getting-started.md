@@ -107,7 +107,8 @@ const emails = await client.api.Email.get({
 });
 ```
 
-Blob downloads always require an explicit `accountId`. For an
+Blob uploads and downloads default to the primary mail account when
+`accountId` is omitted. Supply it explicitly for other accounts. For an
 account-free protocol method, check its arguments rather than
 assuming the injected mail default has protocol meaning. See
 [capabilities](capabilities.md), [batching](batching.md), and

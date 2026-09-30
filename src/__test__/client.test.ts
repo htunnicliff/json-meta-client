@@ -435,7 +435,10 @@ describe("Client", () => {
       );
 
       await expect(query).resolves.toEqual({ ids: [] });
-      expect(mockMiddleware).toHaveBeenCalledExactlyOnceWith({ accountId, limit: 1 });
+      expect(mockMiddleware).toHaveBeenCalledExactlyOnceWith(
+        { accountId, limit: 1 },
+        { method: "Mailbox/query" },
+      );
       expect(mockMiddleware).toHaveReturnedWith({ foo: true });
 
       expect(apiScope.isDone()).toBe(true);
