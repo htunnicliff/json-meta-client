@@ -15,7 +15,7 @@ const session = {
   apiUrl: `${host}/api`,
   primaryAccounts: { [mail.urn]: accountId },
   capabilities: {
-    [core.urn]: { maxCallsInRequest: 1, maxSizeRequest: 1 },
+    [core.urn]: { maxCallsInRequest: 16, maxSizeRequest: 10000000 },
     [mail.urn]: {},
   },
 };
@@ -61,7 +61,7 @@ describe("client batching contract", () => {
     if (pending.length > 0) throw new Error(`Unsent requests: ${pending.join(", ")}`);
   });
 
-  it("sends synchronous independent calls in order in one request, even above advertised limits", async () => {
+  it("sends synchronous independent calls in order in one request", async () => {
     const a = client.api.Email.query({ limit: 1 });
     const b = client.api.Mailbox.query({ limit: 2 });
     const c = client.api.Email.query({ limit: 3 });

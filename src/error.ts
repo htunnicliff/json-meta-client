@@ -116,3 +116,26 @@ export class JmapError extends JmapClientError implements ProblemDetails {
 }
 
 export { JmapError as JmapMethodError };
+
+export class JmapRequestLimitError extends JmapClientError {
+  readonly limit: "maxCallsInRequest" | "maxSizeRequest" | "maxConcurrentRequests";
+  readonly maximum: number;
+  readonly actual: number;
+  readonly methodCallIds: readonly string[];
+  readonly request: JmapRequestContext;
+
+  constructor(
+    limit: "maxCallsInRequest" | "maxSizeRequest" | "maxConcurrentRequests",
+    maximum: number,
+    actual: number,
+    methodCallIds: readonly string[],
+    request: JmapRequestContext,
+  ) {
+    super(`JMAP request exceeds ${limit}: ${actual} exceeds ${maximum}`, "request-limit");
+    this.limit = limit;
+    this.maximum = maximum;
+    this.actual = actual;
+    this.methodCallIds = [...methodCallIds];
+    this.request = request;
+  }
+}

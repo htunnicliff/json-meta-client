@@ -21,6 +21,7 @@ import {
   JmapHttpError,
   JmapProtocolError,
   JmapTransportError,
+  JmapRequestLimitError,
   type JmapRequestContext,
 } from "./error.ts";
 import type { Flush } from "./internal/batch.ts";
@@ -29,6 +30,11 @@ import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import {
+  partitionMethodCalls,
+  RequestConcurrency,
+  type RequestLimits,
+} from "./internal/request-limits.ts";
 import type { Middleware } from "./internal/types.ts";
 
 export const DEFAULT_CAPABILITIES = [core];
@@ -58,6 +64,8 @@ export class Client<
   #sessionPromise: Promise<Session> | undefined;
 
   #session: Session | undefined;
+
+  #requestConcurrency = new RequestConcurrency();
 
   constructor(options: Config<T>) {
     if (!options || typeof options !== "object")
@@ -174,38 +182,106 @@ export class Client<
     }
   }
 
-  #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
-    try {
-      const methodCalls = jobs.map((b) => b.payload);
+  #createRequest(methodCalls: readonly MethodCall<unknown>[]): JMAPRequest {
+    const urnsToUse = new Set<string>();
 
-      const urnsToUse = new Set<string>();
+    for (const { urn } of DEFAULT_CAPABILITIES) {
+      urnsToUse.add(urn);
+    }
 
-      for (const { urn } of DEFAULT_CAPABILITIES) {
+    for (const { method } of methodCalls) {
+      const [entity] = /^[^/]+/.exec(method)!;
+      for (const urn of this.#entityToUrn[entity] ?? []) {
         urnsToUse.add(urn);
       }
+    }
 
-      for (const { method } of methodCalls) {
-        const [entity] = /^[^/]+/.exec(method)!;
-        for (const urn of this.#entityToUrn[entity] ?? []) {
-          urnsToUse.add(urn);
-        }
+    return {
+      using: [...urnsToUse],
+      methodCalls: methodCalls.map((call) => call.toInvocation()),
+    };
+  }
+
+  #serializeRequest = (methodCalls: readonly MethodCall<unknown>[]): string => {
+    try {
+      return JSON.stringify(this.#createRequest(methodCalls));
+    } catch (cause) {
+      throw new JmapConfigurationError("Method arguments cannot be serialized as JSON", { cause });
+    }
+  };
+
+  #requestLimits(session: Session): RequestLimits {
+    const capability: unknown = session.capabilities[core.urn];
+    const limits: RequestLimits = {};
+    if (!isRecord(capability)) return limits;
+    for (const name of ["maxCallsInRequest", "maxSizeRequest", "maxConcurrentRequests"] as const) {
+      const value = capability[name];
+      if (value === undefined) continue;
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+        throw new JmapProtocolError(`Invalid JMAP Core limit: ${name}`, { payload: capability });
       }
+      limits[name] = value;
+    }
+    return limits;
+  }
 
+  #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
+    try {
       const session = await this.session;
-      const request: JMAPRequest = {
-        using: [...urnsToUse],
-        methodCalls: methodCalls.map((c) => c.toInvocation()),
-      };
-
-      let body: string;
-      try {
-        body = JSON.stringify(request);
-      } catch (cause) {
-        throw new JmapConfigurationError("Method arguments cannot be serialized as JSON", {
-          cause,
-        });
+      const limits = this.#requestLimits(session);
+      const methodCalls = jobs.map((job) => job.payload);
+      if (limits.maxConcurrentRequests === 0) {
+        throw new JmapRequestLimitError(
+          "maxConcurrentRequests",
+          0,
+          1,
+          methodCalls.map((call) => call.id),
+          { url: session.apiUrl, method: "POST" },
+        );
       }
-      const response = await this.#fetchJson<JMAPResponse>(session.apiUrl, body);
+      const { requests, rejected } = partitionMethodCalls(
+        methodCalls,
+        limits,
+        this.#serializeRequest,
+      );
+      const jobById = new Map(jobs.map((job) => [job.payload.id, job]));
+      for (const { calls, failure } of rejected) {
+        const error = new JmapRequestLimitError(
+          failure.limit,
+          failure.maximum,
+          failure.actual,
+          calls.map((call) => call.id),
+          { url: session.apiUrl, method: "POST" },
+        );
+        for (const call of calls) jobById.get(call.id)!.handle.reject(error);
+      }
+      await requests.reduce(
+        (previous, calls) =>
+          previous.then(async () => {
+            const release = await this.#requestConcurrency.acquire(limits.maxConcurrentRequests);
+            try {
+              await this.#sendMethodCalls(
+                calls.map((call) => jobById.get(call.id)!),
+                session,
+              );
+            } finally {
+              release();
+            }
+          }),
+        Promise.resolve(),
+      );
+    } catch (error) {
+      for (const { handle } of jobs) handle.reject(error);
+    }
+  };
+
+  #sendMethodCalls = async (jobs: Parameters<Flush<MethodCall<unknown>>>[0], session: Session) => {
+    try {
+      const methodCalls = jobs.map((job) => job.payload);
+      const response = await this.#fetchJson<JMAPResponse>(
+        session.apiUrl,
+        this.#serializeRequest(methodCalls),
+      );
 
       const context = { request: { url: session.apiUrl, method: "POST" }, payload: response };
       if (!isRecord(response) || !Array.isArray(response.methodResponses)) {

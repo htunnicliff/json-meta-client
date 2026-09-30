@@ -206,11 +206,11 @@ than independently selectable.
 Calling a method queues it immediately and returns a promise.
 The client automatically starts a batch at the next microtask
 checkpoint. All calls queued before that flush starts are sent
-in one JMAP request, in call order. You do not need to await a
+in call order, splitting into requests when required by server limits. You do not need to await a
 call to make it eligible to be sent.
 
-Calls issued synchronously share a request, including independent
-calls. Awaiting their promises afterward does not change the
+Calls issued synchronously share a batch, including independent
+calls. They share a request when the advertised limits allow it. Awaiting their promises afterward does not change the
 request they belong to:
 
 ```ts
@@ -253,23 +253,43 @@ source, pass its returned values to the next request instead.
 
 Each call's promise settles using its own response ID, even when
 responses arrive in a different order. A method-level error rejects
-that call and leaves successful calls in the batch resolved.
+that call and leaves successful calls in the request resolved.
 Dependent calls settle according to their own server responses.
 An HTTP or transport failure rejects all calls in the affected
-batch with the same error. A missing method response rejects the
+request with the same error; other split requests continue. A missing method response rejects the
 corresponding call. A failure while processing the batch rejects
 any promises still pending; promises already settled keep their
 results. Processing failures are handled for both synchronous
 throws and asynchronous rejections. Later batches can still run.
 
-The current API has no method-call cancellation or `AbortSignal`,
-manual flush operation, or automatic batch splitting. It does not
-enforce server-advertised request-size, method-call, or concurrency
-limits. An oversized batch is sent as one request and any server
-failure is propagated normally. Callers that need to control these
-limits should issue smaller groups and await each group before
-issuing the next one. These features are outside the current
-batching contract and may be added in a future release.
+The client reads `maxCallsInRequest`, `maxSizeRequest`, and
+`maxConcurrentRequests` from the active session's Core capability.
+Calls are partitioned into contiguous requests in their original order.
+The complete JSON body, including `using`, counts toward the UTF8 byte
+limit. Split requests from one batch run sequentially, including after a
+failed request; separate batches may overlap up to the advertised
+concurrency limit. Queued API requests wait for a free slot. Refreshing
+the session applies new limits to subsequent batches. Omitted limits
+are treated as unbounded; malformed limits produce a protocol error.
+
+Calls connected by result references stay in the same request. If a
+connected group cannot fit by itself, those calls reject locally with
+`JmapRequestLimitError`; unrelated calls can still run. Interleaved
+references may require an entire contiguous block to stay together to
+preserve call order. If that block cannot fit, all calls in it reject.
+The error exposes `limit`, `maximum`, `actual`, `methodCallIds`, and
+`request`, with `kind: "request-limit"`. A zero concurrency limit also
+rejects locally. No request known to exceed these limits is sent.
+
+Core `maxObjectsInGet` and `maxObjectsInSet` constrain individual method
+arguments rather than batching; the client does not rewrite or paginate
+those calls. Core `maxSizeUpload` and `maxConcurrentUpload` apply to the
+separate blob upload endpoint. These method and upload limits remain
+server-enforced; automatic pagination and upload scheduling are separate
+features. The current API has no method-call cancellation, `AbortSignal`,
+or manual flush operation.
+
+See [server request limits](./docs/request-limits.md) for the complete Core capability audit.
 
 [^1]: [RFC 8620 § 3.7 - References to Previous Method Results](https://jmap.io/spec/rfc8620/#section-3.7)
 
