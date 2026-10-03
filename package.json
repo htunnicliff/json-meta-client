@@ -61,7 +61,7 @@
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
     "@types/node": "26.6.3",
-    "cspell": "10.3.4",
+    "cspell": "10.3.6",
     "husky": "9.1.7",
     "nock": "14.0.17",
     "oxfmt": "0.70.0",
