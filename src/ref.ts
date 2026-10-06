@@ -1,8 +1,8 @@
 import type { ExtendedJSONPointer, ResultReference } from "jmap-rfc-types";
-import type { IsUnknown, Primitive } from "type-fest";
+import type { IsUnknown } from "type-fest";
 
 import type { JobResult } from "./internal/batch.ts";
-import type { MethodCall } from "./internal/method-calls.ts";
+import type { MethodCall } from "./internal/method-call.ts";
 import type { ExtractByPointer, PointerPaths } from "./internal/types.ts";
 
 const refSymbol: unique symbol = Symbol("ref");
@@ -15,39 +15,6 @@ export type Ref<T = unknown> = ResultReference & {
   /** Phantom carrier for the type at `path`. */
   readonly __type?: T;
 };
-
-/**
- * Deeply allows a {@link Ref} of the expected value at any position.
- * Used by the proxy API so callers may pass `ref(...)` in place of concrete args.
- */
-export type AllowRefs<T> =
-  | Ref<T>
-  | (T extends Primitive
-      ? T
-      : T extends readonly [any, ...any[]]
-        ? { [K in keyof T]: AllowRefs<T[K]> }
-        : T extends readonly any[]
-          ? { [K in keyof T]: AllowRefs<T[number]> }
-          : T extends object
-            ? { [K in keyof T]: AllowRefs<T[K]> }
-            : T);
-
-/**
- * Deeply replaces {@link Ref} wrappers with the types they resolve to.
- * Used when deriving method response types from arguments that may contain refs.
- */
-export type UnpackRefs<T> =
-  T extends Ref<infer U>
-    ? U
-    : T extends Primitive
-      ? T
-      : T extends readonly [any, ...any[]]
-        ? { [K in keyof T]: UnpackRefs<T[K]> }
-        : T extends readonly any[]
-          ? Array<UnpackRefs<T[number]>>
-          : T extends object
-            ? { [K in keyof T]: UnpackRefs<T[K]> }
-            : T;
 
 export function ref<
   Output,

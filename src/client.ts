@@ -15,7 +15,7 @@ import type { SetOptional, UnionToIntersection } from "type-fest";
 import { core } from "./capabilities/core.ts";
 import * as builtInCapabilities from "./capabilities/index.ts";
 import { mail } from "./capabilities/mail.ts";
-import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
+import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import {
   CapabilityConfigurationError,
   ConfigurationError,
@@ -30,9 +30,11 @@ import type { Flush } from "./internal/batch.ts";
 import { createApi } from "./internal/create-api.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
-import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
+import { MethodCallResult } from "./internal/method-call-result.ts";
+import { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type { Augment } from "./internal/types.ts";
 import type { Middleware } from "./internal/types.ts";
 
 export const DEFAULT_CAPABILITIES = [core];

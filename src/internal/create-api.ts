@@ -2,7 +2,7 @@
 import type { JsonObject, JsonValue } from "type-fest";
 
 import { Batch, type Flush } from "./batch.ts";
-import { MethodCall } from "./method-calls.ts";
+import { MethodCall } from "./method-call.ts";
 import type { Middleware } from "./types.ts";
 
 export function createApi<T extends object>(
