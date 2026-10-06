@@ -12,7 +12,6 @@ import type {
 } from "jmap-rfc-types";
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
-import { createApi } from "./api.ts";
 import { core } from "./capabilities/core.ts";
 import * as builtInCapabilities from "./capabilities/index.ts";
 import { mail } from "./capabilities/mail.ts";
@@ -28,6 +27,7 @@ import {
   StateChangeError,
 } from "./errors.ts";
 import type { Flush } from "./internal/batch.ts";
+import { createApi } from "./internal/create-api.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
