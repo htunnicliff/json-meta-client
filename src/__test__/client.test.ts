@@ -1,4 +1,7 @@
 // oxlint-disable typescript/no-unsafe-type-assertion
+// cspell:words reqheaders badheaders
+import { isDeepStrictEqual } from "node:util";
+
 import type {
   BlobUploadResponse,
   Request as JMAPRequest,
@@ -14,7 +17,16 @@ import * as builtInCapabilities from "../capabilities/index.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
 import { Client } from "../client.ts";
-import { JmapError } from "../error.ts";
+import {
+  CapabilityConfigurationError,
+  ConfigurationError,
+  HttpError,
+  JmapError,
+  JsonMetaError,
+  MethodCallError,
+  NetworkError,
+  UnknownError,
+} from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
 import { ref } from "../ref.ts";
 
@@ -50,6 +62,7 @@ const DEFAULT_SESSION = {
   },
   uploadUrl,
   downloadUrl,
+  eventSourceUrl: `${host}/events`,
   capabilities: {
     [core.urn]: {},
     [mail.urn]: {},
@@ -64,12 +77,20 @@ function mockSession(): Scope {
 }
 
 function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
-  return nock(host).post(apiUrlPath, request).reply(200, response);
+  return nock(host, {
+    reqheaders: {
+      authorization: `Bearer ${bearerToken}`,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+  })
+    .post(apiUrlPath, (body: unknown) => isDeepStrictEqual(body, request))
+    .reply(200, response);
 }
 
 // ------ Mocks -------------------------------------------
 
-describe("Client", () => {
+describe(Client, () => {
   let sessionScope: Scope;
   let client = new Client({
     sessionUrl,
@@ -88,6 +109,7 @@ describe("Client", () => {
 
   afterEach(() => {
     nock.cleanAll();
+    vi.unstubAllGlobals();
   });
 
   it("exposes the public client interface", async () => {
@@ -98,8 +120,251 @@ describe("Client", () => {
     expect(session).toEqual(DEFAULT_SESSION);
   });
 
+  it("requests a JSON session without declaring a request-body content type", async () => {
+    nock.cleanAll();
+    const scope = nock(host, {
+      reqheaders: { authorization: `Bearer ${bearerToken}`, accept: "application/json" },
+      badheaders: ["content-type"],
+    })
+      .get(sessionUrlPath)
+      .reply(200, DEFAULT_SESSION);
+    await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
+    expect(scope.isDone()).toBe(true);
+  });
+
   it("is frozen", () => {
     expect(Object.isFrozen(client)).toBe(true);
+  });
+
+  describe("configuration errors", () => {
+    it.each([
+      { bearerToken: "" },
+      { bearerToken: "  " },
+      { bearerToken: null },
+      { sessionUrl: "invalid-url" },
+      { capabilities: null },
+      { capabilities: "mail" },
+      { middleware: "invalid" },
+      { middleware: [null] },
+    ])("reports invalid options with their original values: %j", (invalidOptions) => {
+      const options = { bearerToken, sessionUrl, capabilities: [mail], ...invalidOptions };
+      const createClient = () =>
+        // @ts-expect-error - Exercise runtime validation of invalid configuration.
+        new Client(options);
+      expect(createClient).toThrow(ConfigurationError);
+      expect(createClient).toThrow(expect.objectContaining({ cause: invalidOptions }));
+    });
+
+    it.each([
+      "unknown",
+      { entities: ["Example"] },
+      { urn: "urn:example", entities: "Example" },
+      { urn: "urn:example", entities: [42] },
+    ])("reports invalid capabilities with available built-ins: %j", (capability) => {
+      const createClient = () =>
+        new Client({
+          bearerToken,
+          sessionUrl,
+          // @ts-expect-error - Exercise runtime validation of invalid capabilities.
+          capabilities: [capability],
+        });
+      expect(createClient).toThrow(CapabilityConfigurationError);
+      expect(createClient).toThrow(
+        expect.objectContaining({
+          givenCapability: capability,
+          availableBuiltIns: Object.keys(builtInCapabilities),
+        }),
+      );
+    });
+  });
+
+  describe("request errors", () => {
+    it.each([
+      { type: "serverFail", detail: "Try again later", status: 400 },
+      "Service unavailable",
+      { message: "Service unavailable" },
+    ])("preserves HTTP failure context: %j", async (payload) => {
+      nock.cleanAll();
+      const scope = nock(host).get(sessionUrlPath).reply(503, payload, { "retry-after": "60" });
+      const error = await client.session.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(HttpError);
+      expect(error).not.toBeInstanceOf(JmapError);
+      if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+      expect(error.status).toBe(503);
+      expect(error.responseData).toEqual(payload);
+      expect(error.request.url).toBe(sessionUrl);
+      expect(error.response.headers.get("retry-after")).toBe("60");
+      expect(error.response.bodyUsed).toBe(false);
+      expect(error.message).toBe(
+        typeof payload === "object" && "detail" in payload
+          ? payload.detail
+          : "HTTP request failed (503)",
+      );
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it.each([
+      new JsonMetaError("library failure"),
+      new JmapError("server failure", { type: "serverFail" }),
+      new UnknownError("unknown failure", { cause: "unexpected payload" }),
+      new ConfigurationError("configuration failure"),
+      new NetworkError("network failure", { cause: new TypeError("offline"), request: undefined }),
+    ])("preserves an existing library error instance: %s", async (error) => {
+      vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(error));
+      await expect(client.session).rejects.toBe(error);
+    });
+
+    it.each([new TypeError("fetch failed"), "offline"])(
+      "wraps fetch rejection %s",
+      async (cause) => {
+        vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
+        await expect(client.session).rejects.toMatchObject({
+          name: "NetworkError",
+          message: cause instanceof Error ? cause.message : "Error when fetching",
+          cause,
+          request: expect.any(Request),
+        });
+      },
+    );
+
+    it("wraps invalid JSON responses with their parsing error", async () => {
+      nock.cleanAll();
+      const scope = nock(host)
+        .get(sessionUrlPath)
+        .reply(200, "{invalid", { "content-type": "application/json" });
+      await expect(client.session).rejects.toBeInstanceOf(SyntaxError);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("retains the HTTP response and parsing cause when an error body has malformed JSON", async () => {
+      nock.cleanAll();
+      const scope = nock(host)
+        .get(sessionUrlPath)
+        .reply(502, "{invalid", { "content-type": "application/problem+json" });
+      const error = await client.session.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(HttpError);
+      expect(error).toMatchObject({
+        status: 502,
+        responseData: undefined,
+        cause: expect.any(SyntaxError),
+      });
+      if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+      await expect(error.response.text()).resolves.toBe("{invalid");
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("preserves an HTTP response when reading its body fails", async () => {
+      const cause = new TypeError("Body stream disconnected");
+      const response = new Response(
+        new ReadableStream({ start: (controller) => controller.error(cause) }),
+        {
+          status: 503,
+        },
+      );
+      vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(response));
+      await expect(client.session).rejects.toMatchObject({
+        name: "HttpError",
+        status: 503,
+        response,
+        cause,
+      });
+    });
+
+    it("classifies a disconnected successful response body as a network failure", async () => {
+      const cause = new TypeError("Body stream disconnected");
+      const response = new Response(
+        new ReadableStream({ start: (controller) => controller.error(cause) }),
+      );
+      vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(response));
+      await expect(client.session).rejects.toMatchObject({
+        name: "NetworkError",
+        request: expect.objectContaining({ url: sessionUrl }),
+        cause,
+      });
+    });
+
+    it("delivers a malformed JSON error to every call in its batch", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const scope = nock(host)
+        .post(apiUrlPath)
+        .reply(200, "{invalid", { "content-type": "application/json" });
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results[0]).toMatchObject({
+        status: "rejected",
+        reason: expect.any(SyntaxError),
+      });
+      expect(results[1]).toEqual(results[0]);
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+        throw new Error("Expected rejected calls");
+      expect(results[1].reason).toBe(results[0].reason);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("rejects every pending call with the same error if processing a method response fails", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const scope = nock(host)
+        .post(apiUrlPath)
+        .reply(200, {
+          methodResponses: [["Mailbox/query", { ids: [] }, mailbox.id], null],
+          sessionState,
+        });
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results).toEqual([
+        { status: "rejected", reason: expect.any(TypeError) },
+        { status: "rejected", reason: expect.any(TypeError) },
+      ]);
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+        throw new Error("Expected rejected calls");
+      expect(results[1].reason).toBe(results[0].reason);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("retains an undefined request when request construction fails", async () => {
+      vi.stubGlobal(
+        "Request",
+        vi.fn(function () {
+          throw new TypeError("Cannot construct request");
+        }),
+      );
+      await expect(client.session).rejects.toMatchObject({
+        name: "NetworkError",
+        message: "Cannot construct request",
+        cause: expect.any(TypeError),
+        request: undefined,
+      });
+    });
+
+    it("rejects all batched method calls with the same HTTP error", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const scope = nock(host)
+        .post(apiUrlPath, {
+          using: [core.urn, mail.urn],
+          methodCalls: [
+            ["Mailbox/query", { accountId, limit: 1 }, mailbox.id],
+            ["Email/query", { accountId, limit: 2 }, email.id],
+          ],
+        })
+        .reply(503, { type: "serverFail", detail: "API unavailable" });
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results[0]).toMatchObject({
+        status: "rejected",
+        reason: {
+          name: "HttpError",
+          message: "API unavailable",
+          status: 503,
+          responseData: { type: "serverFail", detail: "API unavailable" },
+        },
+      });
+      expect(results[1]).toEqual(results[0]);
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+        throw new Error("Expected rejected calls");
+      expect(results[1].reason).toBe(results[0].reason);
+      expect(results[0].reason).toBeInstanceOf(HttpError);
+      expect(scope.isDone()).toBe(true);
+    });
   });
 
   describe("capability names", () => {
@@ -116,12 +381,17 @@ describe("Client", () => {
 
         await namedClient.session;
 
-        const expectedMessages = Object.hasOwn(DEFAULT_SESSION.capabilities, capability.urn)
-          ? []
-          : [
-              `json-meta-client was configured with capabilities that are NOT found in the current session: ${capability.urn}`,
-            ];
-        expect(warn.mock.calls.map(([error]) => error.message)).toEqual(expectedMessages);
+        // oxlint-disable vitest/no-conditional-expect
+        if (Object.hasOwn(DEFAULT_SESSION.capabilities, capability.urn)) {
+          expect(warn).not.toHaveBeenCalled();
+        } else {
+          expect(warn).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({
+              message: `json-meta-client was configured with capabilities that are NOT found in the current session: ${capability.urn}`,
+            }),
+          );
+        }
+        // oxlint-enable vitest/no-conditional-expect
       },
     );
 
@@ -204,6 +474,24 @@ describe("Client", () => {
   });
 
   describe("api", () => {
+    it("attaches the method call and response data to unrecognized method errors", async () => {
+      const query = client.api.Mailbox.query({ limit: 1 });
+      const responseData = { detail: "missing error type" };
+      const scope = mockApi(
+        {
+          using: [core.urn, mail.urn],
+          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.id]],
+        },
+        { methodResponses: [["error", responseData, query.id]], sessionState },
+      );
+      await expect(query).rejects.toMatchObject({
+        name: "MethodCallError",
+        message: "Unknown error in method call",
+        methodCall: { method: "Mailbox/query", args: { accountId, limit: 1 }, id: query.id },
+        responseData,
+      });
+      expect(scope.isDone()).toBe(true);
+    });
     it("sends a JMAP request with required capabilities and injected account ID", async () => {
       const query = client.api.Mailbox.query({
         limit: 3,
@@ -341,9 +629,92 @@ describe("Client", () => {
         type: cause.type,
         detail: cause.detail,
         cause,
+        methodCall: expect.objectContaining({
+          method: "Mailbox/query",
+          args: { accountId, limit: 1 },
+          id: query.id,
+        }),
       } satisfies Partial<JmapError>);
       expect(sessionScope.isDone()).toBe(true);
       expect(apiScope.isDone()).toBe(true);
+    });
+
+    it("associates each batched method error with its original call", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const mailboxError = {
+        type: "invalidArguments",
+        description: "Invalid mailbox filter",
+        extra: "mailbox",
+      };
+      const emailError = { type: "serverFail", extra: "email" };
+      const scope = nock(host)
+        .post(apiUrlPath)
+        .reply(200, {
+          methodResponses: [
+            ["error", emailError, email.id],
+            ["error", mailboxError, mailbox.id],
+          ],
+          sessionState,
+        });
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results).toMatchObject([
+        {
+          status: "rejected",
+          reason: {
+            name: "JmapError",
+            cause: mailboxError,
+            methodCall: { id: mailbox.id, method: "Mailbox/query", args: { accountId, limit: 1 } },
+          },
+        },
+        {
+          status: "rejected",
+          reason: {
+            name: "JmapError",
+            cause: emailError,
+            methodCall: { id: email.id, method: "Email/query", args: { accountId, limit: 2 } },
+          },
+        },
+      ]);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("rejects a response for the wrong method as a method call error", async () => {
+      const query = client.api.Mailbox.query({ limit: 1 });
+      const scope = nock(host)
+        .post(apiUrlPath)
+        .reply(200, {
+          methodResponses: [["Email/query", { ids: [] }, query.id]],
+          sessionState,
+        });
+      const error = await query.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(MethodCallError);
+      expect(error).toMatchObject({
+        name: "MethodCallError",
+        methodCall: { id: query.id, method: "Mailbox/query" },
+        responseData: { ids: [] },
+      });
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("selects the requested response when an implicit method shares its call ID", async () => {
+      const set = client.api.Email.set({ destroy: ["email"] });
+      const responseData = { accountId, oldState: "old", newState: "new", destroyed: ["email"] };
+      const scope = nock(host)
+        .post(apiUrlPath)
+        .reply(200, {
+          methodResponses: [
+            ["Email/set", responseData, set.id],
+            [
+              "Mailbox/set",
+              { accountId, oldState: "old-mailbox", newState: "new-mailbox" },
+              set.id,
+            ],
+          ],
+          sessionState,
+        });
+      await expect(set).resolves.toEqual(responseData);
+      expect(scope.isDone()).toBe(true);
     });
 
     it("rejects method calls missing from a JMAP response", async () => {
@@ -361,23 +732,32 @@ describe("Client", () => {
       );
 
       await expect(mailboxQuery).resolves.toEqual({ ids: [] });
-      await expect(emailQuery).rejects.toThrow(`No response for method call "${emailQuery.id}"`);
+      await expect(emailQuery).rejects.toMatchObject({
+        name: "MethodCallError",
+        message: `No response for method call "${emailQuery.id}"`,
+        methodCall: { method: "Email/query", args: { accountId, limit: 1 }, id: emailQuery.id },
+        responseData: undefined,
+      });
       expect(sessionScope.isDone()).toBe(true);
       expect(apiScope.isDone()).toBe(true);
     });
 
-    it("preserves JSON and text HTTP failure payloads as error causes", async () => {
+    it("propagates HTTP problem details and the cached session error to method calls", async () => {
       nock.cleanAll();
       const sessionFailure: ProblemDetails = { type: "serverFail" };
       const failedSessionScope = nock(host).get(sessionUrlPath).reply(500, sessionFailure);
       const rejectedError = {
-        message: "JMAP request failed (500)",
-        cause: sessionFailure,
+        name: "HttpError",
+        message: "HTTP request failed (500)",
+        status: 500,
+        responseData: sessionFailure,
       };
-      await expect(client.session).rejects.toMatchObject(rejectedError);
+      const sessionError = await client.session.catch((error: unknown) => error);
+      expect(sessionError).toBeInstanceOf(HttpError);
+      expect(sessionError).toMatchObject(rejectedError);
       expect(failedSessionScope.isDone()).toBe(true);
       const query = client.api.Mailbox.query({ limit: 1 });
-      await expect(query).rejects.toMatchObject(rejectedError);
+      await expect(query).rejects.toBe(sessionError);
     });
 
     it("refreshes the session while the initial session access stays cached", async () => {
@@ -476,7 +856,9 @@ describe("Client", () => {
       expect(sessionScope.isDone()).toBe(true);
       expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
+          name: "ConfigurationError",
           message: expect.stringContaining(`${archive.urn}, ${unused.urn}`),
+          cause: { invalidCapabilities: [archive.urn, unused.urn] },
         }),
       );
     });
@@ -510,6 +892,45 @@ describe("Client", () => {
   });
 
   describe("blob.upload", () => {
+    it.each(["image/png", "text/plain", "application/json"])(
+      "uploads a Blob using its %s media type and original bytes",
+      async (type) => {
+        await client.session;
+        const bytes = new Uint8Array([0, 128, 255, 10]);
+        const body = new Blob([bytes], { type });
+        const responseData = { accountId, blobId: "blob", size: bytes.length, type };
+        const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+          new Response(JSON.stringify(responseData), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        await expect(client.blob.upload(body)).resolves.toEqual(responseData);
+        expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(Request));
+        const request = fetchMock.mock.calls[0]![0];
+        if (!(request instanceof Request)) throw new Error("Expected Request");
+        expect(request.method).toBe("POST");
+        expect(request.url).toBe(`${host}/upload/${encodeURIComponent(accountId)}`);
+        expect(request.headers.get("authorization")).toBe(`Bearer ${bearerToken}`);
+        expect(request.headers.get("accept")).toBe("application/json");
+        expect(request.headers.get("content-type")).toBe(type);
+        expect(new Uint8Array(await request.arrayBuffer())).toEqual(bytes);
+      },
+    );
+
+    it("propagates upload failures as HTTP errors", async () => {
+      const body = new Blob(["upload"]);
+      const scope = nock(host)
+        .post(`/upload/${encodeURIComponent(accountId)}`)
+        .reply(413, { type: "tooLarge", detail: "Blob too large" });
+      await expect(client.blob.upload(body)).rejects.toMatchObject({
+        name: "HttpError",
+        message: "Blob too large",
+        status: 413,
+        responseData: { type: "tooLarge", detail: "Blob too large" },
+      });
+      expect(scope.isDone()).toBe(true);
+    });
     it("posts body to correct url", async () => {
       const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
 
@@ -533,6 +954,55 @@ describe("Client", () => {
   });
 
   describe("blob.download", () => {
+    it.each([{ type: "notFound" }, "Blob not found"])(
+      "preserves download HTTP failures: %j",
+      async (payload) => {
+        const scope = nock(host)
+          .get(`/download/${encodeURIComponent(accountId)}/blob`)
+          .query({ type: "text/plain", name: "file" })
+          .reply(404, payload);
+        const error = await client.blob
+          .download({ blobId: "blob", type: "text/plain", name: "file" })
+          .catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(HttpError);
+        if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+        expect(error.status).toBe(404);
+        expect(error.message).toBe("HTTP request failed (404)");
+        expect(error.responseData).toEqual(payload);
+        expect(error.request.method).toBe("GET");
+        expect(scope.isDone()).toBe(true);
+      },
+    );
+
+    it.each([
+      new JsonMetaError("library failure"),
+      new JmapError("server failure", { type: "serverFail" }),
+      new UnknownError("unknown failure", { cause: "unexpected payload" }),
+      new ConfigurationError("configuration failure"),
+      new NetworkError("network failure", { cause: new TypeError("offline"), request: undefined }),
+    ])("preserves an existing library error instance: %s", async (error) => {
+      await client.session;
+      vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(error));
+      await expect(
+        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+      ).rejects.toBe(error);
+    });
+
+    it("wraps download fetch rejections with the original cause", async () => {
+      await client.session;
+      const cause = new TypeError("download disconnected");
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
+      await expect(
+        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+      ).rejects.toMatchObject({
+        name: "NetworkError",
+        cause,
+        request: expect.objectContaining({
+          method: "GET",
+          url: `${host}/download/${encodeURIComponent(accountId)}/blob?type=${encodeURIComponent("text/plain")}&name=file`,
+        }),
+      });
+    });
     it("issues get request to correct url", async () => {
       const blobId = crypto.randomUUID();
       const name = "Some $up3r@ special name!";

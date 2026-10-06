@@ -4,7 +4,7 @@ import { Batch } from "../batch.ts";
 
 vi.useFakeTimers();
 
-describe("Batch", () => {
+describe(Batch, () => {
   test("flushes inputs enqueued in the same turn together", async () => {
     const receivedBatches: string[][] = [];
     const batcher = new Batch<string>((jobs) => {

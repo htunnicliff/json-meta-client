@@ -16,7 +16,7 @@ const cap = defineCapability({
 
 type Entities = "Email" | "Mailbox";
 
-describe("Capability", () => {
+describe("Capability type", () => {
   it("produces a configurable capability with entity types", () => {
     type Expected = ConfigurableCapability<Entities, "urn:ietf:params:jmap:mail">;
     expectTypeOf(cap).toEqualTypeOf<Expected>();
@@ -61,7 +61,7 @@ describe("Capability", () => {
   });
 });
 
-describe("InferMethodsFromCapability", () => {
+describe("InferMethodsFromCapability type", () => {
   it("infers any-typed methods from a configurable capability", () => {
     type Input = InferMethodsFromCapability<typeof cap>;
     interface Expected {

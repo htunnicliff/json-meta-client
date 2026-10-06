@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mapEntitiesToUrns } from "../map-entities-to-urns.ts";
 
-describe("mapEntitiesToUrns", () => {
+describe(mapEntitiesToUrns, () => {
   it("maps entities to every contributing capability in registration order", () => {
     expect(
       mapEntitiesToUrns([

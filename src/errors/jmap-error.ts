@@ -1,16 +1,25 @@
 import type { ProblemDetails } from "jmap-rfc-types";
 
-export class JmapError extends Error implements ProblemDetails {
-  readonly name = "JmapError";
+import type { MethodCall } from "../internal/method-calls.ts";
+import { JsonMetaError } from "./json-meta-error.ts";
+import { UnknownError } from "./unknown-error.ts";
+
+/**
+ * An error received in response to a JMAP request
+ */
+export class JmapError extends JsonMetaError implements ProblemDetails {
+  override readonly name = "JmapError";
   readonly type: string;
   readonly detail?: string;
   readonly instance?: string;
   readonly limit?: string;
   readonly methodCallId?: string;
   readonly status?: number;
+  readonly methodCall?: MethodCall<unknown>;
 
-  constructor(message: string, cause: unknown) {
+  constructor(message: string, cause: unknown, options: { methodCall?: MethodCall<unknown> } = {}) {
     super(message, { cause });
+    this.methodCall = options.methodCall;
     if (JmapError.isProblemDetails(cause)) {
       this.type = cause.type;
       this.detail = cause.detail;
@@ -19,7 +28,7 @@ export class JmapError extends Error implements ProblemDetails {
       this.methodCallId = cause.methodCallId;
       this.status = cause.status;
     } else {
-      throw new Error("Invalid JMAP error cause");
+      throw new UnknownError(message, { cause });
     }
   }
 
@@ -31,8 +40,8 @@ export class JmapError extends Error implements ProblemDetails {
       typeof input.type === "string"
     );
   }
+}
 
-  static isJmapError(input: unknown): input is JmapError {
-    return input instanceof JmapError;
-  }
+export function isJmapError(input: unknown): input is JmapError {
+  return input instanceof JmapError;
 }

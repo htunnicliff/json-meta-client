@@ -6,6 +6,7 @@ import type {
   EventSourceArguments,
   Request as JMAPRequest,
   Response as JMAPResponse,
+  ProblemDetails,
   Session,
   StateChange,
 } from "jmap-rfc-types";
@@ -16,7 +17,16 @@ import { core } from "./capabilities/core.ts";
 import * as builtInCapabilities from "./capabilities/index.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
-import { JmapError } from "./error.ts";
+import {
+  CapabilityConfigurationError,
+  ConfigurationError,
+  HttpError,
+  JmapError,
+  JsonMetaError,
+  MethodCallError,
+  NetworkError,
+  StateChangeError,
+} from "./errors.ts";
 import type { Flush } from "./internal/batch.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
@@ -70,7 +80,7 @@ export class Client<
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
-          if (!this.#session) throw new Error("Session not yet resolved");
+          if (!this.#session) throw new ConfigurationError("Session not yet resolved");
           return this.#session;
         }),
         ...(options.middleware ?? []),
@@ -111,59 +121,74 @@ export class Client<
 
     const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
     if (configuredButNotAvailable.length > 0) {
-      const error = new Error(
+      const error = new ConfigurationError(
         `json-meta-client was configured with capabilities that are NOT found in the current session: ${configuredButNotAvailable.join(", ")}`,
+        {
+          cause: {
+            invalidCapabilities: configuredButNotAvailable,
+          },
+        },
       );
       this.#logger.warn(error);
     }
   }
 
   static #validateOptions(options: Config<ReadonlyArray<CapabilityOption>>): Capability[] {
+    const { bearerToken, capabilities: givenCapabilities, sessionUrl, middleware } = options;
+
     // Bearer token
-    if (typeof options.bearerToken !== "string" || options.bearerToken.trim().length === 0) {
-      throw new Error("`bearerToken` must be a non-empty string");
+    if (typeof bearerToken !== "string" || bearerToken.trim().length === 0) {
+      throw new ConfigurationError("`bearerToken` must be a non-empty string", {
+        cause: { bearerToken },
+      });
     }
 
     // Session URL
-    if (!URL.canParse(options.sessionUrl)) {
-      throw new Error("`sessionUrl` must be a valid URL string or URL instance", {
-        cause: options.sessionUrl,
+    if (!URL.canParse(sessionUrl)) {
+      throw new ConfigurationError("`sessionUrl` must be a valid URL string or URL instance", {
+        cause: { sessionUrl },
       });
     }
 
     // Capabilities
-    if (!Array.isArray(options.capabilities)) {
-      throw new Error("`capabilities` must be an array");
+    if (!Array.isArray(givenCapabilities)) {
+      throw new ConfigurationError("`capabilities` must be an array", {
+        cause: { capabilities: givenCapabilities },
+      });
     }
-    const capabilities = options.capabilities.map((entry) => {
+    const capabilities = givenCapabilities.map((entry) => {
       let capability: Capability;
       if (typeof entry === "string") {
         if (!Object.hasOwn(builtInCapabilities, entry)) {
-          throw new Error(`Unknown built-in capability: ${entry}`, { cause: entry });
+          throw new CapabilityConfigurationError(`Unknown built-in capability: ${entry}`, {
+            capability: entry,
+          });
         }
         capability = builtInCapabilities[entry as BuiltInCapabilityName];
       } else {
         capability = entry;
       }
       if (typeof capability.urn !== "string") {
-        throw new Error("Capabilities must have a `urn`", { cause: capability });
+        throw new CapabilityConfigurationError("Capabilities must have a `urn`", { capability });
       }
       if (
         !Array.isArray(capability.entities) ||
         !capability.entities.every((entity: unknown) => typeof entity === "string")
       ) {
-        throw new Error("Capability entries must be an array of entity name strings");
+        throw new CapabilityConfigurationError(
+          "Capability entities must be an array of entity name strings",
+          { capability },
+        );
       }
       return capability;
     });
 
     // Middleware
-    if (options.middleware) {
-      if (
-        !Array.isArray(options.middleware) ||
-        !options.middleware.every((fn) => typeof fn === "function")
-      ) {
-        throw new Error("`middleware` must be an array of functions");
+    if (middleware) {
+      if (!Array.isArray(middleware) || !middleware.every((fn) => typeof fn === "function")) {
+        throw new ConfigurationError("`middleware` must be an array of functions", {
+          cause: { middleware },
+        });
       }
     }
 
@@ -192,31 +217,57 @@ export class Client<
         methodCalls: methodCalls.map((c) => c.toInvocation()),
       };
 
-      const response = await this.#fetchJson<JMAPResponse>(
-        (await this.session).apiUrl,
-        JSON.stringify(request),
-      );
+      const response = await this.#fetchJson<JMAPResponse>((await this.session).apiUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request),
+      });
 
-      const resultById = new Map(
-        response.methodResponses.map((invocation) => {
-          const result = new MethodCallResult(invocation);
-          return [result.id, result];
-        }),
-      );
+      const resultsById = new Map<string, MethodCallResult<unknown>[]>();
+      for (const invocation of response.methodResponses) {
+        const result = new MethodCallResult(invocation);
+        const results = resultsById.get(result.id);
+        if (results) {
+          results.push(result);
+        } else {
+          resultsById.set(result.id, [result]);
+        }
+      }
 
       for (const { payload: methodCall, handle } of jobs) {
-        const result = resultById.get(methodCall.id);
+        const results = resultsById.get(methodCall.id);
+        const result =
+          results?.find(
+            (result) => result.method === methodCall.method || result.method === "error",
+          ) ?? results?.[0];
         if (!result) {
-          handle.reject(new Error(`No response for method call "${methodCall.id}"`));
+          handle.reject(
+            new MethodCallError(`No response for method call "${methodCall.id}"`, { methodCall }),
+          );
           continue;
         }
 
         const { data } = result;
+        if (result.method !== "error" && result.method !== methodCall.method) {
+          handle.reject(
+            new MethodCallError(
+              `Unexpected response method "${result.method}" for "${methodCall.method}"`,
+              {
+                methodCall,
+                responseData: data,
+              },
+            ),
+          );
+          continue;
+        }
         if (result.method === "error") {
           handle.reject(
             JmapError.isProblemDetails(data)
-              ? new JmapError("Error in method call", data)
-              : new Error("Unknown error in method call", { cause: data }),
+              ? new JmapError("Error in method call", data, { methodCall })
+              : new MethodCallError("Unknown error in method call", {
+                  methodCall,
+                  responseData: data,
+                }),
           );
         } else {
           handle.resolve(data);
@@ -229,25 +280,60 @@ export class Client<
     }
   };
 
-  #fetchJson = async <T>(url: string | URL, body: BodyInit | null = null): Promise<T> => {
-    const response = await fetch(url, {
-      method: body === null ? "GET" : "POST",
-      headers: {
-        authorization: `Bearer ${this.#config.bearerToken}`,
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body,
-    });
+  #fetch = async (url: string | URL, options: RequestInit = {}) => {
+    let request: Request | undefined;
+    let response: Response;
+    try {
+      const headers = new Headers(options.headers);
+      headers.set("authorization", `Bearer ${this.#config.bearerToken}`);
+      request = new Request(url, { ...options, headers });
 
-    const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
+      response = await fetch(request);
+    } catch (error) {
+      if (error instanceof JsonMetaError) {
+        throw error;
+      }
 
-    const payload = await (isJsonResponse ? response.json() : response.text());
-
-    if (!response.ok) {
-      throw new Error(`JMAP request failed (${response.status})`, { cause: payload });
+      throw new NetworkError(error instanceof Error ? error.message : "Error when fetching", {
+        cause: error,
+        request,
+      });
     }
 
+    if (!response.ok) {
+      let responseData: unknown;
+      let cause: unknown;
+      try {
+        const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
+        responseData = isJsonResponse
+          ? await response.clone().json()
+          : await response.clone().text();
+      } catch (error) {
+        cause = error;
+      }
+
+      const message =
+        (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
+      throw new HttpError(message, { request, response, responseData, cause });
+    }
+
+    return { request, response };
+  };
+
+  #fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {
+    const headers = new Headers(options.headers);
+    headers.append("accept", "application/json");
+    const { request, response } = await this.#fetch(url, {
+      ...options,
+      headers,
+    });
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (cause) {
+      throw new NetworkError("Failed to read", { cause, request });
+    }
+    const payload: T = JSON.parse(text);
     return payload;
   };
 
@@ -260,7 +346,10 @@ export class Client<
       const url = expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const data = await this.#fetchJson<BlobUploadResponse>(url, body);
+      const data = await this.#fetchJson<BlobUploadResponse>(url, {
+        method: "POST",
+        body,
+      });
       return data;
     },
     download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
@@ -269,23 +358,17 @@ export class Client<
         ...params,
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          authorization: `Bearer ${this.#config.bearerToken}`,
-        },
-      });
-      if (!response.ok) {
-        const isJsonResponse = /\bjson\b/.test(response.headers.get("content-type")!);
-        const cause = await (isJsonResponse ? response.json() : response.text());
-        throw new Error(`Download request failed (${response.status})`, { cause });
-      }
+      const { response } = await this.#fetch(url, { method: "GET" });
       return response;
     },
   };
 
   onStateChange = async (
-    handler: (change: StateChangePayload) => void,
+    handler: (
+      ...params:
+        | [error: null, change: StateChangePayload]
+        | [error: StateChangeError, change: undefined]
+    ) => void,
     { pingSeconds = 30, signal }: OnStateChangeOptions = {},
   ) => {
     const session = await this.session;
@@ -297,6 +380,7 @@ export class Client<
       ping: pingSeconds.toFixed(0),
     } satisfies EventSourceArguments);
     const { createEventSource } = await import("eventsource-client");
+
     const eventSource = createEventSource({
       url,
       headers: {
@@ -311,7 +395,7 @@ export class Client<
           const { changed } = payload as StateChange;
           for (const [accountId, changes] of Object.entries(changed)) {
             for (const [entity, state] of Object.entries(changes)) {
-              handler({
+              handler(null, {
                 entity,
                 state,
                 accountId,
@@ -319,8 +403,12 @@ export class Client<
               });
             }
           }
-        } catch {
-          //
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : `An error occurred when parsing a state change message payload`;
+          handler(new StateChangeError(message, { cause: error }), undefined);
         }
       },
     });

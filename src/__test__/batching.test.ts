@@ -13,6 +13,9 @@ const host = "https://batching.test";
 const accountId = "account";
 const session = {
   apiUrl: `${host}/api`,
+  uploadUrl: `${host}/upload/{accountId}`,
+  downloadUrl: `${host}/download/{accountId}/{blobId}`,
+  eventSourceUrl: `${host}/events`,
   primaryAccounts: { [mail.urn]: accountId },
   capabilities: {
     [core.urn]: { maxCallsInRequest: 1, maxSizeRequest: 1 },

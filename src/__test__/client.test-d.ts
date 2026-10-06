@@ -40,7 +40,7 @@ const client = new Client({
 
 type DefaultEntities = (typeof DEFAULT_CAPABILITIES)[number]["entities"][number];
 
-describe("Client", () => {
+describe(Client, () => {
   describe("api", () => {
     it("infers the same methods from built-in names and objects", () => {
       const namedClient = new Client({

@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 
-import { JmapError } from "../error.js";
+import * as builtInCapabilities from "../capabilities/index.ts";
+import {
+  CapabilityConfigurationError,
+  ConfigurationError,
+  HttpError,
+  InvalidUriTemplateError,
+  isCapabilityConfigurationError,
+  isConfigurationError,
+  isHttpError,
+  isInvalidUriTemplateError,
+  isJmapError,
+  isJsonMetaError,
+  isMethodCallError,
+  isNetworkError,
+  isStateChangeError,
+  isUnknownError,
+  JmapError,
+  JsonMetaError,
+  MethodCallError,
+  NetworkError,
+  StateChangeError,
+  UnknownError,
+} from "../index.ts";
+import { MethodCall } from "../internal/method-calls.ts";
 
 describe("JmapError.isProblemDetails", () => {
   it("accepts an object with a string `type`", () => {
@@ -26,7 +49,6 @@ describe("JmapError.isProblemDetails", () => {
 
   it("rejects null and non-objects", () => {
     expect(JmapError.isProblemDetails(null)).toBe(false);
-    // oxlint-disable-next-line unicorn/no-useless-undefined
     expect(JmapError.isProblemDetails(undefined)).toBe(false);
     expect(JmapError.isProblemDetails("type")).toBe(false);
     expect(JmapError.isProblemDetails(123)).toBe(false);
@@ -70,7 +92,100 @@ describe("JmapError constructor", () => {
   });
 
   it("throws when the cause is not problem details", () => {
-    expect(() => new JmapError("bad", { nope: true })).toThrow("Invalid JMAP error cause");
-    expect(() => new JmapError("bad", null)).toThrow("Invalid JMAP error cause");
+    for (const cause of [{ nope: true }, null, "server failed"]) {
+      expect(() => new JmapError("bad", cause)).toThrow(UnknownError);
+      expect(() => new JmapError("bad", cause)).toThrow(
+        expect.objectContaining({ message: "bad", cause }),
+      );
+    }
+  });
+});
+
+describe("error classification", () => {
+  const methodCall = new MethodCall({ method: "Mailbox/query", args: { limit: 1 } });
+  const errors = [
+    [new JsonMetaError("base"), isJsonMetaError],
+    [new ConfigurationError("configuration"), isConfigurationError],
+    [
+      new CapabilityConfigurationError("capability", { capability: "unknown" }),
+      isCapabilityConfigurationError,
+    ],
+    [
+      new InvalidUriTemplateError("template", { template: "/{id}", params: {} }),
+      isInvalidUriTemplateError,
+    ],
+    [new NetworkError("network", { cause: null, request: undefined }), isNetworkError],
+    [
+      new HttpError("http", {
+        request: new Request("https://example.test"),
+        response: new Response(null, { status: 503 }),
+      }),
+      isHttpError,
+    ],
+    [new MethodCallError("method", { methodCall }), isMethodCallError],
+    [new JmapError("jmap", { type: "serverFail" }), isJmapError],
+    [new UnknownError("unknown"), isUnknownError],
+    [new StateChangeError("state", { cause: null }), isStateChangeError],
+  ] as const;
+
+  it.each(errors)("recognizes %s as a library error", (error, guard) => {
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(JsonMetaError);
+    expect(error.name).toBe(error.constructor.name);
+    expect(isJsonMetaError(error)).toBe(true);
+    expect(guard(error)).toBe(true);
+  });
+
+  it.each(errors)("rejects unrelated values in the guard for %s", (error, guard) => {
+    const unrelatedValues = [
+      null,
+      undefined,
+      "error",
+      {},
+      new Error("ordinary"),
+      { name: error.name },
+    ];
+    for (const input of unrelatedValues) {
+      expect(guard(input)).toBe(false);
+    }
+    for (const [other] of errors) {
+      expect(guard(other)).toBe(other instanceof error.constructor);
+    }
+  });
+
+  it("classifies capability errors as configuration errors", () => {
+    const error = new CapabilityConfigurationError("invalid", { capability: "unknown" });
+    expect(isConfigurationError(error)).toBe(true);
+    expect(error.givenCapability).toBe("unknown");
+    expect(error.availableBuiltIns).toEqual(Object.keys(builtInCapabilities));
+  });
+
+  it("preserves the request and original network failure", () => {
+    const cause = new TypeError("fetch failed");
+    const request = new Request("https://example.test");
+    const error = new NetworkError("network", { cause, request });
+    expect(error.cause).toBe(cause);
+    expect(error.request).toBe(request);
+  });
+
+  it("retains method call and response data for inspection", () => {
+    const responseData = { unexpected: true };
+    const error = new MethodCallError("method", { methodCall, responseData });
+    expect(error.methodCall).toBe(methodCall);
+    expect(error.responseData).toBe(responseData);
+    expect(new MethodCallError("missing", { methodCall }).responseData).toBeUndefined();
+  });
+
+  it("preserves the original method call on JMAP errors", () => {
+    const cause = { type: "invalidArguments", description: "Invalid filter", extra: 42 };
+    const error = new JmapError("method failed", cause, { methodCall });
+    expect(error.methodCall).toBe(methodCall);
+    expect(error.cause).toBe(cause);
+    expect(isHttpError(error)).toBe(false);
+  });
+
+  it("preserves state-change failure causes", () => {
+    const cause = new SyntaxError("Invalid JSON");
+    expect(new StateChangeError("Invalid JSON", { cause }).cause).toBe(cause);
   });
 });
