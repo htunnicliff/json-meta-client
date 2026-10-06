@@ -359,6 +359,57 @@ describe("Client", () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
+    it("merges shared entities and includes every provider URN without duplicates", async () => {
+      const archive = defineCapability({
+        urn: "urn:example:archive",
+        entities: ["Example"],
+      }).withMethods<{
+        Example: {
+          archive: { input: { ids: string[] }; output: { archived: string[] } };
+        };
+      }>();
+      const unused = defineCapability({ urn: "urn:example:unused", entities: ["Unused"] });
+      const logger = {
+        warn: vi.fn<typeof console.warn>(),
+        error: vi.fn<typeof console.error>(),
+        info: vi.fn<typeof console.info>(),
+        debug: vi.fn<typeof console.debug>(),
+      };
+      const customClient = new Client({
+        capabilities: [example, archive, archive, unused],
+        sessionUrl,
+        bearerToken,
+        logger,
+      });
+      const get = customClient.api.Example.get({ value: "hello" });
+      const archived = customClient.api.Example.archive({ ids: ["one"] });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, example.urn, archive.urn],
+          methodCalls: [
+            ["Example/get", { accountId, value: "hello" }, get.id],
+            ["Example/archive", { accountId, ids: ["one"] }, archived.id],
+          ],
+        },
+        {
+          methodResponses: [
+            ["Example/get", { value: "hello" }, get.id],
+            ["Example/archive", { archived: ["one"] }, archived.id],
+          ],
+          sessionState,
+        },
+      );
+      await expect(get).resolves.toEqual({ value: "hello" });
+      await expect(archived).resolves.toEqual({ archived: ["one"] });
+      expect(apiScope.isDone()).toBe(true);
+      expect(sessionScope.isDone()).toBe(true);
+      expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: expect.stringContaining(`${archive.urn}, ${unused.urn}`),
+        }),
+      );
+    });
+
     it("runs custom middleware after the built-in request transformations", async () => {
       const mockMiddleware = vi.fn<Middleware>((_args) => {
         return { foo: true };
