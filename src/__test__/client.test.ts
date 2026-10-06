@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unsafe-type-assertion
 import type {
   BlobUploadResponse,
   Request as JMAPRequest,
@@ -9,6 +10,7 @@ import nock, { type Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { core } from "../capabilities/core.ts";
+import * as builtInCapabilities from "../capabilities/index.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
 import { Client } from "../client.ts";
@@ -98,6 +100,75 @@ describe("Client", () => {
 
   it("is frozen", () => {
     expect(Object.isFrozen(client)).toBe(true);
+  });
+
+  describe("capability names", () => {
+    it.each(Object.entries(builtInCapabilities))(
+      "resolves %s to its built-in URN",
+      async (name, capability) => {
+        const warn = vi.fn<typeof console.warn>();
+        const namedClient = new Client({
+          bearerToken,
+          sessionUrl,
+          capabilities: [name as keyof typeof builtInCapabilities],
+          logger: { ...console, warn },
+        });
+
+        await namedClient.session;
+
+        const expectedMessages = Object.hasOwn(DEFAULT_SESSION.capabilities, capability.urn)
+          ? []
+          : [
+              `json-meta-client was configured with capabilities that are NOT found in the current session: ${capability.urn}`,
+            ];
+        expect(warn.mock.calls.map(([error]) => error.message)).toEqual(expectedMessages);
+      },
+    );
+
+    it.each(["unknown", "Mail", "toString", "__proto__", "urn:ietf:params:jmap:mail"])(
+      "rejects the unknown name %s",
+      (name) => {
+        expect(
+          () =>
+            new Client({
+              bearerToken,
+              sessionUrl,
+              // @ts-expect-error - Invalid name string
+              capabilities: [name],
+            }),
+        ).toThrow(`Unknown built-in capability: ${name}`);
+      },
+    );
+
+    it("mixes names and objects in requests without duplicate URNs", async () => {
+      const mixedClient = new Client({
+        bearerToken,
+        sessionUrl,
+        capabilities: ["core", "mail", mail, example],
+      });
+      const query = mixedClient.api.Mailbox.query({ limit: 1 });
+      const get = mixedClient.api.Example.get({ value: "hello" });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn, example.urn],
+          methodCalls: [
+            ["Mailbox/query", { accountId, limit: 1 }, query.id],
+            ["Example/get", { accountId, value: "hello" }, get.id],
+          ],
+        },
+        {
+          methodResponses: [
+            ["Mailbox/query", { ids: ["inbox"] }, query.id],
+            ["Example/get", { value: "hello" }, get.id],
+          ],
+          sessionState,
+        },
+      );
+
+      await expect(query).resolves.toEqual({ ids: ["inbox"] });
+      await expect(get).resolves.toEqual({ value: "hello" });
+      expect(apiScope.isDone()).toBe(true);
+    });
   });
 
   describe("session", () => {
