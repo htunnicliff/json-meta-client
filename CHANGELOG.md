@@ -1,5 +1,17 @@
 # json-meta-client
 
+## 0.9.0
+
+### Minor Changes
+
+- [`21262fd`](https://github.com/htunnicliff/json-meta-client/commit/21262fd4b94751b30f7c913ece470d3211a1a303) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Support multiple capabilities augmenting the same entity.
+
+- [`b094589`](https://github.com/htunnicliff/json-meta-client/commit/b0945897639728b29304e955d28f9a4b34f19a13) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Simplify method contract inference boundaries
+
+### Patch Changes
+
+- [`ce377ba`](https://github.com/htunnicliff/json-meta-client/commit/ce377baaabeba76e1cbaba56162d5c57ce99cbb2) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Reject pending method calls when batch processing throws or rejects, and document and test the automatic batching boundaries and failure behavior.
+
 ## 0.8.0
 
 ### Minor Changes
