@@ -1,3 +1,4 @@
+export { maskedEmail as "community:maskedEmail" } from "./community/masked-email.ts";
 export { core } from "./core.ts";
 export { mail } from "./mail.ts";
 export { blob } from "./not-yet-typed/blob.ts";

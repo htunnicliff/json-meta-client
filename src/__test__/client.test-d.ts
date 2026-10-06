@@ -61,6 +61,7 @@ describe("Client", () => {
           "sieve",
           "submission",
           "vacationResponse",
+          "community:maskedEmail",
         ],
       });
       const allObjects = new Client({
