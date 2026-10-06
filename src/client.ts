@@ -13,6 +13,7 @@ import type { SetOptional, UnionToIntersection } from "type-fest";
 
 import { createApi } from "./api.ts";
 import { core } from "./capabilities/core.ts";
+import * as builtInCapabilities from "./capabilities/index.ts";
 import { mail } from "./capabilities/mail.ts";
 import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
 import { JmapError } from "./error.ts";
@@ -26,11 +27,17 @@ import type { Middleware } from "./internal/types.ts";
 
 export const DEFAULT_CAPABILITIES = [core];
 
-type ClientApi<T extends ReadonlyArray<Capability>> = T[number] extends never
-  ? object
-  : Augment<UnionToIntersection<InferMethodsFromCapability<T[number]>>>;
+export type BuiltInCapabilityName = keyof typeof builtInCapabilities;
 
-export interface Config<T extends ReadonlyArray<Capability>> {
+export type CapabilityOption = Capability | BuiltInCapabilityName;
+
+type ResolveCapability<C> = C extends BuiltInCapabilityName ? (typeof builtInCapabilities)[C] : C;
+
+type ClientApi<T extends ReadonlyArray<CapabilityOption>> = T[number] extends never
+  ? object
+  : Augment<UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>>;
+
+export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   bearerToken: string;
   sessionUrl: string | URL;
   capabilities: T;
@@ -39,10 +46,10 @@ export interface Config<T extends ReadonlyArray<Capability>> {
 }
 
 export class Client<
-  T extends ReadonlyArray<Capability>,
+  const T extends ReadonlyArray<CapabilityOption>,
   API extends ClientApi<T> & ClientApi<typeof DEFAULT_CAPABILITIES>,
 > {
-  readonly #config: Required<Config<T>>;
+  readonly #config: Required<Config<ReadonlyArray<Capability>>>;
 
   readonly #entityToUrn: Record<string, string[]>;
 
@@ -53,12 +60,12 @@ export class Client<
   #session: Session | undefined;
 
   constructor(options: Config<T>) {
-    Client.#validateOptions(options);
+    const capabilities = Client.#validateOptions(options);
 
     this.#config = {
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
-      capabilities: options.capabilities,
+      capabilities,
       logger: options.logger ?? console,
       middleware: [
         replaceNestedResultRefKeys,
@@ -111,7 +118,7 @@ export class Client<
     }
   }
 
-  static #validateOptions(options: Config<ReadonlyArray<Capability>>): void {
+  static #validateOptions(options: Config<ReadonlyArray<CapabilityOption>>): Capability[] {
     // Bearer token
     if (typeof options.bearerToken !== "string" || options.bearerToken.trim().length === 0) {
       throw new Error("`bearerToken` must be a non-empty string");
@@ -128,7 +135,16 @@ export class Client<
     if (!Array.isArray(options.capabilities)) {
       throw new Error("`capabilities` must be an array");
     }
-    for (const capability of options.capabilities) {
+    const capabilities = options.capabilities.map((entry) => {
+      let capability: Capability;
+      if (typeof entry === "string") {
+        if (!Object.hasOwn(builtInCapabilities, entry)) {
+          throw new Error(`Unknown built-in capability: ${entry}`, { cause: entry });
+        }
+        capability = builtInCapabilities[entry as BuiltInCapabilityName];
+      } else {
+        capability = entry;
+      }
       if (typeof capability.urn !== "string") {
         throw new Error("Capabilities must have a `urn`", { cause: capability });
       }
@@ -138,7 +154,8 @@ export class Client<
       ) {
         throw new Error("Capability entries must be an array of entity name strings");
       }
-    }
+      return capability;
+    });
 
     // Middleware
     if (options.middleware) {
@@ -149,6 +166,8 @@ export class Client<
         throw new Error("`middleware` must be an array of functions");
       }
     }
+
+    return capabilities;
   }
 
   #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {

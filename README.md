@@ -19,18 +19,20 @@ Create a client with the capabilities your JMAP server supports:
 
 ```ts
 import { Client } from "json-meta-client";
-import {
-  mail,
-  submission,
-  contacts,
-} from "json-meta-client/capabilities";
 
 const client = new Client({
   bearerToken: "<token>",
   sessionUrl: "<session-url>",
-  capabilities: [mail, submission, contacts], // `core` is always included
+  capabilities: ["mail", "submission", "contacts"], // `core` is always included
 });
 ```
+
+Capability entries can be built-in names (`core`, `mail`, `blob`, `contacts`,
+`sieve`, `submission`, or `vacationResponse`) or configured capability objects.
+Mix them in the same array, such as `["mail", someCustomCapability]`. Objects
+imported from `json-meta-client/capabilities` continue to work, and built-in
+names preserve the same TypeScript method types. Unknown names throw an error
+when constructing the client.
 
 #### Issue a single JMAP request
 

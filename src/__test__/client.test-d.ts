@@ -11,13 +11,19 @@ import type {
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { core, mail } from "../capabilities/index.ts";
+import * as builtInCapabilities from "../capabilities/index.ts";
 import {
   defineCapability,
   type AugmentMethod,
   type MethodArguments,
   type MethodContract,
 } from "../capability.ts";
-import { Client, DEFAULT_CAPABILITIES } from "../client.ts";
+import {
+  Client,
+  DEFAULT_CAPABILITIES,
+  type BuiltInCapabilityName,
+  type Config,
+} from "../client.ts";
 import type { JobResult } from "../internal/batch.ts";
 import type { MethodCall } from "../internal/method-calls.ts";
 import { ref, type AllowRefs, type Ref } from "../ref.ts";
@@ -36,6 +42,56 @@ type DefaultEntities = (typeof DEFAULT_CAPABILITIES)[number]["entities"][number]
 
 describe("Client", () => {
   describe("api", () => {
+    it("infers the same methods from built-in names and objects", () => {
+      const namedClient = new Client({
+        bearerToken,
+        sessionUrl,
+        capabilities: ["core", "mail"],
+      });
+      expectTypeOf(namedClient.api).toEqualTypeOf(client.api);
+
+      const allNamed = new Client({
+        bearerToken,
+        sessionUrl,
+        capabilities: [
+          "core",
+          "mail",
+          "blob",
+          "contacts",
+          "sieve",
+          "submission",
+          "vacationResponse",
+        ],
+      });
+      const allObjects = new Client({
+        bearerToken,
+        sessionUrl,
+        capabilities: Object.values(builtInCapabilities),
+      });
+      expectTypeOf(allNamed.api).toEqualTypeOf(allObjects.api);
+      expectTypeOf<BuiltInCapabilityName>().toEqualTypeOf<keyof typeof builtInCapabilities>();
+    });
+
+    it("accepts readonly name arrays in separately declared options", () => {
+      const options: Config<readonly ["mail"]> = {
+        bearerToken,
+        sessionUrl,
+        capabilities: ["mail"],
+      };
+      const objectClient = new Client({ bearerToken, sessionUrl, capabilities: [mail] });
+      expectTypeOf(new Client(options).api).toEqualTypeOf(objectClient.api);
+    });
+
+    it("rejects names that are not built-in exports", () => {
+      const invalidClient = new Client({
+        bearerToken,
+        sessionUrl,
+        // @ts-expect-error - Only exported built-in names are allowed
+        capabilities: ["unknown"],
+      });
+      expectTypeOf(invalidClient).toBeObject();
+    });
+
     it("has default capability methods when capabilities is empty", () => {
       const emptyClient = new Client({
         bearerToken,
@@ -130,6 +186,20 @@ describe("Client", () => {
       it("exposes the custom capability's entities", () => {
         expectTypeOf(client.api).toHaveProperty("Example");
         expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Example" | DefaultEntities>();
+      });
+
+      it("preserves built-in and custom contracts when mixing names and objects", () => {
+        const namedClient = new Client({
+          sessionUrl,
+          bearerToken,
+          capabilities: ["mail", example],
+        });
+        const objectClient = new Client({
+          sessionUrl,
+          bearerToken,
+          capabilities: [mail, example],
+        });
+        expectTypeOf(namedClient.api).toEqualTypeOf(objectClient.api);
       });
 
       it("respects accountId optionality", () => {
