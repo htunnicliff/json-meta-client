@@ -11,6 +11,8 @@ words:
   - htunnicliff
   - unstub
   - eventsource
+  - microtask
+  - microtasks
 ignorePaths:
   - pnpm-lock.yaml
   - dist/
