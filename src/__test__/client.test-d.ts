@@ -313,6 +313,7 @@ describe("Client", () => {
 
         // Args are unknown
         type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>;
+        // oxlint-disable-next-line typescript/no-generated-empty-object-type
         expectTypeOf<Args>().toEqualTypeOf<[args: MethodArguments<MethodContract>]>();
         expectTypeOf<Args>().toExtend<[object]>();
         expectTypeOf<Args>().toExtend<[{}]>();
