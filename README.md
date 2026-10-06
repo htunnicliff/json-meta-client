@@ -27,6 +27,13 @@ const client = new Client({
 });
 ```
 
+Capability entries can be built-in names (`core`, `mail`, `blob`, `contacts`,
+`sieve`, `submission`, or `vacationResponse`) or configured capability objects.
+Mix them in the same array, such as `["mail", someCustomCapability]`. Objects
+imported from `json-meta-client/capabilities` continue to work, and built-in
+names preserve the same TypeScript method types. Unknown names throw an error
+when constructing the client.
+
 #### Issue a single JMAP request
 
 ```ts
