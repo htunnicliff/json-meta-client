@@ -1,5 +1,23 @@
 # json-meta-client
 
+## 0.10.0
+
+### Minor Changes
+
+- [`619dd67`](https://github.com/htunnicliff/json-meta-client/commit/619dd67717d63e128549ac2b446f0b1adb970e39) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Accept built-in capability export names alongside configured capability objects in client options, preserving inferred API method types.
+
+- [`5215085`](https://github.com/htunnicliff/json-meta-client/commit/52150859f9342cdcd7ca2108b5e22cc54e3fe583) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Enable isolatedDeclarations
+
+- [`a3c1421`](https://github.com/htunnicliff/json-meta-client/commit/a3c142120c56d51ba0cb18e70c5a2146c6c7873e) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Move ref API into method call results
+
+- [`8438af3`](https://github.com/htunnicliff/json-meta-client/commit/8438af3f72fcf0243c3f4c6cd88bf9bce7603055) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add definitive error kinds, including separate HTTP and protocol errors with
+  request and response context. Retain the associated method call on JMAP errors
+  and validate server response envelopes before processing them.
+
+  Preserve upload body media types instead of forcing JSON request headers.
+
+- [`5215085`](https://github.com/htunnicliff/json-meta-client/commit/52150859f9342cdcd7ca2108b5e22cc54e3fe583) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Stabilize public API
+
 ## 0.9.0
 
 ### Minor Changes
