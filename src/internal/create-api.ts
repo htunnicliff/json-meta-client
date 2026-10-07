@@ -1,9 +1,11 @@
 // oxlint-disable typescript/no-unnecessary-type-parameters
 import type { JsonObject, JsonValue } from "type-fest";
 
-import { Batch, type Flush } from "./internal/batch.ts";
-import { MethodCall } from "./internal/method-calls.ts";
-import type { Middleware } from "./internal/types.ts";
+import type { Flush } from "./batch.ts";
+import { Batch } from "./batch.ts";
+import { MethodCall } from "./method-call.ts";
+import { addRefMethod } from "./ref.ts";
+import type { Middleware } from "./types.ts";
 
 export function createApi<T extends object>(
   processMethodCalls: Flush<MethodCall<unknown>>,
@@ -21,6 +23,7 @@ export function createApi<T extends object>(
 
   const batch = new Batch(processMethodCalls);
 
+  // TODO: Enforce strict linkage between this proxy type and Augment<T>
   return new Proxy<T>(Object.create(null), {
     get(_, entity) {
       if (typeof entity !== "string") {
@@ -36,13 +39,29 @@ export function createApi<T extends object>(
                 return undefined;
               }
 
-              return (args: JsonObject) =>
-                batch.enqueue(
-                  new MethodCall({
-                    method: `${entity}/${method}`,
-                    args: applyMiddleware(args),
-                  }),
-                );
+              const fn = (args: JsonObject) => {
+                const methodCall = new MethodCall({
+                  method: `${entity}/${method}`,
+                  args: applyMiddleware(args),
+                });
+
+                const pendingResult = batch.enqueue(methodCall);
+
+                const withRefMethod = addRefMethod(pendingResult, {
+                  name: methodCall.method,
+                  resultOf: methodCall.id,
+                });
+
+                const withMethodCall = Object.assign(withRefMethod, {
+                  $id: methodCall.id,
+                  $args: methodCall.args,
+                  $method: methodCall.method,
+                });
+
+                return withMethodCall;
+              };
+
+              return fn;
             },
           }),
         );

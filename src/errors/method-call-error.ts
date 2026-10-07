@@ -1,4 +1,4 @@
-import type { MethodCall } from "../internal/method-calls.ts";
+import type { MethodCall } from "../internal/method-call.ts";
 import { JsonMetaError } from "./json-meta-error.ts";
 
 /**

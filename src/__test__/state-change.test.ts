@@ -1,4 +1,5 @@
-import { createEventSource, type EventSourceOptions } from "eventsource-client";
+import { createEventSource } from "eventsource-client";
+import type { EventSourceOptions } from "eventsource-client";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -19,14 +19,13 @@ describe(Batch, () => {
     expect(receivedBatches).toEqual([["first", "second"]]);
   });
 
-  test("returns an input-shaped promise for enqueued job", async () => {
+  test("returns a promise for enqueued job", async () => {
     const batcher = new Batch<{ id: string }>((jobs) => {
       jobs[0]?.handle.resolve("completed");
     });
 
     const result = batcher.enqueue<string>({ id: "request-1" });
 
-    expect(result.id).toBe("request-1");
     await expect(result).resolves.toBe("completed");
   });
 

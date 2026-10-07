@@ -12,11 +12,10 @@ import type {
 } from "jmap-rfc-types";
 import type { SetOptional, UnionToIntersection } from "type-fest";
 
-import { createApi } from "./api.ts";
 import { core } from "./capabilities/core.ts";
 import * as builtInCapabilities from "./capabilities/index.ts";
 import { mail } from "./capabilities/mail.ts";
-import type { Augment, Capability, InferMethodsFromCapability } from "./capability.ts";
+import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import {
   CapabilityConfigurationError,
   ConfigurationError,
@@ -28,14 +27,17 @@ import {
   StateChangeError,
 } from "./errors.ts";
 import type { Flush } from "./internal/batch.ts";
+import { createApi } from "./internal/create-api.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
-import { MethodCall, MethodCallResult } from "./internal/method-calls.ts";
+import { MethodCallResult } from "./internal/method-call-result.ts";
+import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type { Augment } from "./internal/types.ts";
 import type { Middleware } from "./internal/types.ts";
 
-export const DEFAULT_CAPABILITIES = [core];
+export const DEFAULT_CAPABILITIES: [typeof core] = [core];
 
 export type BuiltInCapabilityName = keyof typeof builtInCapabilities;
 
@@ -164,6 +166,7 @@ export class Client<
             capability: entry,
           });
         }
+        // oxlint-disable-next-line import/namespace
         capability = builtInCapabilities[entry as BuiltInCapabilityName];
       } else {
         capability = entry;
@@ -370,7 +373,7 @@ export class Client<
         | [error: StateChangeError, change: undefined]
     ) => void,
     { pingSeconds = 30, signal }: OnStateChangeOptions = {},
-  ) => {
+  ): Promise<Disposable> => {
     const session = await this.session;
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
     const url = expandURITemplate(session.eventSourceUrl, {

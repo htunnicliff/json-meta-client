@@ -1,6 +1,6 @@
 import type { ProblemDetails } from "jmap-rfc-types";
 
-import type { MethodCall } from "../internal/method-calls.ts";
+import type { MethodCall } from "../internal/method-call.ts";
 import { JsonMetaError } from "./json-meta-error.ts";
 import { UnknownError } from "./unknown-error.ts";
 

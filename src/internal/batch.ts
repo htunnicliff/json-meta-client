@@ -3,8 +3,6 @@ interface Job<Payload, Output = any> {
   handle: PromiseWithResolvers<Output>;
 }
 
-export type JobResult<Input, Output> = Input & Promise<Output>;
-
 export interface Flush<Input> {
   (jobs: Job<Input>[]): void | Promise<void>;
 }
@@ -50,7 +48,7 @@ export class Batch<Input = unknown> {
    * Push a payload into the queue and return a promise for
    * the result for the given input
    */
-  enqueue = <Output = unknown, I extends Input = Input>(input: I): JobResult<I, Output> => {
+  enqueue = <Output = unknown>(input: Input): Promise<Output> => {
     // Create a promise for providing the output
     const handle = Promise.withResolvers<Output>();
 
@@ -60,10 +58,8 @@ export class Batch<Input = unknown> {
     // Schedule a flush
     this.#scheduleFlush();
 
-    const result: JobResult<I, Output> = Object.assign(handle.promise, input);
-
     // Supply the output promise
-    return result;
+    return handle.promise;
   };
 
   /**

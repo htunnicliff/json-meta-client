@@ -1,5 +1,16 @@
-// oxlint-disable no-inline-comments
-import type { IsUnknown, JsonValue, Paths, Replace } from "type-fest";
+import type {
+  IsUnknown,
+  JsonValue,
+  Paths,
+  Primitive,
+  Replace,
+  SetOptional,
+  SetRequired,
+  Simplify,
+} from "type-fest";
+
+import type { Capability, MethodContract } from "../capability.ts";
+import type { Ref, WithRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
 
@@ -81,3 +92,98 @@ export type PointerPaths<T> =
     : never;
 
 export type Middleware = (payload: JsonValue) => JsonValue;
+
+/**
+ * Deeply allows a {@link Ref} of the expected value at any position.
+ * Used by the proxy API so callers may pass `ref(...)` in place of concrete args.
+ */
+export type AllowRefs<T> =
+  | Ref<T>
+  | (T extends Primitive
+      ? T
+      : T extends readonly [any, ...any[]]
+        ? { [K in keyof T]: AllowRefs<T[K]> }
+        : T extends readonly any[]
+          ? { [K in keyof T]: AllowRefs<T[number]> }
+          : T extends object
+            ? { [K in keyof T]: AllowRefs<T[K]> }
+            : T);
+
+/**
+ * Deeply replaces {@link Ref} wrappers with the types they resolve to.
+ * Used when deriving method response types from arguments that may contain refs.
+ */
+export type UnpackRefs<T> =
+  T extends Ref<infer U>
+    ? U
+    : T extends Primitive
+      ? T
+      : T extends readonly [any, ...any[]]
+        ? { [K in keyof T]: UnpackRefs<T[K]> }
+        : T extends readonly any[]
+          ? Array<UnpackRefs<T[number]>>
+          : T extends object
+            ? { [K in keyof T]: UnpackRefs<T[K]> }
+            : T;
+
+export type Apply<Contract extends MethodContract, Input> = (Contract & {
+  input: Input;
+})["output"];
+
+/**
+ * The primary type used to define JMAP calls for
+ * one or more entities.
+ */
+export type CapabilityMethods<Entity extends string> = {
+  [key in Entity]: {
+    [method: string]: MethodContract;
+  };
+};
+
+export type Augment<T extends CapabilityMethods<string>> = {
+  [Entity in keyof T]: {
+    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method]>;
+  };
+};
+
+export type MethodArguments<Contract extends MethodContract> = {
+  [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
+} extends infer Args
+  ? Args extends { accountId: unknown }
+    ? SetOptional<Args, "accountId">
+    : Args
+  : never;
+
+export type EffectiveMethodInput<Contract extends MethodContract, Args> =
+  UnpackRefs<Args> extends infer Input
+    ? "accountId" extends keyof Input
+      ? SetRequired<Input, "accountId">
+      : Contract["input"] extends { accountId: infer AccountId }
+        ? Simplify<Input & { accountId: AccountId }>
+        : Input
+    : never;
+
+export type AugmentMethod<Contract extends MethodContract> = <
+  Args extends MethodArguments<Contract>,
+  Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
+    Contract,
+    EffectiveMethodInput<Contract, Args>
+  >,
+>(
+  args: Args,
+) => WithRefFn<Promise<Output>, Output> & {
+  $id: string;
+  $args: Args;
+  $method: string;
+};
+
+/**
+ * A partially-configured capability that supports using
+ * layers of generics. The first layer captures the {@link Entity}
+ * type, while the second layer captures the {@link CapabilityMethods}
+ */
+export interface ConfigurableCapability<Entity extends string, Urn extends string = string> {
+  urn: Urn;
+  entities: ReadonlyArray<Entity>;
+  withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M, Urn>;
+}

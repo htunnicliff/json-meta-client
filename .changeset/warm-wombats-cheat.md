@@ -2,4 +2,4 @@
 "json-meta-client": minor
 ---
 
-Expose community capabilities
+Stabilize public API

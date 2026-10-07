@@ -1,13 +1,8 @@
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import type {
-  Apply,
-  Capability,
-  CapabilityMethods,
-  ConfigurableCapability,
-  InferMethodsFromCapability,
-} from "../capability.ts";
+import type { Capability, InferMethodsFromCapability } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
+import type { Apply, CapabilityMethods, ConfigurableCapability } from "../internal/types.ts";
 
 const cap = defineCapability({
   urn: "urn:ietf:params:jmap:mail",

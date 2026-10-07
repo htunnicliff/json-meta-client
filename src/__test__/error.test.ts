@@ -23,7 +23,7 @@ import {
   StateChangeError,
   UnknownError,
 } from "../index.ts";
-import { MethodCall } from "../internal/method-calls.ts";
+import { MethodCall } from "../internal/method-call.ts";
 
 describe("JmapError.isProblemDetails", () => {
   it("accepts an object with a string `type`", () => {
