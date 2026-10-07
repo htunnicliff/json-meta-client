@@ -10,18 +10,14 @@ import type {
 } from "jmap-rfc-types";
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import { core, mail } from "../capabilities/index.ts";
 import * as builtInCapabilities from "../capabilities/index.ts";
-import { defineCapability } from "../capability.ts";
+import { core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
-import type { DEFAULT_CAPABILITIES } from "../client.ts";
+import { defineCapability } from "../capability.ts";
+import type { BuiltInCapabilityName, Config, DEFAULT_CAPABILITIES } from "../client.ts";
 import { Client } from "../client.ts";
-import type { BuiltInCapabilityName, Config } from "../client.ts";
-import type { JobResult } from "../internal/batch.ts";
-import type { MethodCall } from "../internal/method-call.ts";
+import type { Ref, RefFn } from "../internal/ref.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
-import { ref } from "../ref.ts";
-import type { Ref } from "../ref.ts";
 
 const host = "https://example.test";
 const bearerToken = "<opaque-token>";
@@ -222,10 +218,12 @@ describe(Client, () => {
         expectTypeOf(unfilteredResult.list).toExtend<ReadonlyArray<unknown>>();
 
         // Filtered has specified properties
-        expectTypeOf(filteredResult.list.at(0)!).toEqualTypeOf<Pick<Example, "some" | "things">>();
+        expectTypeOf(filteredResult.list.at(0)).toEqualTypeOf<
+          Pick<Example, "some" | "things"> | undefined
+        >();
 
         // Unfiltered has all properties
-        expectTypeOf(unfilteredResult.list.at(0)!).toEqualTypeOf<Example>();
+        expectTypeOf(unfilteredResult.list.at(0)).toEqualTypeOf<Example | undefined>();
       });
 
       it("uses BatchResult types appropriately", async () => {
@@ -235,15 +233,25 @@ describe(Client, () => {
 
         // Correct batch result type
         expectTypeOf(pending).toEqualTypeOf<
-          JobResult<
-            MethodCall<{ ids: string[]; accountId: ID }>,
-            {
+          Promise<{
+            accountId: ID;
+            state: string;
+            list: readonly Example[];
+            notFound: ReadonlyArray<ID>;
+          }> & {
+            $id: string;
+            $args: {
+              ids: string[];
+            };
+            $method: string;
+          } & {
+            ref: RefFn<{
               accountId: ID;
               state: string;
               list: readonly Example[];
               notFound: ReadonlyArray<ID>;
-            }
-          >
+            }>;
+          }
         >();
 
         // Correct awaited result
@@ -318,13 +326,11 @@ describe(Client, () => {
           madeUp: "argument",
           stuff: ["<foo-id>"],
         });
-        expectTypeOf(pending).toEqualTypeOf<
-          JobResult<MethodCall<{ madeUp: string; stuff: string[] }>, unknown>
-        >();
+        expectTypeOf(pending).toExtend<Promise<unknown>>();
 
         // Supports refs with arbitrary pointers
-        expectTypeOf(ref(pending, "/stuff")).toEqualTypeOf<Ref<unknown>>();
-        expectTypeOf(ref(pending, "/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.ref("/stuff")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.ref("/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
 
         // @ts-expect-error - "/${string}" is required
         assertType(ref(pending, "invalid"));

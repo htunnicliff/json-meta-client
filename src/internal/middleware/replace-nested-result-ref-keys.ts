@@ -1,4 +1,4 @@
-import { isRef } from "../../ref.ts";
+import { isRef } from "../ref.ts";
 import type { Middleware } from "../types.ts";
 
 /**

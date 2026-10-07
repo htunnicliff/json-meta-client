@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { mail } from "../capabilities/index.ts";
-import { Client, defineCapability, ref } from "../index.ts";
+import { Client, defineCapability } from "../index.ts";
 import type { MethodContract } from "../index.ts";
 
 interface Note {
@@ -88,7 +88,7 @@ describe("public custom capability authoring", () => {
     const query = client.api.Note.query({ text: "draft" });
     const selected = client.api.Note.get({
       accountId: "custom-account",
-      ids: ref(query, "/ids"),
+      ids: query.ref("/ids"),
       properties: ["id", "title"] as const,
     });
     const all = client.api.Note.get({ ids: ["note-1"] });

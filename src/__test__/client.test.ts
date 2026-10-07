@@ -29,7 +29,6 @@ import {
   UnknownError,
 } from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
-import { ref } from "../ref.ts";
 
 // ------ Fixtures ----------------------------------------
 
@@ -308,7 +307,7 @@ describe(Client, () => {
       const scope = nock(host)
         .post(apiUrlPath)
         .reply(200, {
-          methodResponses: [["Mailbox/query", { ids: [] }, mailbox.id], null],
+          methodResponses: [["Mailbox/query", { ids: [] }, mailbox.$id], null],
           sessionState,
         });
       const results = await Promise.allSettled([mailbox, email]);
@@ -344,8 +343,8 @@ describe(Client, () => {
         .post(apiUrlPath, {
           using: [core.urn, mail.urn],
           methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailbox.id],
-            ["Email/query", { accountId, limit: 2 }, email.id],
+            ["Mailbox/query", { accountId, limit: 1 }, mailbox.$id],
+            ["Email/query", { accountId, limit: 2 }, email.$id],
           ],
         })
         .reply(503, { type: "serverFail", detail: "API unavailable" });
@@ -423,14 +422,14 @@ describe(Client, () => {
         {
           using: [core.urn, mail.urn, example.urn],
           methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, query.id],
-            ["Example/get", { accountId, value: "hello" }, get.id],
+            ["Mailbox/query", { accountId, limit: 1 }, query.$id],
+            ["Example/get", { accountId, value: "hello" }, get.$id],
           ],
         },
         {
           methodResponses: [
-            ["Mailbox/query", { ids: ["inbox"] }, query.id],
-            ["Example/get", { value: "hello" }, get.id],
+            ["Mailbox/query", { ids: ["inbox"] }, query.$id],
+            ["Example/get", { value: "hello" }, get.$id],
           ],
           sessionState,
         },
@@ -481,14 +480,14 @@ describe(Client, () => {
       const scope = mockApi(
         {
           using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.id]],
+          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
         },
-        { methodResponses: [["error", responseData, query.id]], sessionState },
+        { methodResponses: [["error", responseData, query.$id]], sessionState },
       );
       await expect(query).rejects.toMatchObject({
         name: "MethodCallError",
         message: "Unknown error in method call",
-        methodCall: { method: "Mailbox/query", args: { accountId, limit: 1 }, id: query.id },
+        methodCall: { method: "Mailbox/query", args: { accountId, limit: 1 }, id: query.$id },
         responseData,
       });
       expect(scope.isDone()).toBe(true);
@@ -512,7 +511,7 @@ describe(Client, () => {
                 limit: 3,
                 filter: { hasAnyRole: true },
               },
-              query.id,
+              query.$id,
             ],
           ],
         },
@@ -523,7 +522,7 @@ describe(Client, () => {
               {
                 ids: ["some-id", "another-id"],
               },
-              query.id,
+              query.$id,
             ],
           ],
           sessionState,
@@ -545,14 +544,14 @@ describe(Client, () => {
         {
           using: [core.urn, mail.urn],
           methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
-            ["Email/query", { accountId, limit: 1 }, emailQuery.id],
+            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.$id],
+            ["Email/query", { accountId, limit: 1 }, emailQuery.$id],
           ],
         },
         {
           methodResponses: [
-            ["Email/query", { ids: ["email"] }, emailQuery.id],
-            ["Mailbox/query", { ids: ["mailbox"] }, mailboxQuery.id],
+            ["Email/query", { ids: ["email"] }, emailQuery.$id],
+            ["Mailbox/query", { ids: ["mailbox"] }, mailboxQuery.$id],
           ],
           sessionState,
         },
@@ -566,26 +565,26 @@ describe(Client, () => {
 
     it("turns nested result references into JMAP result-reference arguments", async () => {
       const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
-      const emailGet = client.api.Email.get({ ids: ref(mailboxQuery, "/ids") });
+      const emailGet = client.api.Email.get({ ids: mailboxQuery.ref("/ids") });
       const apiScope = mockApi(
         {
           using: [core.urn, mail.urn],
           methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
+            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.$id],
             [
               "Email/get",
               {
                 accountId,
-                "#ids": { name: "Mailbox/query", resultOf: mailboxQuery.id, path: "/ids" },
+                "#ids": { name: "Mailbox/query", resultOf: mailboxQuery.$id, path: "/ids" },
               },
-              emailGet.id,
+              emailGet.$id,
             ],
           ],
         },
         {
           methodResponses: [
-            ["Mailbox/query", { ids: ["inbox"] }, mailboxQuery.id],
-            ["Email/get", { list: [] }, emailGet.id],
+            ["Mailbox/query", { ids: ["inbox"] }, mailboxQuery.$id],
+            ["Email/get", { list: [] }, emailGet.$id],
           ],
           sessionState,
         },
@@ -601,9 +600,9 @@ describe(Client, () => {
       const apiScope = mockApi(
         {
           using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { accountId: "account-2", limit: 1 }, query.id]],
+          methodCalls: [["Mailbox/query", { accountId: "account-2", limit: 1 }, query.$id]],
         },
-        { methodResponses: [["Mailbox/query", { ids: [] }, query.id]], sessionState },
+        { methodResponses: [["Mailbox/query", { ids: [] }, query.$id]], sessionState },
       );
 
       await expect(query).resolves.toEqual({ ids: [] });
@@ -620,9 +619,9 @@ describe(Client, () => {
       const apiScope = mockApi(
         {
           using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.id]],
+          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
         },
-        { methodResponses: [["error", cause, query.id]], sessionState },
+        { methodResponses: [["error", cause, query.$id]], sessionState },
       );
 
       await expect(query).rejects.toMatchObject({
@@ -633,7 +632,7 @@ describe(Client, () => {
         methodCall: expect.objectContaining({
           method: "Mailbox/query",
           args: { accountId, limit: 1 },
-          id: query.id,
+          id: query.$id,
         }),
       } satisfies Partial<JmapError>);
       expect(sessionScope.isDone()).toBe(true);
@@ -653,8 +652,8 @@ describe(Client, () => {
         .post(apiUrlPath)
         .reply(200, {
           methodResponses: [
-            ["error", emailError, email.id],
-            ["error", mailboxError, mailbox.id],
+            ["error", emailError, email.$id],
+            ["error", mailboxError, mailbox.$id],
           ],
           sessionState,
         });
@@ -665,7 +664,7 @@ describe(Client, () => {
           reason: {
             name: "JmapError",
             cause: mailboxError,
-            methodCall: { id: mailbox.id, method: "Mailbox/query", args: { accountId, limit: 1 } },
+            methodCall: { id: mailbox.$id, method: "Mailbox/query", args: { accountId, limit: 1 } },
           },
         },
         {
@@ -673,7 +672,7 @@ describe(Client, () => {
           reason: {
             name: "JmapError",
             cause: emailError,
-            methodCall: { id: email.id, method: "Email/query", args: { accountId, limit: 2 } },
+            methodCall: { id: email.$id, method: "Email/query", args: { accountId, limit: 2 } },
           },
         },
       ]);
@@ -685,14 +684,14 @@ describe(Client, () => {
       const scope = nock(host)
         .post(apiUrlPath)
         .reply(200, {
-          methodResponses: [["Email/query", { ids: [] }, query.id]],
+          methodResponses: [["Email/query", { ids: [] }, query.$id]],
           sessionState,
         });
       const error = await query.catch((error: unknown) => error);
       expect(error).toBeInstanceOf(MethodCallError);
       expect(error).toMatchObject({
         name: "MethodCallError",
-        methodCall: { id: query.id, method: "Mailbox/query" },
+        methodCall: { id: query.$id, method: "Mailbox/query" },
         responseData: { ids: [] },
       });
       expect(scope.isDone()).toBe(true);
@@ -705,11 +704,11 @@ describe(Client, () => {
         .post(apiUrlPath)
         .reply(200, {
           methodResponses: [
-            ["Email/set", responseData, set.id],
+            ["Email/set", responseData, set.$id],
             [
               "Mailbox/set",
               { accountId, oldState: "old-mailbox", newState: "new-mailbox" },
-              set.id,
+              set.$id,
             ],
           ],
           sessionState,
@@ -725,18 +724,18 @@ describe(Client, () => {
         {
           using: [core.urn, mail.urn],
           methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.id],
-            ["Email/query", { accountId, limit: 1 }, emailQuery.id],
+            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.$id],
+            ["Email/query", { accountId, limit: 1 }, emailQuery.$id],
           ],
         },
-        { methodResponses: [["Mailbox/query", { ids: [] }, mailboxQuery.id]], sessionState },
+        { methodResponses: [["Mailbox/query", { ids: [] }, mailboxQuery.$id]], sessionState },
       );
 
       await expect(mailboxQuery).resolves.toEqual({ ids: [] });
       await expect(emailQuery).rejects.toMatchObject({
         name: "MethodCallError",
-        message: `No response for method call "${emailQuery.id}"`,
-        methodCall: { method: "Email/query", args: { accountId, limit: 1 }, id: emailQuery.id },
+        message: `No response for method call "${emailQuery.$id}"`,
+        methodCall: { method: "Email/query", args: { accountId, limit: 1 }, id: emailQuery.$id },
         responseData: undefined,
       });
       expect(sessionScope.isDone()).toBe(true);
@@ -799,10 +798,10 @@ describe(Client, () => {
       const apiScope = mockApi(
         {
           using: [core.urn, example.urn],
-          methodCalls: [["Example/get", { accountId, value: "hello" }, get.id]],
+          methodCalls: [["Example/get", { accountId, value: "hello" }, get.$id]],
         },
         {
-          methodResponses: [["Example/get", { value: "hello" }, get.id]],
+          methodResponses: [["Example/get", { value: "hello" }, get.$id]],
           sessionState,
         },
       );
@@ -839,14 +838,14 @@ describe(Client, () => {
         {
           using: [core.urn, example.urn, archive.urn],
           methodCalls: [
-            ["Example/get", { accountId, value: "hello" }, get.id],
-            ["Example/archive", { accountId, ids: ["one"] }, archived.id],
+            ["Example/get", { accountId, value: "hello" }, get.$id],
+            ["Example/archive", { accountId, ids: ["one"] }, archived.$id],
           ],
         },
         {
           methodResponses: [
-            ["Example/get", { value: "hello" }, get.id],
-            ["Example/archive", { archived: ["one"] }, archived.id],
+            ["Example/get", { value: "hello" }, get.$id],
+            ["Example/archive", { archived: ["one"] }, archived.$id],
           ],
           sessionState,
         },
@@ -879,9 +878,9 @@ describe(Client, () => {
       const apiScope = mockApi(
         {
           using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { foo: true }, query.id]],
+          methodCalls: [["Mailbox/query", { foo: true }, query.$id]],
         },
-        { methodResponses: [["Mailbox/query", { ids: [] }, query.id]], sessionState },
+        { methodResponses: [["Mailbox/query", { ids: [] }, query.$id]], sessionState },
       );
 
       await expect(query).resolves.toEqual({ ids: [] });

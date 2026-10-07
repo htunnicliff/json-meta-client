@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
 import { Client } from "../client.ts";
-import { ref } from "../ref.ts";
 
 const host = "https://batching.test";
 const accountId = "account";
@@ -70,44 +69,44 @@ describe("client batching contract", () => {
     const c = client.api.Email.query({ limit: 3 });
     reply(
       [
-        ["Email/query", { accountId, limit: 1 }, a.id],
-        ["Mailbox/query", { accountId, limit: 2 }, b.id],
-        ["Email/query", { accountId, limit: 3 }, c.id],
+        ["Email/query", { accountId, limit: 1 }, a.$id],
+        ["Mailbox/query", { accountId, limit: 2 }, b.$id],
+        ["Email/query", { accountId, limit: 3 }, c.$id],
       ],
       [
-        ["Email/query", { ids: [c.id] }, c.id],
-        ["Mailbox/query", { ids: [b.id] }, b.id],
-        ["Email/query", { ids: [a.id] }, a.id],
+        ["Email/query", { ids: [c.$id] }, c.$id],
+        ["Mailbox/query", { ids: [b.$id] }, b.$id],
+        ["Email/query", { ids: [a.$id] }, a.$id],
       ],
     );
 
-    await expect(a).resolves.toEqual({ ids: [a.id] });
-    await expect(b).resolves.toEqual({ ids: [b.id] });
-    await expect(c).resolves.toEqual({ ids: [c.id] });
+    await expect(a).resolves.toEqual({ ids: [a.$id] });
+    await expect(b).resolves.toEqual({ ids: [b.$id] });
+    await expect(c).resolves.toEqual({ ids: [c.$id] });
   });
 
   it("sends a call issued after awaiting another call in a separate request", async () => {
     const a = client.api.Email.query({ limit: 1 });
-    reply([["Email/query", { accountId, limit: 1 }, a.id]]);
+    reply([["Email/query", { accountId, limit: 1 }, a.$id]]);
     await a;
     const b = client.api.Email.query({ limit: 2 });
-    reply([["Email/query", { accountId, limit: 2 }, b.id]]);
-    await expect(b).resolves.toEqual({ ids: [b.id] });
+    reply([["Email/query", { accountId, limit: 2 }, b.$id]]);
+    await expect(b).resolves.toEqual({ ids: [b.$id] });
   });
 
   it("separates calls in successive microtasks after the first flush boundary", async () => {
     const a = await Promise.resolve().then(() => {
       const call = client.api.Email.query({ limit: 1 });
-      reply([["Email/query", { accountId, limit: 1 }, call.id]]);
+      reply([["Email/query", { accountId, limit: 1 }, call.$id]]);
       return { call };
     });
     const b = await Promise.resolve().then(() => {
       const call = client.api.Email.query({ limit: 2 });
-      reply([["Email/query", { accountId, limit: 2 }, call.id]]);
+      reply([["Email/query", { accountId, limit: 2 }, call.$id]]);
       return { call };
     });
-    await expect(a.call).resolves.toEqual({ ids: [a.call.id] });
-    await expect(b.call).resolves.toEqual({ ids: [b.call.id] });
+    await expect(a.call).resolves.toEqual({ ids: [a.call.$id] });
+    await expect(b.call).resolves.toEqual({ ids: [b.call.$id] });
   });
 
   it("includes a call from a microtask queued before the flush boundary", async () => {
@@ -115,14 +114,14 @@ describe("client batching contract", () => {
     queueMicrotask(() => {
       const call = client.api.Email.query({ limit: 2 });
       reply([
-        ["Email/query", { accountId, limit: 1 }, a.id],
-        ["Email/query", { accountId, limit: 2 }, call.id],
+        ["Email/query", { accountId, limit: 1 }, a.$id],
+        ["Email/query", { accountId, limit: 2 }, call.$id],
       ]);
       next.resolve({ call });
     });
     const a = client.api.Email.query({ limit: 1 });
     const { call: b } = await next.promise;
-    await expect(Promise.all([a, b])).resolves.toEqual([{ ids: [a.id] }, { ids: [b.id] }]);
+    await expect(Promise.all([a, b])).resolves.toEqual([{ ids: [a.$id] }, { ids: [b.$id] }]);
   });
 
   it("starts a separate request for a call queued while the earlier request is in flight", async () => {
@@ -130,41 +129,41 @@ describe("client batching contract", () => {
     const release = Promise.withResolvers<void>();
     const a = client.api.Email.query({ limit: 1 });
     nock(host)
-      .post("/api", request([["Email/query", { accountId, limit: 1 }, a.id]]))
+      .post("/api", request([["Email/query", { accountId, limit: 1 }, a.$id]]))
       .reply(async () => {
         firstReceived.resolve();
         await release.promise;
         return [
           200,
-          { methodResponses: [["Email/query", { ids: [a.id] }, a.id]], sessionState: "state" },
+          { methodResponses: [["Email/query", { ids: [a.$id] }, a.$id]], sessionState: "state" },
         ];
       });
     await firstReceived.promise;
     const b = client.api.Email.query({ limit: 2 });
-    reply([["Email/query", { accountId, limit: 2 }, b.id]]);
+    reply([["Email/query", { accountId, limit: 2 }, b.$id]]);
     try {
-      await expect(b).resolves.toEqual({ ids: [b.id] });
+      await expect(b).resolves.toEqual({ ids: [b.$id] });
     } finally {
       release.resolve();
     }
-    await expect(a).resolves.toEqual({ ids: [a.id] });
+    await expect(a).resolves.toEqual({ ids: [a.$id] });
   });
 
   it("keeps multiple references to one pending call in the same request", async () => {
     const query = client.api.Email.query({ limit: 1 });
-    const first = client.api.Email.get({ ids: ref(query, "/ids") });
-    const second = client.api.Email.get({ ids: ref(query, "/ids"), properties: ["id"] });
-    const reference = { name: "Email/query", resultOf: query.id, path: "/ids" };
+    const first = client.api.Email.get({ ids: query.ref("/ids") });
+    const second = client.api.Email.get({ ids: query.ref("/ids"), properties: ["id"] });
+    const reference = { name: "Email/query", resultOf: query.$id, path: "/ids" };
     reply(
       [
-        ["Email/query", { accountId, limit: 1 }, query.id],
-        ["Email/get", { accountId, "#ids": reference }, first.id],
-        ["Email/get", { accountId, "#ids": reference, properties: ["id"] }, second.id],
+        ["Email/query", { accountId, limit: 1 }, query.$id],
+        ["Email/get", { accountId, "#ids": reference }, first.$id],
+        ["Email/get", { accountId, "#ids": reference, properties: ["id"] }, second.$id],
       ],
       [
-        ["Email/query", { ids: ["email"] }, query.id],
-        ["Email/get", { list: [{ id: "email" }] }, first.id],
-        ["Email/get", { list: [{ id: "email" }] }, second.id],
+        ["Email/query", { ids: ["email"] }, query.$id],
+        ["Email/get", { list: [{ id: "email" }] }, first.$id],
+        ["Email/get", { list: [{ id: "email" }] }, second.$id],
       ],
     );
     await expect(Promise.all([query, first, second])).resolves.toEqual([
@@ -179,17 +178,17 @@ describe("client batching contract", () => {
     const b = client.api.Email.query({ limit: 2 });
     reply(
       [
-        ["Email/query", { accountId, limit: 1 }, a.id],
-        ["Email/query", { accountId, limit: 2 }, b.id],
+        ["Email/query", { accountId, limit: 1 }, a.$id],
+        ["Email/query", { accountId, limit: 2 }, b.$id],
       ],
       [
-        ["error", { type: "invalidArguments" }, a.id],
-        ["Email/query", { ids: [b.id] }, b.id],
+        ["error", { type: "invalidArguments" }, a.$id],
+        ["Email/query", { ids: [b.$id] }, b.$id],
       ],
     );
     const results = await Promise.allSettled([a, b]);
     expect(results[0]).toMatchObject({ status: "rejected", reason: { type: "invalidArguments" } });
-    expect(results[1]).toEqual({ status: "fulfilled", value: { ids: [b.id] } });
+    expect(results[1]).toEqual({ status: "fulfilled", value: { ids: [b.$id] } });
   });
 
   it.each(["http", "transport", "processing"])(
@@ -200,8 +199,8 @@ describe("client batching contract", () => {
       const interceptor = nock(host).post(
         "/api",
         request([
-          ["Email/query", { accountId, limit: 1 }, a.id],
-          ["Email/query", { accountId, limit: 2 }, b.id],
+          ["Email/query", { accountId, limit: 1 }, a.$id],
+          ["Email/query", { accountId, limit: 2 }, b.$id],
         ]),
       );
       if (failure === "http") interceptor.reply(503, { type: "serverFail" });
@@ -215,8 +214,8 @@ describe("client batching contract", () => {
       );
       expect(reasons[0]).toBe(reasons[1]);
       const c = client.api.Email.query({ limit: 3 });
-      reply([["Email/query", { accountId, limit: 3 }, c.id]]);
-      await expect(c).resolves.toEqual({ ids: [c.id] });
+      reply([["Email/query", { accountId, limit: 3 }, c.$id]]);
+      await expect(c).resolves.toEqual({ ids: [c.$id] });
     },
   );
 });

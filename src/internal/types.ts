@@ -10,9 +10,7 @@ import type {
 } from "type-fest";
 
 import type { Capability, MethodContract } from "../capability.ts";
-import type { Ref } from "../ref.ts";
-import type { JobResult } from "./batch.ts";
-import type { MethodCall } from "./method-call.ts";
+import type { Ref, WithRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
 
@@ -167,12 +165,17 @@ export type EffectiveMethodInput<Contract extends MethodContract, Args> =
 
 export type AugmentMethod<Contract extends MethodContract> = <
   Args extends MethodArguments<Contract>,
+  Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
+    Contract,
+    EffectiveMethodInput<Contract, Args>
+  >,
 >(
   args: Args,
-) => JobResult<
-  MethodCall<EffectiveMethodInput<Contract, Args>>,
-  Apply<Contract, EffectiveMethodInput<Contract, Args>>
->;
+) => WithRefFn<Promise<Output>, Output> & {
+  $id: string;
+  $args: Args;
+  $method: string;
+};
 
 /**
  * A partially-configured capability that supports using
