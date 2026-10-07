@@ -20,6 +20,7 @@ import {
   CapabilityConfigurationError,
   ConfigurationError,
   HttpError,
+  InvalidUriTemplateError,
   JmapError,
   JsonMetaError,
   MethodCallError,
@@ -28,7 +29,6 @@ import {
 } from "./errors.ts";
 import type { Flush } from "./internal/batch.ts";
 import { createApi } from "./internal/create-api.ts";
-import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCallResult } from "./internal/method-call-result.ts";
 import type { MethodCall } from "./internal/method-call.ts";
@@ -49,11 +49,21 @@ type ClientApi<T extends ReadonlyArray<CapabilityOption>> = T[number] extends ne
   ? object
   : Augment<UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>>;
 
+const LOG_LEVELS = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+} as const;
+
+type LogLevel = keyof typeof LOG_LEVELS;
+
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   bearerToken: string;
   sessionUrl: string | URL;
   capabilities: T;
-  logger?: Pick<typeof console, "error" | "warn" | "info" | "debug">;
+  logger?: Pick<typeof console, LogLevel>;
+  logLevel?: LogLevel;
   middleware?: ReadonlyArray<Middleware>;
 }
 
@@ -79,6 +89,7 @@ export class Client<
       sessionUrl: options.sessionUrl,
       capabilities,
       logger: options.logger ?? console,
+      logLevel: options.logLevel ?? "warn",
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -93,11 +104,25 @@ export class Client<
 
     this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
 
+    this.#logger.debug("Initialized config", { config: this.#config });
+
     Object.freeze(this);
   }
 
   get #logger() {
-    return this.#config.logger;
+    return new Proxy(this.#config.logger, {
+      get: (logger, method: LogLevel) => {
+        const level = LOG_LEVELS[method];
+        const floor = LOG_LEVELS[this.#config.logLevel];
+        const logFn = logger[method];
+
+        return (...args: unknown[]): void => {
+          if (level >= floor) {
+            return logFn(...args);
+          }
+        };
+      },
+    });
   }
 
   get session(): Promise<Session> {
@@ -105,6 +130,7 @@ export class Client<
   }
 
   refreshSession = (): Promise<Session> => {
+    this.#logger.debug("Refreshing session", { sessionUrl: this.#config.sessionUrl });
     this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
       const isFirstLoad = !this.#session;
       this.#session = result;
@@ -118,6 +144,7 @@ export class Client<
   };
 
   #validateSessionCapabilities(session: Session): void {
+    this.#logger.debug("Validating session capabilities", { session });
     const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
     const availableUrns = new Set(Object.keys(session.capabilities));
 
@@ -200,6 +227,7 @@ export class Client<
 
   #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
     try {
+      this.#logger.debug("Processing queued jobs", { jobs });
       const methodCalls = jobs.map((b) => b.payload);
 
       const urnsToUse = new Set<string>();
@@ -220,11 +248,15 @@ export class Client<
         methodCalls: methodCalls.map((c) => c.toInvocation()),
       };
 
+      this.#logger.debug("Assembled JMAP request", { jmapRequest: request });
+
       const response = await this.#fetchJson<JMAPResponse>((await this.session).apiUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
+
+      this.#logger.debug("Received JMAP response", { jmapResponse: response });
 
       const resultsById = new Map<string, MethodCallResult<unknown>[]>();
       for (const invocation of response.methodResponses) {
@@ -277,6 +309,7 @@ export class Client<
         }
       }
     } catch (error) {
+      this.#logger.debug("Processing failure; rejecting jobs", { error, jobs });
       for (const { handle } of jobs) {
         handle.reject(error);
       }
@@ -290,8 +323,17 @@ export class Client<
       const headers = new Headers(options.headers);
       headers.set("authorization", `Bearer ${this.#config.bearerToken}`);
       request = new Request(url, { ...options, headers });
-
+      this.#logger.debug("Issuing fetch request", {
+        get request() {
+          return request!.clone();
+        },
+      });
       response = await fetch(request);
+      this.#logger.debug("Received fetch response", {
+        get response() {
+          return response.clone();
+        },
+      });
     } catch (error) {
       if (error instanceof JsonMetaError) {
         throw error;
@@ -326,16 +368,11 @@ export class Client<
   #fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
     headers.append("accept", "application/json");
-    const { request, response } = await this.#fetch(url, {
+    const { response } = await this.#fetch(url, {
       ...options,
       headers,
     });
-    let text: string;
-    try {
-      text = await response.text();
-    } catch (cause) {
-      throw new NetworkError("Failed to read", { cause, request });
-    }
+    const text = await response.text();
     const payload: T = JSON.parse(text);
     return payload;
   };
@@ -346,7 +383,7 @@ export class Client<
       params: SetOptional<BlobUploadParams, "accountId"> = {},
     ): Promise<BlobUploadResponse> => {
       const session = await this.session;
-      const url = expandURITemplate(session.uploadUrl, {
+      const url = this.#expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
       const data = await this.#fetchJson<BlobUploadResponse>(url, {
@@ -357,7 +394,7 @@ export class Client<
     },
     download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
       const session = await this.session;
-      const url = expandURITemplate(session.downloadUrl, {
+      const url = this.#expandURITemplate(session.downloadUrl, {
         ...params,
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
@@ -376,12 +413,14 @@ export class Client<
   ): Promise<Disposable> => {
     const session = await this.session;
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
-    const url = expandURITemplate(session.eventSourceUrl, {
+    const url = this.#expandURITemplate(session.eventSourceUrl, {
       types: "*",
       // spellchecker:disable-next-line
       closeafter: "no",
       ping: pingSeconds.toFixed(0),
     } satisfies EventSourceArguments);
+
+    this.#logger.info("Initializing event source client");
     const { createEventSource } = await import("eventsource-client");
 
     const eventSource = createEventSource({
@@ -390,8 +429,10 @@ export class Client<
         authorization: `Bearer ${this.#config.bearerToken}`,
       },
       onMessage: (event) => {
+        this.#logger.debug("Event source event received", { event });
         try {
           const payload = JSON.parse(event.data);
+          this.#logger.debug("Server-sent event payload", { payload });
           if (payload["@type"] !== "StateChange") {
             return;
           }
@@ -414,12 +455,50 @@ export class Client<
           handler(new StateChangeError(message, { cause: error }), undefined);
         }
       },
+      onConnect: () => {
+        this.#logger.debug("Event source connected");
+      },
+      onDisconnect: () => {
+        this.#logger.debug("Event source disconnected");
+      },
+      onComment: (comment) => {
+        this.#logger.debug("Event source comment", { comment });
+      },
+      onScheduleReconnect: (info) => {
+        this.#logger.debug("Event source schedule reconnect", { info });
+      },
     });
-    signal?.addEventListener("abort", () => eventSource.close());
+    signal?.addEventListener("abort", (abortEvent) => {
+      this.#logger.info("Aborted; closing event source", { abortEvent });
+      eventSource.close();
+    });
     return {
-      [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
+      [Symbol.dispose ?? "disconnect"]: () => {
+        this.#logger.info("Disposed; closing event source");
+        eventSource.close();
+      },
     };
   };
+
+  /**
+   * Expand an rfc 6570 URI template into a regular URI
+   */
+  #expandURITemplate(template: string, params: Record<string, string>): string {
+    let uri = template;
+    this.#logger.debug("Expanding URI template", { template, params });
+    for (const [key, value] of Object.entries(params)) {
+      const target = `{${key}}`;
+      if (!uri.includes(target)) {
+        throw new InvalidUriTemplateError(`Template does not contain "${key}"`, {
+          template,
+          params,
+        });
+      }
+      uri = uri.replace(target, encodeURIComponent(value));
+    }
+    this.#logger.debug("Expanded URI", { uri });
+    return uri;
+  }
 }
 
 export interface StateChangePayload {
