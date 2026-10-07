@@ -1,7 +1,8 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { mail } from "../capabilities/index.ts";
-import { Client, defineCapability, ref, type MethodContract } from "../index.ts";
+import { Client, defineCapability, ref } from "../index.ts";
+import type { MethodContract } from "../index.ts";
 
 interface Note {
   id: string;

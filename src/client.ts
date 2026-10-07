@@ -31,13 +31,13 @@ import { createApi } from "./internal/create-api.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { MethodCallResult } from "./internal/method-call-result.ts";
-import { MethodCall } from "./internal/method-call.ts";
+import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Augment } from "./internal/types.ts";
 import type { Middleware } from "./internal/types.ts";
 
-export const DEFAULT_CAPABILITIES = [core];
+export const DEFAULT_CAPABILITIES: [typeof core] = [core];
 
 export type BuiltInCapabilityName = keyof typeof builtInCapabilities;
 
@@ -166,6 +166,7 @@ export class Client<
             capability: entry,
           });
         }
+        // oxlint-disable-next-line import/namespace
         capability = builtInCapabilities[entry as BuiltInCapabilityName];
       } else {
         capability = entry;
@@ -372,7 +373,7 @@ export class Client<
         | [error: StateChangeError, change: undefined]
     ) => void,
     { pingSeconds = 30, signal }: OnStateChangeOptions = {},
-  ) => {
+  ): Promise<Disposable> => {
     const session = await this.session;
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
     const url = expandURITemplate(session.eventSourceUrl, {

@@ -1,7 +1,8 @@
 // oxlint-disable typescript/no-unnecessary-type-parameters
 import type { JsonObject, JsonValue } from "type-fest";
 
-import { Batch, type Flush } from "./batch.ts";
+import { Batch } from "./batch.ts";
+import type { Flush } from "./batch.ts";
 import { MethodCall } from "./method-call.ts";
 import type { Middleware } from "./types.ts";
 

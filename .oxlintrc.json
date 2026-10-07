@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "node", "vitest"],
+  "plugins": ["typescript", "unicorn", "oxc", "node", "vitest", "import"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -9,6 +9,8 @@
   "rules": {
     "no-shadow": "off",
     "typescript/consistent-type-definitions": ["error", "interface"],
+    "typescript/consistent-type-imports": "error",
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
     "vitest/prefer-describe-function-title": "error",
     "vitest/valid-title": ["error", { "ignoreTypeOfDescribeName": true }]
   },

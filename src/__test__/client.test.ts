@@ -9,7 +9,8 @@ import type {
   ProblemDetails,
   Session,
 } from "jmap-rfc-types";
-import nock, { type Scope } from "nock";
+import nock from "nock";
+import type { Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { core } from "../capabilities/core.ts";

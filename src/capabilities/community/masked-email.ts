@@ -1,6 +1,6 @@
 import type { GetArguments, GetResponse, SetArguments, SetResponse, UTCDate } from "jmap-rfc-types";
 
-import { defineCapability } from "../../capability.ts";
+import type { Capability } from "../../capability.ts";
 
 type MaskedEmailState = "pending" | "enabled" | "disabled" | "deleted";
 
@@ -37,12 +37,16 @@ export declare namespace MaskedEmailContracts {
   }
 }
 
-export const maskedEmail = defineCapability({
+export const maskedEmail: Capability<
+  "MaskedEmail",
+  {
+    MaskedEmail: {
+      get: MaskedEmailContracts.Get.Contract;
+      set: MaskedEmailContracts.Set.Contract;
+    };
+  },
+  "https://www.fastmail.com/dev/maskedemail"
+> = {
   urn: "https://www.fastmail.com/dev/maskedemail",
   entities: ["MaskedEmail"],
-}).withMethods<{
-  MaskedEmail: {
-    get: MaskedEmailContracts.Get.Contract;
-    set: MaskedEmailContracts.Set.Contract;
-  };
-}>();
+};

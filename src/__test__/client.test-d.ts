@@ -12,13 +12,11 @@ import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { core, mail } from "../capabilities/index.ts";
 import * as builtInCapabilities from "../capabilities/index.ts";
-import { defineCapability, type MethodContract } from "../capability.ts";
-import {
-  Client,
-  DEFAULT_CAPABILITIES,
-  type BuiltInCapabilityName,
-  type Config,
-} from "../client.ts";
+import { defineCapability } from "../capability.ts";
+import type { MethodContract } from "../capability.ts";
+import type { DEFAULT_CAPABILITIES } from "../client.ts";
+import { Client } from "../client.ts";
+import type { BuiltInCapabilityName, Config } from "../client.ts";
 import type { JobResult } from "../internal/batch.ts";
 import type { MethodCall } from "../internal/method-call.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
