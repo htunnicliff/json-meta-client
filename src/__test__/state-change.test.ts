@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
-import { Client } from "../client.ts";
+import { JsonMetaClient } from "../client.ts";
 import { StateChangeError } from "../errors/state-change-error.ts";
 
 vi.mock("eventsource-client", () => ({ createEventSource: vi.fn<typeof createEventSource>() }));
@@ -15,7 +15,7 @@ const accountId = "primary-account";
 const close = vi.fn<() => void>();
 
 function createClient() {
-  return new Client({
+  return new JsonMetaClient({
     sessionUrl: `${host}/session`,
     bearerToken: "token",
     capabilities: [mail],
@@ -33,7 +33,7 @@ async function subscribe(handler: StateChangeHandler) {
   return (data: string) => options.onMessage!({ data, event: "message", id: undefined });
 }
 
-describe("Client.onStateChange", () => {
+describe("onStateChange", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(createEventSource).mockImplementation(

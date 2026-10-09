@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
-import { Client } from "../client.ts";
+import { JsonMetaClient } from "../client.ts";
 
 const host = "https://batching.test";
 const accountId = "account";
@@ -41,14 +41,14 @@ function reply(
 }
 
 describe("client batching contract", () => {
-  let client = new Client({
+  let client = new JsonMetaClient({
     sessionUrl: `${host}/session`,
     bearerToken: "token",
     capabilities: [mail],
   });
 
   beforeEach(async () => {
-    client = new Client({
+    client = new JsonMetaClient({
       sessionUrl: `${host}/session`,
       bearerToken: "token",
       capabilities: [mail],

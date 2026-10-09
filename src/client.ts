@@ -57,7 +57,7 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   middleware?: ReadonlyArray<Middleware>;
 }
 
-export class Client<
+export class JsonMetaClient<
   const T extends ReadonlyArray<CapabilityOption>,
   API extends ClientApi<T> & ClientApi<typeof DEFAULT_CAPABILITIES>,
 > {
@@ -72,7 +72,7 @@ export class Client<
   #session: Session | undefined;
 
   constructor(options: Config<T>) {
-    const capabilities = Client.#validateOptions(options);
+    const capabilities = JsonMetaClient.#validateOptions(options);
 
     this.#config = {
       bearerToken: options.bearerToken,

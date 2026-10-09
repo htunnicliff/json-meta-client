@@ -15,7 +15,7 @@ import { core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
 import type { BuiltInCapabilityName, Config, DEFAULT_CAPABILITIES } from "../client.ts";
-import { Client } from "../client.ts";
+import { JsonMetaClient } from "../client.ts";
 import type { Ref, RefFn } from "../internal/ref.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
 
@@ -23,7 +23,7 @@ const host = "https://example.test";
 const bearerToken = "<opaque-token>";
 const sessionUrl = `${host}/.well-known/jmap`;
 
-const client = new Client({
+const client = new JsonMetaClient({
   bearerToken,
   sessionUrl,
   capabilities: [core, mail],
@@ -31,17 +31,17 @@ const client = new Client({
 
 type DefaultEntities = (typeof DEFAULT_CAPABILITIES)[number]["entities"][number];
 
-describe(Client, () => {
+describe(JsonMetaClient, () => {
   describe("api", () => {
     it("infers the same methods from built-in names and objects", () => {
-      const namedClient = new Client({
+      const namedClient = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         capabilities: ["core", "mail"],
       });
       expectTypeOf(namedClient.api).toEqualTypeOf(client.api);
 
-      const allNamed = new Client({
+      const allNamed = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         capabilities: [
@@ -55,7 +55,7 @@ describe(Client, () => {
           "community:maskedEmail",
         ],
       });
-      const allObjects = new Client({
+      const allObjects = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         capabilities: Object.values(builtInCapabilities),
@@ -70,12 +70,12 @@ describe(Client, () => {
         sessionUrl,
         capabilities: ["mail"],
       };
-      const objectClient = new Client({ bearerToken, sessionUrl, capabilities: [mail] });
-      expectTypeOf(new Client(options).api).toEqualTypeOf(objectClient.api);
+      const objectClient = new JsonMetaClient({ bearerToken, sessionUrl, capabilities: [mail] });
+      expectTypeOf(new JsonMetaClient(options).api).toEqualTypeOf(objectClient.api);
     });
 
     it("rejects names that are not built-in exports", () => {
-      const invalidClient = new Client({
+      const invalidClient = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         // @ts-expect-error - Only exported built-in names are allowed
@@ -85,7 +85,7 @@ describe(Client, () => {
     });
 
     it("has default capability methods when capabilities is empty", () => {
-      const emptyClient = new Client({
+      const emptyClient = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         capabilities: [],
@@ -169,7 +169,7 @@ describe(Client, () => {
         };
       }>();
 
-      const client = new Client({
+      const client = new JsonMetaClient({
         sessionUrl,
         bearerToken,
         capabilities: [example],
@@ -181,12 +181,12 @@ describe(Client, () => {
       });
 
       it("preserves built-in and custom contracts when mixing names and objects", () => {
-        const namedClient = new Client({
+        const namedClient = new JsonMetaClient({
           sessionUrl,
           bearerToken,
           capabilities: ["mail", example],
         });
-        const objectClient = new Client({
+        const objectClient = new JsonMetaClient({
           sessionUrl,
           bearerToken,
           capabilities: [mail, example],
@@ -279,7 +279,7 @@ describe(Client, () => {
         entities: ["Something", "AnotherThing"],
       });
 
-      const client = new Client({
+      const client = new JsonMetaClient({
         sessionUrl,
         bearerToken,
         capabilities: [untyped],
@@ -378,7 +378,7 @@ describe(Client, () => {
       }>();
 
       it("appropriately intersects entity method types", async () => {
-        const client = new Client({
+        const client = new JsonMetaClient({
           bearerToken,
           sessionUrl,
           capabilities: [theater, picnic],

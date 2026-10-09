@@ -17,7 +17,7 @@ import { core } from "../capabilities/core.ts";
 import * as builtInCapabilities from "../capabilities/index.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
-import { Client } from "../client.ts";
+import { JsonMetaClient } from "../client.ts";
 import {
   CapabilityConfigurationError,
   ConfigurationError,
@@ -90,16 +90,16 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
 
 // ------ Mocks -------------------------------------------
 
-describe(Client, () => {
+describe(JsonMetaClient, () => {
   let sessionScope: Scope;
-  let client = new Client({
+  let client = new JsonMetaClient({
     sessionUrl,
     bearerToken,
     capabilities: [mail],
   });
 
   beforeEach(() => {
-    client = new Client({
+    client = new JsonMetaClient({
       sessionUrl,
       bearerToken,
       capabilities: [mail],
@@ -150,7 +150,7 @@ describe(Client, () => {
       const options = { bearerToken, sessionUrl, capabilities: [mail], ...invalidOptions };
       const createClient = () =>
         // @ts-expect-error - Exercise runtime validation of invalid configuration.
-        new Client(options);
+        new JsonMetaClient(options);
       expect(createClient).toThrow(ConfigurationError);
       expect(createClient).toThrow(expect.objectContaining({ cause: invalidOptions }));
     });
@@ -162,7 +162,7 @@ describe(Client, () => {
       { urn: "urn:example", entities: [42] },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
-        new Client({
+        new JsonMetaClient({
           bearerToken,
           sessionUrl,
           // @ts-expect-error - Exercise runtime validation of invalid capabilities.
@@ -372,7 +372,7 @@ describe(Client, () => {
       "resolves %s to its built-in URN",
       async (name, capability) => {
         const warn = vi.fn<typeof console.warn>();
-        const namedClient = new Client({
+        const namedClient = new JsonMetaClient({
           bearerToken,
           sessionUrl,
           capabilities: [name as keyof typeof builtInCapabilities],
@@ -400,7 +400,7 @@ describe(Client, () => {
       (name) => {
         expect(
           () =>
-            new Client({
+            new JsonMetaClient({
               bearerToken,
               sessionUrl,
               // @ts-expect-error - Invalid name string
@@ -411,7 +411,7 @@ describe(Client, () => {
     );
 
     it("mixes names and objects in requests without duplicate URNs", async () => {
-      const mixedClient = new Client({
+      const mixedClient = new JsonMetaClient({
         bearerToken,
         sessionUrl,
         capabilities: ["core", "mail", mail, example],
@@ -454,7 +454,7 @@ describe(Client, () => {
     it("throws invalid session URLs", () => {
       expect(
         () =>
-          new Client({
+          new JsonMetaClient({
             sessionUrl: "invalid-url",
             bearerToken,
             capabilities: [mail],
@@ -463,7 +463,7 @@ describe(Client, () => {
     });
 
     it("accepts URL instances as session URLs", async () => {
-      const client = new Client({
+      const client = new JsonMetaClient({
         sessionUrl: new URL(sessionUrl),
         bearerToken,
         capabilities: [mail],
@@ -787,7 +787,7 @@ describe(Client, () => {
     });
 
     it("adds custom capability URNs to requests", async () => {
-      const client = new Client({
+      const client = new JsonMetaClient({
         capabilities: [example],
         sessionUrl,
         bearerToken,
@@ -826,7 +826,7 @@ describe(Client, () => {
         info: vi.fn<typeof console.info>(),
         debug: vi.fn<typeof console.debug>(),
       };
-      const customClient = new Client({
+      const customClient = new JsonMetaClient({
         capabilities: [example, archive, archive, unused],
         sessionUrl,
         bearerToken,
@@ -867,7 +867,7 @@ describe(Client, () => {
       const mockMiddleware = vi.fn<Middleware>((_args) => {
         return { foo: true };
       });
-      client = new Client({
+      client = new JsonMetaClient({
         middleware: [mockMiddleware],
         sessionUrl,
         bearerToken,

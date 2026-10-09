@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { mail } from "../capabilities/index.ts";
-import { Client, defineCapability } from "../index.ts";
+import { JsonMetaClient, defineCapability } from "../index.ts";
 import type { MethodContract } from "../index.ts";
 
 interface Note {
@@ -57,7 +57,7 @@ const archive = defineCapability({
   };
 }>();
 
-const client = new Client({
+const client = new JsonMetaClient({
   sessionUrl: "https://example.test/jmap",
   bearerToken: "token",
   capabilities: [mail, notes, archive],
@@ -101,7 +101,7 @@ describe("public custom capability authoring", () => {
 
   it("allows unknown methods with unknown results on an untyped capability", () => {
     const unknown = defineCapability({ urn: "urn:example:unknown", entities: ["Unknown"] });
-    const client = new Client({
+    const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
       bearerToken: "token",
       capabilities: [unknown],
@@ -114,7 +114,7 @@ describe("public custom capability authoring", () => {
 
   it("retains known contracts when an untyped capability shares the entity", () => {
     const vendor = defineCapability({ urn: "urn:example:vendor", entities: ["Note"] });
-    const client = new Client({
+    const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
       bearerToken: "token",
       capabilities: [notes, vendor],
@@ -138,7 +138,7 @@ describe("public custom capability authoring", () => {
     }).withMethods<{
       Conflict: { run: { input: { value: string }; output: { result: number } } };
     }>();
-    const client = new Client({
+    const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
       bearerToken: "token",
       capabilities: [first, second],
@@ -160,7 +160,7 @@ describe("public custom capability authoring", () => {
     }).withMethods<{
       Conflict: { run: { input: { value: number }; output: { result: number } } };
     }>();
-    const client = new Client({
+    const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
       bearerToken: "token",
       capabilities: [first, second],

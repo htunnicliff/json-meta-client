@@ -18,9 +18,9 @@ pnpm add json-meta-client
 Create a client with the capabilities your JMAP server supports:
 
 ```ts
-import { Client } from "json-meta-client";
+import { JsonMetaClient } from "json-meta-client";
 
-const client = new Client({
+const client = new JsonMetaClient({
   bearerToken: "<token>",
   sessionUrl: "<session-url>",
   capabilities: ["mail", "submission", "contacts"],
