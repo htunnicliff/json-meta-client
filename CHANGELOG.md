@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 0.11.0
+
+### Minor Changes
+
+- [`30568dc`](https://github.com/htunnicliff/json-meta-client/commit/30568dc315578e61241b9dd7282a2ab226dd2556) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Rename `Client` to `JsonMetaClient`
+
 ## 0.10.0
 
 ### Minor Changes
