@@ -439,3 +439,28 @@ export interface OnStateChangeOptions {
   /** An interval in seconds to request that the server send pings */
   pingSeconds?: number;
 }
+
+const client = new JsonMetaClient({
+  bearerToken: "",
+  sessionUrl: "",
+  capabilities: ["mail"],
+});
+
+const queryResponse = await client.api.Mailbox.query({
+  filter: {
+    role: "inbox",
+  },
+  limit: 1,
+});
+
+const inboxId = queryResponse.ids.at(0)!;
+
+const emailsQuery = client.api.Email.query({
+  filter: { inMailbox: inboxId },
+  limit: 25,
+});
+
+const emails = await client.api.Email.get({
+  ids: emailsQuery.ref("/ids"),
+  properties: ["to", "from", "subject", "sentAt"],
+});
