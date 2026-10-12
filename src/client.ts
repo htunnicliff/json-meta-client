@@ -53,7 +53,6 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   bearerToken: string;
   sessionUrl: string | URL;
   capabilities: T;
-  logger?: Pick<typeof console, "error" | "warn" | "info" | "debug">;
   middleware?: ReadonlyArray<Middleware>;
 }
 
@@ -78,7 +77,6 @@ export class JsonMetaClient<
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
       capabilities,
-      logger: options.logger ?? console,
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -94,10 +92,6 @@ export class JsonMetaClient<
     this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
 
     Object.freeze(this);
-  }
-
-  get #logger() {
-    return this.#config.logger;
   }
 
   get session(): Promise<Session> {
@@ -131,7 +125,7 @@ export class JsonMetaClient<
           },
         },
       );
-      this.#logger.warn(error);
+      console.warn(error);
     }
   }
 

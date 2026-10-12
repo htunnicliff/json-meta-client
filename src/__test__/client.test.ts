@@ -90,6 +90,8 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
 
 // ------ Mocks -------------------------------------------
 
+const warnSpy = vi.spyOn(console, "warn");
+
 describe(JsonMetaClient, () => {
   let sessionScope: Scope;
   let client = new JsonMetaClient({
@@ -371,21 +373,19 @@ describe(JsonMetaClient, () => {
     it.each(Object.entries(builtInCapabilities))(
       "resolves %s to its built-in URN",
       async (name, capability) => {
-        const warn = vi.fn<typeof console.warn>();
         const namedClient = new JsonMetaClient({
           bearerToken,
           sessionUrl,
           capabilities: [name as keyof typeof builtInCapabilities],
-          logger: { ...console, warn },
         });
 
         await namedClient.session;
 
         // oxlint-disable vitest/no-conditional-expect
         if (Object.hasOwn(DEFAULT_SESSION.capabilities, capability.urn)) {
-          expect(warn).not.toHaveBeenCalled();
+          expect(warnSpy).not.toHaveBeenCalled();
         } else {
-          expect(warn).toHaveBeenCalledExactlyOnceWith(
+          expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
             expect.objectContaining({
               message: `json-meta-client was configured with capabilities that are NOT found in the current session: ${capability.urn}`,
             }),
@@ -820,17 +820,10 @@ describe(JsonMetaClient, () => {
         };
       }>();
       const unused = defineCapability({ urn: "urn:example:unused", entities: ["Unused"] });
-      const logger = {
-        warn: vi.fn<typeof console.warn>(),
-        error: vi.fn<typeof console.error>(),
-        info: vi.fn<typeof console.info>(),
-        debug: vi.fn<typeof console.debug>(),
-      };
       const customClient = new JsonMetaClient({
         capabilities: [example, archive, archive, unused],
         sessionUrl,
         bearerToken,
-        logger,
       });
       const get = customClient.api.Example.get({ value: "hello" });
       const archived = customClient.api.Example.archive({ ids: ["one"] });
@@ -854,7 +847,7 @@ describe(JsonMetaClient, () => {
       await expect(archived).resolves.toEqual({ archived: ["one"] });
       expect(apiScope.isDone()).toBe(true);
       expect(sessionScope.isDone()).toBe(true);
-      expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
           name: "ConfigurationError",
           message: expect.stringContaining(`${archive.urn}, ${unused.urn}`),
