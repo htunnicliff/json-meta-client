@@ -1,5 +1,13 @@
 # json-meta-client
 
+## 0.11.0
+
+### Minor Changes
+
+- [`b754720`](https://github.com/htunnicliff/json-meta-client/commit/b754720f67c54bd29ab32755f184417b6df88461) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add beforeRequest and afterResponse hooks
+
+- [`30568dc`](https://github.com/htunnicliff/json-meta-client/commit/30568dc315578e61241b9dd7282a2ab226dd2556) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Rename `Client` to `JsonMetaClient`
+
 ## 0.10.0
 
 ### Minor Changes
