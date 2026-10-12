@@ -10,7 +10,7 @@ import type {
   Session,
   StateChange,
 } from "jmap-rfc-types";
-import type { SetOptional, UnionToIntersection } from "type-fest";
+import type { SetOptional, SetRequired, UnionToIntersection } from "type-fest";
 
 import { core } from "./capabilities/core.ts";
 import * as builtInCapabilities from "./capabilities/index.ts";
@@ -49,18 +49,29 @@ type ClientApi<T extends ReadonlyArray<CapabilityOption>> = T[number] extends ne
   ? object
   : Augment<UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>>;
 
+export type BeforeRequestHook = (params: { request: Request }) => Request | Promise<Request>;
+
+export type AfterResponseHook = (params: {
+  request: Request;
+  response: Response;
+}) => Response | Promise<Response>;
+
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   bearerToken: string;
   sessionUrl: string | URL;
   capabilities: T;
   middleware?: ReadonlyArray<Middleware>;
+  hooks?: {
+    beforeRequest?: ReadonlyArray<BeforeRequestHook>;
+    afterResponse?: ReadonlyArray<AfterResponseHook>;
+  };
 }
 
 export class JsonMetaClient<
   const T extends ReadonlyArray<CapabilityOption>,
   API extends ClientApi<T> & ClientApi<typeof DEFAULT_CAPABILITIES>,
 > {
-  readonly #config: Required<Config<ReadonlyArray<Capability>>>;
+  readonly #config: SetRequired<Config<ReadonlyArray<Capability>>, "middleware">;
 
   readonly #entityToUrn: Record<string, string[]>;
 
@@ -85,6 +96,7 @@ export class JsonMetaClient<
         }),
         ...(options.middleware ?? []),
       ],
+      hooks: options.hooks,
     };
 
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
@@ -279,12 +291,17 @@ export class JsonMetaClient<
 
   #fetch = async (url: string | URL, options: RequestInit = {}) => {
     let request: Request | undefined;
+    let requestClone: Request | undefined;
     let response: Response;
     try {
       const headers = new Headers(options.headers);
       headers.set("authorization", `Bearer ${this.#config.bearerToken}`);
       request = new Request(url, { ...options, headers });
-
+      for (const hook of this.#config.hooks?.beforeRequest ?? []) {
+        // oxlint-disable-next-line no-await-in-loop
+        request = await hook({ request });
+      }
+      requestClone = request.clone();
       response = await fetch(request);
     } catch (error) {
       if (error instanceof JsonMetaError) {
@@ -296,7 +313,10 @@ export class JsonMetaClient<
         request,
       });
     }
-
+    for (const hook of this.#config.hooks?.afterResponse ?? []) {
+      // oxlint-disable-next-line no-await-in-loop
+      response = await hook({ request: requestClone, response });
+    }
     if (!response.ok) {
       let responseData: unknown;
       let cause: unknown;

@@ -17,6 +17,7 @@ import { core } from "../capabilities/core.ts";
 import * as builtInCapabilities from "../capabilities/index.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
+import type { AfterResponseHook, BeforeRequestHook } from "../client.ts";
 import { JsonMetaClient } from "../client.ts";
 import {
   CapabilityConfigurationError,
@@ -1019,6 +1020,76 @@ describe(JsonMetaClient, () => {
         a: ["very", "special", "blob"],
       });
 
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  describe("hooks.beforeRequest", () => {
+    it("runs hooks in order and uses each returned request", async () => {
+      nock.cleanAll();
+      const scope = nock(host, {
+        reqheaders: {
+          "x-first-hook": "first",
+          "x-second-hook": "second",
+        },
+      })
+        .get(sessionUrlPath)
+        .reply(200, DEFAULT_SESSION);
+      const firstHook = vi.fn<BeforeRequestHook>(async ({ request }) => {
+        const headers = new Headers(request.headers);
+        headers.set("x-first-hook", "first");
+        await Promise.resolve();
+        return new Request(request, { headers });
+      });
+      const secondHook = vi.fn<BeforeRequestHook>(({ request }) => {
+        const headers = new Headers(request.headers);
+        headers.set("x-second-hook", "second");
+        return new Request(request, { headers });
+      });
+      client = new JsonMetaClient({
+        sessionUrl,
+        bearerToken,
+        capabilities: [mail],
+        hooks: {
+          beforeRequest: [firstHook, secondHook],
+        },
+      });
+
+      await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
+      expect(firstHook).toHaveBeenCalledBefore(secondHook);
+      expect(secondHook).toHaveBeenCalledAfter(firstHook);
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  describe("hooks.afterResponse", () => {
+    it("runs hooks in order and uses each returned response", async () => {
+      nock.cleanAll();
+      const scope = mockSession();
+      const firstHook = vi.fn<AfterResponseHook>(async ({ response }) => {
+        const headers = new Headers(response.headers);
+        headers.set("x-first-hook", "first");
+        await Promise.resolve();
+        return new Response(response.body, { status: response.status, headers });
+      });
+      const secondHook = vi.fn<AfterResponseHook>(({ response }) => {
+        expect(response.headers.get("x-first-hook")).toBe("first");
+        const headers = new Headers(response.headers);
+        headers.set("x-second-hook", "second");
+        return new Response(response.body, { status: response.status, headers });
+      });
+      client = new JsonMetaClient({
+        sessionUrl,
+        bearerToken,
+        capabilities: [mail],
+        hooks: {
+          afterResponse: [firstHook, secondHook],
+        },
+      });
+
+      await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
+      expect(firstHook).toHaveBeenCalledBefore(secondHook);
+      expect(secondHook).toHaveBeenCalledAfter(firstHook);
       expect(scope.isDone()).toBe(true);
     });
   });
