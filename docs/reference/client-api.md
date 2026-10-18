@@ -1,6 +1,4 @@
-# API
-
-## Client
+# Client API
 
 ```ts
 const client = new JsonMetaClient({
@@ -14,7 +12,7 @@ const client = new JsonMetaClient({
 });
 ```
 
-### Options
+## Options
 
 - `bearerToken` - A valid bearer token
 - `sessionUrl` - The URI for creating a JMAP session
@@ -22,4 +20,4 @@ const client = new JsonMetaClient({
 - `logger` (optional) -
 - `middleware` (optional) -
 
-### Return Value
+## Return Value
