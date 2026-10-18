@@ -6,16 +6,7 @@ export default defineConfig({
   description: "A JMAP client compatible with Node.js and the browser",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    nav: [
-      {
-        text: "Getting Started",
-        link: "/",
-      },
-      {
-        text: "API Reference",
-        link: "/reference/client",
-      },
-    ],
+    nav: [],
     sidebar: [
       {
         text: "Guides",

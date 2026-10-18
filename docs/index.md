@@ -84,7 +84,9 @@ Let's make a few requests together to see how things work.
 
 ### Find the Inbox
 
-```ts
+:::code-group
+
+```ts [TypeScript]
 const mailboxesQuery = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
@@ -93,9 +95,7 @@ const mailboxesQuery = await client.api.Mailbox.query({
 const [inboxId] = mailboxesQuery.ids;
 ```
 
-Here's the underlying JMAP request that gets sent:
-
-```json
+```json [JMAP Request]
 {
   "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
   "methodCalls": [
@@ -114,9 +114,7 @@ Here's the underlying JMAP request that gets sent:
 }
 ```
 
-And the JMAP response:
-
-```json
+```json [JMAP Response]
 {
   "sessionState": "**********",
   "methodResponses": [
@@ -139,6 +137,8 @@ And the JMAP response:
 }
 ```
 
+:::
+
 A few notes:
 
 - The client automatically sets the `accountId` to the primary account, but it can also be set manually.
@@ -146,7 +146,9 @@ A few notes:
 
 ### Get the First 10 Emails in the Inbox
 
-```ts
+:::code-group
+
+```ts [TypeScript]
 const emailsQuery = client.api.Email.query({
   filter: { inMailbox: inboxId },
   limit: 10,
@@ -169,10 +171,7 @@ for (const email of emails.list) {
 }
 ```
 
-<details>
-<summary>JMAP request</summary>
-
-```json
+```json [JMAP Request]
 {
   "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
   "methodCalls": [
@@ -204,12 +203,7 @@ for (const email of emails.list) {
 }
 ```
 
-</details>
-
-<details>
-<summary>JMAP response</summary>
-
-```jsonc
+```jsonc [JMAP Response]
 {
   "sessionState": "*******",
   "methodResponses": [
@@ -284,5 +278,3 @@ for (const email of emails.list) {
   ],
 }
 ```
-
-</details>
