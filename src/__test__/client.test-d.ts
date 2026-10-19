@@ -239,11 +239,11 @@ describe(JsonMetaClient, () => {
             list: readonly Example[];
             notFound: ReadonlyArray<ID>;
           }> & {
-            $id: string;
-            $args: {
+            readonly $id: string;
+            readonly $args: {
               ids: string[];
             };
-            $method: string;
+            readonly $method: string;
           } & {
             ref: RefFn<{
               accountId: ID;

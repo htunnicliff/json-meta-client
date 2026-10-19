@@ -172,9 +172,9 @@ export type AugmentMethod<Contract extends MethodContract> = <
 >(
   args: Args,
 ) => WithRefFn<Promise<Output>, Output> & {
-  $id: string;
-  $args: Args;
-  $method: string;
+  readonly $id: string;
+  readonly $args: Args;
+  readonly $method: string;
 };
 
 /**
