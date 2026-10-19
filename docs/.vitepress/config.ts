@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -9,19 +10,15 @@ export default defineConfig({
     nav: [],
     sidebar: [
       {
-        text: "Guides",
+        text: "Introduction",
         items: [
           {
-            text: "Installation",
-            link: "/guides/installation",
-          },
-          {
             text: "Getting Started",
-            link: "/",
+            link: "/introduction/getting-started",
           },
           {
             text: "Examples",
-            link: "/guides/examples",
+            link: "/introduction/examples",
           },
         ],
       },
@@ -90,5 +87,13 @@ export default defineConfig({
       message: "Released under the MIT License.",
       copyright: "Copyright © 2026-present Hunter Tunnicliff",
     },
+  },
+  markdown: {
+    config(md) {
+      md.use(groupIconMdPlugin);
+    },
+  },
+  vite: {
+    plugins: [groupIconVitePlugin()],
   },
 });
