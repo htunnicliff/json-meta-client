@@ -1,3 +1,5 @@
+import { CancellationError } from "../errors.ts";
+
 interface Job<Payload, Output = any> {
   payload: Payload;
   handle: PromiseWithResolvers<Output>;
@@ -63,10 +65,24 @@ export class Batch<Input = unknown> {
   };
 
   /**
+   * Empty the queue without processing jobs
+   */
+  cancel = (): void => {
+    for (const { handle } of this.#queue.splice(0)) {
+      handle.reject(new CancellationError("Batch was cancelled"));
+    }
+  };
+
+  /**
    * Queue up a flush for the next microtask if
    * a flush is not already scheduled
    */
   #scheduleFlush() {
+    // Ignore
+    if (this.#queue.length === 0) {
+      return;
+    }
+
     if (!this.#flushPending) {
       // Mark flush as pending
       this.#flushPending = true;
@@ -78,6 +94,10 @@ export class Batch<Input = unknown> {
 
         // Get queued jobs while emptying pending array
         const queuedJobs = this.#queue.splice(0);
+
+        if (queuedJobs.length === 0) {
+          return;
+        }
 
         // Flush batch
         void this.#process(queuedJobs);

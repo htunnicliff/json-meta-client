@@ -1,3 +1,4 @@
+export * from "./errors/cancellation-error.ts";
 export * from "./errors/capability-configuration-error.ts";
 export * from "./errors/configuration-error.ts";
 export * from "./errors/http-error.ts";

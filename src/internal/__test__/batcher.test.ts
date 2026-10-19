@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 
+import { CancellationError } from "../../errors.ts";
 import { Batch } from "../batch.ts";
+import type { Flush } from "../batch.ts";
 
 vi.useFakeTimers();
 
@@ -115,5 +117,25 @@ describe(Batch, () => {
     await vi.advanceTimersToNextTimerAsync();
     await expect(third).resolves.toBe("completed");
     expect(receivedBatches).toEqual([["first"], ["second"], ["third"]]);
+  });
+
+  test("empties queue when cleared without processing jobs", async () => {
+    const flush = vi.fn<Flush<string>>((jobs) => {
+      for (const job of jobs) {
+        job.handle.resolve(job.payload);
+      }
+    });
+    const batcher = new Batch<string>(flush);
+
+    const jobToBeCleared = batcher.enqueue("cleared");
+    batcher.cancel();
+    expect(flush).not.toHaveBeenCalled();
+    await expect(jobToBeCleared).rejects.toThrow(CancellationError);
+
+    const normal = batcher.enqueue("after-clear");
+    await expect(normal).resolves.toBe("after-clear");
+    expect(flush).toHaveBeenCalledExactlyOnceWith([
+      expect.objectContaining({ payload: "after-clear" }),
+    ]);
   });
 });
