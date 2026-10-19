@@ -1,5 +1,17 @@
 # json-meta-client
 
+## 0.12.0
+
+### Minor Changes
+
+- [`abd2718`](https://github.com/htunnicliff/json-meta-client/commit/abd271818e1ab99f4589c430a3e0f5e48ae502d7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add cancelBatch method for clearing a pending batch
+
+- [`190262d`](https://github.com/htunnicliff/json-meta-client/commit/190262dcffac49ba8d9ba4ae3c9cf111f623106a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add support for custom IDs in method calls
+
+### Patch Changes
+
+- [`18f9521`](https://github.com/htunnicliff/json-meta-client/commit/18f95219c88fc898533194b18ed39205f6193850) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Make ref $props readonly
+
 ## 0.11.0
 
 ### Minor Changes
