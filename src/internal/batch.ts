@@ -27,8 +27,11 @@ export interface Flush<Input> {
  * ```
  */
 export class Batch<Input = unknown> {
-  constructor(flush: Flush<Input>) {
+  constructor(flush: Flush<Input>, { signal }: { signal?: AbortSignal } = {}) {
     this.#flush = flush;
+    signal?.addEventListener("abort", () => {
+      this.cancel();
+    });
   }
 
   /**

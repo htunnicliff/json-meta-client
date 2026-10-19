@@ -7,10 +7,17 @@ import { MethodCall } from "./method-call.ts";
 import { addRefMethod } from "./ref.ts";
 import type { AugmentedOptions, Middleware } from "./types.ts";
 
-export function createApi<T extends object>(
-  processMethodCalls: Flush<MethodCall<unknown>>,
-  middleware: ReadonlyArray<Middleware>,
-): T {
+interface ApiOptions {
+  processMethodCalls: Flush<MethodCall<unknown>>;
+  middleware: ReadonlyArray<Middleware>;
+  signal?: AbortSignal;
+}
+
+export function createApi<T extends object>({
+  processMethodCalls,
+  middleware,
+  signal,
+}: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
   const applyMiddleware = (payload: JsonObject): JsonValue => {
@@ -21,7 +28,7 @@ export function createApi<T extends object>(
     return transformed;
   };
 
-  const batch = new Batch(processMethodCalls);
+  const batch = new Batch(processMethodCalls, { signal });
 
   // TODO: Enforce strict linkage between this proxy type and Augment<T>
   return new Proxy<T>(Object.create(null), {

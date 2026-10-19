@@ -81,6 +81,8 @@ export class JsonMetaClient<
 
   #session: Session | undefined;
 
+  #batchAbortController: AbortController;
+
   constructor(options: Config<T>) {
     const capabilities = JsonMetaClient.#validateOptions(options);
 
@@ -101,7 +103,13 @@ export class JsonMetaClient<
 
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
-    this.api = createApi<API>(this.#processQueuedMethodCalls, this.#config.middleware);
+    this.#batchAbortController = new AbortController();
+
+    this.api = createApi<API>({
+      processMethodCalls: this.#processQueuedMethodCalls,
+      middleware: this.#config.middleware,
+      signal: this.#batchAbortController.signal,
+    });
 
     Object.freeze(this);
   }
@@ -433,6 +441,10 @@ export class JsonMetaClient<
     return {
       [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
     };
+  };
+
+  cancelBatch = (): void => {
+    this.#batchAbortController.abort();
   };
 }
 

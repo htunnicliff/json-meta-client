@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
 import { JsonMetaClient } from "../client.ts";
+import { CancellationError } from "../errors.ts";
 
 const host = "https://batching.test";
 const accountId = "account";
@@ -218,4 +219,36 @@ describe("client batching contract", () => {
       await expect(c).resolves.toEqual({ ids: [c.$id] });
     },
   );
+
+  describe("cancelBatch", () => {
+    it("rejects queued calls without sending their batch", async () => {
+      const email = client.api.Email.query({ limit: 1 });
+      const mailbox = client.api.Mailbox.query({ limit: 2 });
+
+      client.cancelBatch();
+
+      await expect(Promise.allSettled([email, mailbox])).resolves.toEqual([
+        {
+          status: "rejected",
+          reason: expect.any(CancellationError),
+        },
+        {
+          status: "rejected",
+          reason: expect.any(CancellationError),
+        },
+      ]);
+      expect(nock.pendingMocks()).toEqual([]);
+    });
+
+    it("allows calls in a later batch to complete", async () => {
+      const cancelled = client.api.Email.query({ limit: 1 });
+      client.cancelBatch();
+      await expect(cancelled).rejects.toThrow(CancellationError);
+
+      const completed = client.api.Email.query({ limit: 2 });
+      reply([["Email/query", { accountId, limit: 2 }, completed.$id]]);
+
+      await expect(completed).resolves.toEqual({ ids: [completed.$id] });
+    });
+  });
 });
