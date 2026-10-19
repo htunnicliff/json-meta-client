@@ -5,7 +5,7 @@ import type { Flush } from "./batch.ts";
 import { Batch } from "./batch.ts";
 import { MethodCall } from "./method-call.ts";
 import { addRefMethod } from "./ref.ts";
-import type { Middleware } from "./types.ts";
+import type { AugmentedOptions, Middleware } from "./types.ts";
 
 export function createApi<T extends object>(
   processMethodCalls: Flush<MethodCall<unknown>>,
@@ -39,10 +39,11 @@ export function createApi<T extends object>(
                 return undefined;
               }
 
-              const fn = (args: JsonObject) => {
+              const fn = (args: JsonObject, options?: AugmentedOptions) => {
                 const methodCall = new MethodCall({
                   method: `${entity}/${method}`,
                   args: applyMiddleware(args),
+                  id: options?.id,
                 });
 
                 const pendingResult = batch.enqueue(methodCall);

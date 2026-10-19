@@ -163,6 +163,10 @@ export type EffectiveMethodInput<Contract extends MethodContract, Args> =
         : Input
     : never;
 
+export interface AugmentedOptions {
+  id?: string;
+}
+
 export type AugmentMethod<Contract extends MethodContract> = <
   Args extends MethodArguments<Contract>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
@@ -171,6 +175,7 @@ export type AugmentMethod<Contract extends MethodContract> = <
   >,
 >(
   args: Args,
+  options?: AugmentedOptions,
 ) => WithRefFn<Promise<Output>, Output> & {
   readonly $id: string;
   readonly $args: Args;

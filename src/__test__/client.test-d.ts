@@ -17,6 +17,7 @@ import { defineCapability } from "../capability.ts";
 import type { BuiltInCapabilityName, Config, DEFAULT_CAPABILITIES } from "../client.ts";
 import { JsonMetaClient } from "../client.ts";
 import type { Ref, RefFn } from "../internal/ref.ts";
+import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
 
 const host = "https://example.test";
@@ -315,11 +316,15 @@ describe(JsonMetaClient, () => {
         >();
 
         // Args are unknown
-        type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>;
+        type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>[0];
         // oxlint-disable-next-line typescript/no-generated-empty-object-type
-        expectTypeOf<Args>().toEqualTypeOf<[args: MethodArguments<MethodContract>]>();
-        expectTypeOf<Args>().toExtend<[object]>();
-        expectTypeOf<Args>().toExtend<[{}]>();
+        expectTypeOf<Args>().toEqualTypeOf<MethodArguments<MethodContract>>();
+        expectTypeOf<Args>().toExtend<object>();
+        expectTypeOf<Args>().toExtend<{}>();
+
+        // Options are AugmentedOptions or undefined
+        type Options = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>[1];
+        expectTypeOf<Options>().toEqualTypeOf<AugmentedOptions | undefined>();
 
         // Uses unknown BatchResult type
         const pending = client.api.Something.aRandomMethod!({

@@ -10,7 +10,6 @@ import type {
   Session,
 } from "jmap-rfc-types";
 import nock from "nock";
-import type { Scope } from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { core } from "../capabilities/core.ts";
@@ -73,11 +72,11 @@ const DEFAULT_SESSION = {
 
 // ------ Mocking Utils -----------------------------------
 
-function mockSession(): Scope {
+function mockSession(): nock.Scope {
   return nock(host).get(sessionUrlPath).reply(200, DEFAULT_SESSION);
 }
 
-function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
+function mockApi(request: JMAPRequest, response: JMAPResponse): nock.Scope {
   return nock(host, {
     reqheaders: {
       authorization: `Bearer ${bearerToken}`,
@@ -94,7 +93,7 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): Scope {
 const warnSpy = vi.spyOn(console, "warn");
 
 describe(JsonMetaClient, () => {
-  let sessionScope: Scope;
+  let sessionScope: nock.Scope;
   let client = new JsonMetaClient({
     sessionUrl,
     bearerToken,
@@ -301,6 +300,35 @@ describe(JsonMetaClient, () => {
       if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
         throw new Error("Expected rejected calls");
       expect(results[1].reason).toBe(results[0].reason);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("uses the augmented method call id option", async () => {
+      const id = "client-provided-id";
+      const query = client.api.Mailbox.query({ limit: 1 }, { id });
+      const regularQuery = client.api.Mailbox.query({ limit: 2 });
+      expect(regularQuery.$id).not.toBe(id);
+      expect(query.$id).toBe(id);
+      const scope = nock(host)
+        .post(apiUrlPath, {
+          using: [core.urn, mail.urn],
+          methodCalls: [
+            ["Mailbox/query", { accountId, limit: 1 }, id],
+            ["Mailbox/query", { accountId, limit: 2 }, regularQuery.$id],
+          ],
+        })
+        .reply(200, {
+          methodResponses: [
+            ["Mailbox/query", { ids: [] }, id],
+            ["Mailbox/query", { ids: ["regular"] }, regularQuery.$id],
+          ],
+          sessionState,
+        });
+
+      await expect(Promise.all([query, regularQuery])).resolves.toEqual([
+        { ids: [] },
+        { ids: ["regular"] },
+      ]);
       expect(scope.isDone()).toBe(true);
     });
 
