@@ -3,6 +3,7 @@ import DefaultTheme from "vitepress/theme";
 // https://vitepress.dev/guide/custom-theme
 import { h } from "vue";
 
+import "virtual:group-icons.css";
 import "./style.css";
 
 export default {
