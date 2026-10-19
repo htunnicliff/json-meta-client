@@ -1,3 +1,4 @@
+// oxlint-disable import/no-unassigned-import
 import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme";
 // https://vitepress.dev/guide/custom-theme

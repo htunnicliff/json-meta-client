@@ -1,1 +1,5 @@
 # Hooks
+
+## `beforeRequest`
+
+## `afterResponse`
