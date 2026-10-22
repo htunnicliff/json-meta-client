@@ -1,18 +1,16 @@
-# Client API
+# API
+
+## JsonMetaClient
 
 ```ts
 const client = new JsonMetaClient({
   bearerToken: "<token>",
   sessionUrl: "<url>",
-  capabilities: [
-    "mail",
-    "contacts",xx
-  ],
-  logger?: Pick<typeof console, "error" | "warn" | "info" | "debug">,
+  capabilities: ["mail", "contacts"],
 });
 ```
 
-## Options
+### Parameters
 
 - `bearerToken` - A valid bearer token
 - `sessionUrl` - The URI for creating a JMAP session

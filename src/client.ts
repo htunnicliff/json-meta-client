@@ -56,40 +56,87 @@ export type AfterResponseHook = (params: {
   response: Response;
 }) => Response | Promise<Response>;
 
+// #region config
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
+  /**
+   * A valid bearer token
+   */
   bearerToken: string;
+  /**
+   * The URI for getting a JMAP session
+   */
   sessionUrl: string | URL;
+  /**
+   * Capabilities used by the client
+   */
   capabilities: T;
+  /**
+   * UNSTABLE: Functions for intercepting and modifying a JMAP request
+   */
   middleware?: ReadonlyArray<Middleware>;
+  /**
+   * Hooks into different client behaviors
+   */
   hooks?: {
+    /**
+     * These hooks are called with every {@link Request} prior to fetching
+     */
     beforeRequest?: ReadonlyArray<BeforeRequestHook>;
+    /**
+     * These hooks are called with every {@link Response} received after fetching
+     */
     afterResponse?: ReadonlyArray<AfterResponseHook>;
   };
 }
+// #endregion
 
 export class JsonMetaClient<
-  const T extends ReadonlyArray<CapabilityOption>,
-  API extends ClientApi<T> & ClientApi<typeof DEFAULT_CAPABILITIES>,
+  const GivenCapabilities extends ReadonlyArray<CapabilityOption>,
+  API extends ClientApi<GivenCapabilities> & ClientApi<typeof DEFAULT_CAPABILITIES>,
 > {
+  /**
+   * @private
+   * Parameters used to initialize the client
+   */
   readonly #config: SetRequired<Config<ReadonlyArray<Capability>>, "middleware">;
 
+  /**
+   * @private
+   * A mapping of every entity name to their respective capability URNs
+   */
   readonly #entityToUrn: Record<string, string[]>;
 
+  /**
+   * The initialized API proxy
+   */
   readonly api: API;
 
+  /**
+   * @private
+   * A reference to a promise that is used to access
+   * the {@link Session} synchronously
+   */
   #sessionPromise: Promise<Session> | undefined;
 
+  /**
+   * @private
+   * The {@link Session} received from the session URI
+   */
   #session: Session | undefined;
 
+  /**
+   * @private
+   * An abort controller for the request batch instance
+   */
   #batchAbortController: AbortController;
 
-  constructor(options: Config<T>) {
-    const capabilities = JsonMetaClient.#validateOptions(options);
-
+  constructor(options: Config<GivenCapabilities>) {
+    // Assemble config
     this.#config = {
       bearerToken: options.bearerToken,
       sessionUrl: options.sessionUrl,
-      capabilities,
+      capabilities: JsonMetaClient.#validateOptions(options),
+      hooks: options.hooks,
       middleware: [
         replaceNestedResultRefKeys,
         injectAccountId(() => {
@@ -98,26 +145,40 @@ export class JsonMetaClient<
         }),
         ...(options.middleware ?? []),
       ],
-      hooks: options.hooks,
     };
 
+    // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
+    // Initialize abort controller
     this.#batchAbortController = new AbortController();
 
+    // Initialize API proxy
     this.api = createApi<API>({
       processMethodCalls: this.#processQueuedMethodCalls,
       middleware: this.#config.middleware,
       signal: this.#batchAbortController.signal,
     });
 
+    // Lock it down
     Object.freeze(this);
   }
 
+  /**
+   * Get the {@link Session} from cache, falling back to a fresh session
+   */
   get session(): Promise<Session> {
     return this.#sessionPromise ?? this.refreshSession();
   }
 
+  /**
+   * Retrieve and cache a new {@link Session}.
+   *
+   * Upon loading the session for the first time, the client
+   * capabilities will be evaluated against the capabilities
+   * provided in the actual {@link Session}; discrepancies will
+   * result in a logged warning.
+   */
   refreshSession = (): Promise<Session> => {
     this.#sessionPromise = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
       const isFirstLoad = !this.#session;
@@ -131,6 +192,15 @@ export class JsonMetaClient<
     return this.#sessionPromise;
   };
 
+  /**
+   * @private
+   * Evaluates the capabilities configured in the client with
+   * the actual capabilities exposed by the JMAP server
+   * in its {@link Session} object.
+   *
+   * Any of the configured capabilities that are not found in
+   * the session will be logged as a warning
+   */
   #validateSessionCapabilities(session: Session): void {
     const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
     const availableUrns = new Set(Object.keys(session.capabilities));
@@ -149,6 +219,10 @@ export class JsonMetaClient<
     }
   }
 
+  /**
+   * @private
+   * Constructor validation mechanism
+   */
   static #validateOptions(options: Config<ReadonlyArray<CapabilityOption>>): Capability[] {
     const { bearerToken, capabilities: givenCapabilities, sessionUrl, middleware } = options;
 
@@ -212,6 +286,10 @@ export class JsonMetaClient<
     return capabilities;
   }
 
+  /**
+   * @private
+   * The primary "flush" function that processes pending batch jobs
+   */
   #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
     try {
       const methodCalls = jobs.map((b) => b.payload);
@@ -297,6 +375,10 @@ export class JsonMetaClient<
     }
   };
 
+  /**
+   * @private
+   * Primary fetch function
+   */
   #fetch = async (url: string | URL, options: RequestInit = {}) => {
     let request: Request | undefined;
     let requestClone: Request | undefined;
@@ -345,6 +427,10 @@ export class JsonMetaClient<
     return { request, response };
   };
 
+  /**
+   * @private
+   * Primary fetch function for responses expected to return JSON
+   */
   #fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
     headers.append("accept", "application/json");
@@ -363,6 +449,9 @@ export class JsonMetaClient<
   };
 
   blob = {
+    /**
+     * Upload a blob
+     */
     upload: async (
       body: BodyInit,
       params: SetOptional<BlobUploadParams, "accountId"> = {},
@@ -377,6 +466,9 @@ export class JsonMetaClient<
       });
       return data;
     },
+    /**
+     * Download a blob
+     */
     download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
       const session = await this.session;
       const url = expandURITemplate(session.downloadUrl, {
@@ -388,6 +480,9 @@ export class JsonMetaClient<
     },
   };
 
+  /**
+   * Subscribe to state changes
+   */
   onStateChange = async (
     handler: (
       ...params:
@@ -443,6 +538,9 @@ export class JsonMetaClient<
     };
   };
 
+  /**
+   * Clear pending JMAP requests
+   */
   cancelBatch = (): void => {
     this.#batchAbortController.abort();
   };
