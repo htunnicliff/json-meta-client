@@ -29,18 +29,17 @@ const query = client.api.Email.query({
   sort: [{ property: "receivedAt", isAscending: false }],
   limit: 10,
 });
-const get = client.api.Email.get({
+const emails = await client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject", "from"],
 });
 
-const [, emails] = await Promise.all([query, get]);
 for (const email of emails.list) {
   console.log(email.subject, email.from);
 }
 ```
 
-Creating both calls before awaiting them puts them in one batch. The server uses the IDs from `Email/query` as the input to `Email/get`; the application receives the response arguments directly.
+The query and get call are both created before `await` yields control, so they share one batch. The server uses the IDs from `Email/query` as the input to `Email/get`; the application receives the response arguments directly.
 
 The client discovers endpoint URLs through the session and defaults to its primary mail account. Pass `accountId` explicitly to work with another account. Keep bearer tokens out of source control and public browser bundles.
 

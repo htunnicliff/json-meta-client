@@ -30,18 +30,17 @@ const query = client.api.Email.query({
   sort: [{ property: "receivedAt", isAscending: false }],
   limit: 10,
 });
-const get = client.api.Email.get({
+const messages = await client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject", "from", "receivedAt"],
 });
 
-const [, messages] = await Promise.all([query, get]);
 for (const message of messages.list) {
   console.log(message.receivedAt, message.from, message.subject);
 }
 ```
 
-The two methods share one request. `Promise.all()` observes failures from both promises, including a query failure that prevents the server from resolving the reference.
+The query is queued first, and the get call joins it before `await` yields control. Both methods share one request; awaiting the get call returns the records needed for the message list.
 
 ## Mark a message as read
 

@@ -28,12 +28,11 @@ A query returns IDs; a get call retrieves their records. Create both calls toget
 
 ```ts
 const query = client.api.Email.query({ limit: 5 });
-const get = client.api.Email.get({
+const messages = await client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject"],
 });
 
-const [, messages] = await Promise.all([query, get]);
 console.log(messages.list);
 ```
 

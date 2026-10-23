@@ -75,18 +75,17 @@ const query = client.api.Email.query({
   sort: [{ property: "receivedAt", isAscending: false }],
   limit: 5,
 });
-const get = client.api.Email.get({
+const messages = await client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject", "from"],
 });
 
-const [, messages] = await Promise.all([query, get]);
 for (const message of messages.list) {
   console.log(message.subject, message.from);
 }
 ```
 
-The query finds the five most recent message IDs. The get call uses those IDs to request subjects and senders. Creating both calls synchronously lets them share one request, and `.ref("/ids")` tells the server where to obtain the get call's input.
+The query finds the five most recent message IDs. The get call uses those IDs to request subjects and senders. The get call joins the queued query before `await` yields control, so they share one request. `.ref("/ids")` tells the server where to obtain the get call's input.
 
 Awaiting the query before creating the get call would send two requests. Read [Batching](../features/batching.md) for the scheduling rules.
 

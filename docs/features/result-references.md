@@ -6,12 +6,10 @@ A result reference passes data between methods inside a JMAP request. Instead of
 
 ```ts
 const query = client.api.Email.query({ limit: 5 });
-const get = client.api.Email.get({
+const messages = await client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject", "receivedAt"],
 });
-
-const [, messages] = await Promise.all([query, get]);
 ```
 
 `query.ref("/ids")` describes the `ids` field of the query response. It does not read that field in JavaScript. The server runs the query, resolves the reference, and passes the resulting array to `Email/get`.
@@ -52,4 +50,4 @@ The reference middleware also rewrites keys inside nested objects. A server must
 
 Create the source first and the receiving call second, synchronously on the same client. An intervening `await` can flush the source into an earlier request, making the reference unusable. Calls on different clients have different queues.
 
-Observe both promises, as the example does with `Promise.all()`. A source failure or invalid pointer can produce a JMAP error for the dependent method as well. See [Batching](./batching.md) and [Errors](../reference/errors.md).
+A source failure or invalid pointer can produce a JMAP error for the dependent method as well. Each call has its own promise and error outcome. See [Batching](./batching.md) and [Errors](../reference/errors.md).

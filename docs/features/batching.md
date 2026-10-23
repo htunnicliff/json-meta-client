@@ -8,10 +8,11 @@ Calls created together on one client can share a single JMAP request. This reduc
 const mailboxes = client.api.Mailbox.get({});
 const recentIds = client.api.Email.query({ limit: 10 });
 
-const [mailboxResult, queryResult] = await Promise.all([mailboxes, recentIds]);
+const mailboxResult = await mailboxes;
+const queryResult = await recentIds;
 ```
 
-Both calls enter the queue immediately. The client uses `queueMicrotask()` to schedule its flush, so calls created synchronously together enter the same batch.
+Both calls enter the queue immediately. The client uses `queueMicrotask()` to schedule its flush, so calls created synchronously together enter the same batch. Awaiting their results individually does not split that batch.
 
 An `await` between calls gives the queued flush a chance to run. In particular, awaiting one method's result before creating the next sends separate requests. Create all members of a batch before yielding control.
 
@@ -21,18 +22,16 @@ When the second method needs a value from the first, let the server resolve a re
 
 ```ts
 const query = client.api.Email.query({ limit: 10 });
-const get = client.api.Email.get({ ids: query.ref("/ids") });
-
-const [, messages] = await Promise.all([query, get]);
+const messages = await client.api.Email.get({ ids: query.ref("/ids") });
 ```
 
-The query precedes the get call in the request. The server substitutes the query's IDs into the get arguments. See [Result references](./result-references.md) for the available pointer forms.
+The get call is created before `await` yields control, so it joins the query in the same request. The server substitutes the query's IDs into the get arguments. Await the get call directly when its records are the result you need. See [Result references](./result-references.md) for the available pointer forms.
 
 ## Handle every outcome
 
 Each promise settles according to its own method response. One method error can leave other calls successful, although a dependent method may also fail if its source result is unavailable.
 
-A session or transport failure affects every call in the request. `Promise.all()` rejects as soon as an input rejects; use `Promise.allSettled()` when you need to examine success and failure for each method separately.
+A session or transport failure affects every call in the request. Handle rejections on each call: awaiting the final call does not handle an earlier call's rejection. Use `Promise.allSettled()` when you need to examine success and failure for every method together.
 
 ## Respect server limits
 
