@@ -12,11 +12,10 @@ import type {
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 import { core } from "../capabilities/core.ts";
-import * as builtInCapabilities from "../capabilities/index.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
-import type { AfterResponseHook, BeforeRequestHook } from "../client.ts";
 import { JsonMetaClient } from "../client.ts";
 import {
   CapabilityConfigurationError,
@@ -29,6 +28,7 @@ import {
   UnknownError,
 } from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
+import type { AfterResponseHook, BeforeRequestHook } from "../types.ts";
 
 // ------ Fixtures ----------------------------------------
 
@@ -174,7 +174,7 @@ describe(JsonMetaClient, () => {
       expect(createClient).toThrow(
         expect.objectContaining({
           givenCapability: capability,
-          availableBuiltIns: Object.keys(builtInCapabilities),
+          availableBuiltIns: Object.keys(BUILT_IN_CAPABILITIES),
         }),
       );
     });
@@ -399,13 +399,13 @@ describe(JsonMetaClient, () => {
   });
 
   describe("capability names", () => {
-    it.each(Object.entries(builtInCapabilities))(
+    it.each(Object.entries(BUILT_IN_CAPABILITIES))(
       "resolves %s to its built-in URN",
       async (name, capability) => {
         const namedClient = new JsonMetaClient({
           bearerToken,
           sessionUrl,
-          capabilities: [name as keyof typeof builtInCapabilities],
+          capabilities: [name as keyof typeof BUILT_IN_CAPABILITIES],
         });
 
         await namedClient.session;

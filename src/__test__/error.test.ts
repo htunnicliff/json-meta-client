@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import * as builtInCapabilities from "../capabilities/index.ts";
+import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 import {
   CapabilityConfigurationError,
   ConfigurationError,
@@ -157,7 +157,7 @@ describe("error classification", () => {
     const error = new CapabilityConfigurationError("invalid", { capability: "unknown" });
     expect(isConfigurationError(error)).toBe(true);
     expect(error.givenCapability).toBe("unknown");
-    expect(error.availableBuiltIns).toEqual(Object.keys(builtInCapabilities));
+    expect(error.availableBuiltIns).toEqual(Object.keys(BUILT_IN_CAPABILITIES));
   });
 
   it("preserves the request and original network failure", () => {

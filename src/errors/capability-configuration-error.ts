@@ -1,4 +1,4 @@
-import * as builtInCapabilities from "../capabilities/index.ts";
+import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 import { ConfigurationError } from "./configuration-error.ts";
 
 /**
@@ -16,7 +16,7 @@ export class CapabilityConfigurationError extends ConfigurationError {
    * Available built-in capabilities accessible via string keys
    */
   get availableBuiltIns(): readonly string[] {
-    return Object.keys(builtInCapabilities);
+    return Object.keys(BUILT_IN_CAPABILITIES);
   }
 
   constructor(message: string, options: { capability: unknown }) {

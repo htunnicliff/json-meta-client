@@ -2,7 +2,7 @@
 import type { Response as JmapResponse, Session } from "jmap-rfc-types";
 import nock from "nock";
 
-import * as builtInCapabilities from "../capabilities/index.ts";
+import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 
 export const host = "https://example.test";
 
@@ -19,12 +19,14 @@ export const username = "<username>";
 export const sessionState = "<opaque-session-state>";
 
 const accountCapabilities = Object.fromEntries(
-  Object.values(builtInCapabilities).map((c) => [c.urn, {}]),
+  Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, {}]),
 );
 const primaryAccounts = Object.fromEntries(
-  Object.values(builtInCapabilities).map((c) => [c.urn, accountId]),
+  Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, accountId]),
 );
-const capabilities = Object.fromEntries(Object.values(builtInCapabilities).map((c) => [c.urn, {}]));
+const capabilities = Object.fromEntries(
+  Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, {}]),
+);
 
 export function makeSession(): Session {
   return {

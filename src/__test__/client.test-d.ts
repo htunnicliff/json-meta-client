@@ -10,15 +10,16 @@ import type {
 } from "jmap-rfc-types";
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import * as builtInCapabilities from "../capabilities/index.ts";
+import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
+import type { BuiltInCapabilityName, DefaultCapabilities } from "../built-ins.ts";
 import { core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
-import type { BuiltInCapabilityName, Config, DEFAULT_CAPABILITIES } from "../client.ts";
 import { JsonMetaClient } from "../client.ts";
 import type { Ref, RefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
+import type { Config } from "../types.ts";
 
 const host = "https://example.test";
 const bearerToken = "<opaque-token>";
@@ -30,7 +31,7 @@ const client = new JsonMetaClient({
   capabilities: [core, mail],
 });
 
-type DefaultEntities = (typeof DEFAULT_CAPABILITIES)[number]["entities"][number];
+type DefaultEntities = DefaultCapabilities[number]["entities"][number];
 
 describe(JsonMetaClient, () => {
   describe("api", () => {
@@ -59,10 +60,10 @@ describe(JsonMetaClient, () => {
       const allObjects = new JsonMetaClient({
         bearerToken,
         sessionUrl,
-        capabilities: Object.values(builtInCapabilities),
+        capabilities: Object.values(BUILT_IN_CAPABILITIES),
       });
       expectTypeOf(allNamed.api).toEqualTypeOf(allObjects.api);
-      expectTypeOf<BuiltInCapabilityName>().toEqualTypeOf<keyof typeof builtInCapabilities>();
+      expectTypeOf<BuiltInCapabilityName>().toEqualTypeOf<keyof typeof BUILT_IN_CAPABILITIES>();
     });
 
     it("accepts readonly name arrays in separately declared options", () => {
