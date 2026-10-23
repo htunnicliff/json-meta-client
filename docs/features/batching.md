@@ -5,7 +5,7 @@ Calls created together on one client can share a single JMAP request. This reduc
 ## Create the calls before awaiting
 
 ```ts
-const mailboxes = client.api.Mailbox.get({});
+const mailboxes = client.api.Mailbox.get({ properties: ["id", "name"] });
 const recentIds = client.api.Email.query({ limit: 10 });
 
 const mailboxResult = await mailboxes;
@@ -42,7 +42,7 @@ The client does not divide a large batch into smaller requests to fit the server
 Call `cancelBatch()` before the scheduled flush to reject the queued promises with `CancellationError`:
 
 ```ts
-const pending = client.api.Mailbox.get({});
+const pending = client.api.Mailbox.get({ properties: ["id", "name"] });
 client.cancelBatch();
 
 try {

@@ -57,14 +57,14 @@ Replace both placeholders with your provider's values. The constructor checks th
 ## Make a call
 
 ```ts
-const mailboxes = await client.api.Mailbox.get({});
+const mailboxes = await client.api.Mailbox.get({ properties: ["id", "name"] });
 
 for (const mailbox of mailboxes.list) {
   console.log(mailbox.id, mailbox.name);
 }
 ```
 
-On this first call, the client fetches the session to discover the API endpoint and primary mail account. It then sends `Mailbox/get`. The promise resolves to the response arguments, including `list`.
+The `properties` array selects the fields to return. On this first call, the client fetches the session to discover the API endpoint and primary mail account. It then sends `Mailbox/get`. The promise resolves to the response arguments, including `list`.
 
 The session promise is cached. You can inspect it with `await client.session` and replace it with `await client.refreshSession()`. A failed session load is cached too, so use `refreshSession()` when you are ready to retry.
 

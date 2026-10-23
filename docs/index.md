@@ -13,7 +13,7 @@ The API is still evolving. Check release notes when upgrading.
 The [getting started guide](./introduction/getting-started.md) walks through installation, credentials, and fetching mail. Once a client is configured, a method call looks like this:
 
 ```ts
-const result = await client.api.Mailbox.get({});
+const result = await client.api.Mailbox.get({ properties: ["id", "name"] });
 
 for (const mailbox of result.list) {
   console.log(mailbox.name);

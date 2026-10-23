@@ -38,7 +38,7 @@ Create independent calls together to [batch them](./batching.md). For a dependen
 The optional second argument lets you choose a call ID:
 
 ```ts
-const pending = client.api.Mailbox.get({}, { id: "mailbox-list" });
+const pending = client.api.Mailbox.get({ properties: ["id", "name"] }, { id: "mailbox-list" });
 
 console.log(pending.$id); // "mailbox-list"
 console.log(pending.$method); // "Mailbox/get"

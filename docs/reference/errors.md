@@ -10,7 +10,7 @@ Library errors extend `JsonMetaError`. Each exported class has a matching guard,
 import { isHttpError, isJmapError } from "json-meta-client";
 
 try {
-  await client.api.Mailbox.get({});
+  await client.api.Mailbox.get({ properties: ["id", "name"] });
 } catch (error) {
   if (isHttpError(error)) {
     console.error("Request failed with HTTP status", error.status);
