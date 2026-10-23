@@ -1,6 +1,10 @@
 # Getting Started
 
+> TODO: Add a short library overview and alpha status; clarify this page’s role alongside the introduction guide.
+
 ## Recommended Ingredients
+
+> TODO: Add supported runtime prerequisites and link to installation in the introduction guide.
 
 - **This library**: Download `json-meta-client` from NPM using your preferred package manager (e.g. pnpm, npm, or yarn).
 - **A session URL**: Find the session URL exposed by your JMAP provider.
@@ -84,6 +88,8 @@ Let's make a few requests together to see how things work.
 
 ### Find the Inbox
 
+> TODO: Add handling for no matching inbox and link to method-call/account behavior.
+
 :::code-group
 
 ```ts [TypeScript]
@@ -145,6 +151,8 @@ A few notes:
 - The client generates method call IDs by joining the method call name with a cryptographically random UUID (`<Entity>/<Method>::${crypto.randomUUID()}`)
 
 ### Get the First 10 Emails in the Inbox
+
+> TODO: Explain the missing await on the query and .ref(); align the request limit and sample response records with the TypeScript example.
 
 :::code-group
 
@@ -278,3 +286,7 @@ for (const email of emails.list) {
   ],
 }
 ```
+
+## Next Steps
+
+> TODO: Link to Examples, Batching, Capabilities, and the API reference.
