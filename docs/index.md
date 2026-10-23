@@ -93,14 +93,17 @@ const [inboxId] = queryMailboxes.list;
 
 ```json [request.json]
 {
-  "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
   "methodCalls": [
     [
       "Mailbox/query",
       {
         "filter": { "role": "inbox" },
         "limit": 1,
-        "accountId": "u26714004"
+        "accountId": "*********"
       },
       "Mailbox/query::e64dc905-5f3e-445b-94da-06e6f18e29e8"
     ]
@@ -142,7 +145,10 @@ async function* getEmails(limit = 10) {
 
 ```json [request.json]
 {
-  "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
   "methodCalls": [
     [
       "Email/query",
@@ -151,7 +157,7 @@ async function* getEmails(limit = 10) {
         "limit": 10,
         "anchorOffset": 1,
         "anchor": "<last-email-id>",
-        "accountId": "u26714004"
+        "accountId": "*********"
       },
       "Email/query::68ed8b27-dc50-45f2-a7f1-5f328d8ded9e"
     ],
@@ -163,8 +169,15 @@ async function* getEmails(limit = 10) {
           "resultOf": "Email/query::68ed8b27-dc50-45f2-a7f1-5f328d8ded9e",
           "path": "/ids"
         },
-        "properties": ["id", "to", "from", "subject", "sentAt", "keywords"],
-        "accountId": "u26714004"
+        "properties": [
+          "id",
+          "to",
+          "from",
+          "subject",
+          "sentAt",
+          "keywords"
+        ],
+        "accountId": "*********"
       },
       "Email/get::a4f7a29b-f086-4b6c-8adb-89e4f12bad69"
     ]
