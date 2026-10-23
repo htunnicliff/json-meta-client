@@ -1,2 +1,5 @@
 minimumReleaseAgeExclude:
   - jmap-rfc-types
+
+publicHoistPattern:
+  - vue

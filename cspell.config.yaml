@@ -3,16 +3,21 @@ language: en
 words:
   - Batchable
   - capnweb
-  - JMAP
-  - oxfmt
-  - oxlint
-  - tsgolint
-  - tunnicliff
-  - htunnicliff
-  - unstub
+  - closeafter
+  - Diátaxis
   - eventsource
+  - frontmatter
+  - htunnicliff
+  - importmap
+  - JMAP
   - microtask
   - microtasks
+  - oxfmt
+  - oxlint
+  - reqheaders
+  - tsgolint
+  - tunnicliff
+  - unstub
 ignorePaths:
   - pnpm-lock.yaml
   - dist/

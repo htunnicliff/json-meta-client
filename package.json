@@ -41,7 +41,10 @@
     "spelling:check": "cspell .",
     "version": "pnpm run build && changeset version && pnpm install",
     "release": "pnpm run build && changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "eventsource-client": "^1.2.0",
@@ -63,6 +66,8 @@
     "publint": "0.3.25",
     "tsdown": "0.23.1",
     "typescript": "6.0.3",
+    "vitepress": "2.0.0-alpha.20",
+    "vitepress-plugin-group-icons": "^1.8.1",
     "vitest": "5.0.5"
   },
   "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6"

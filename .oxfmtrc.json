@@ -5,7 +5,7 @@
   "sortImports": true,
   "overrides": [
     {
-      "files": ["README.md"],
+      "files": ["*.md"],
       "options": {
         "printWidth": 60
       }
