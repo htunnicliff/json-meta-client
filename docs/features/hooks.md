@@ -1,5 +1,0 @@
-# Hooks
-
-## `beforeRequest`
-
-## `afterResponse`

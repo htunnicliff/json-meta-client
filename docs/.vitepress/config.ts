@@ -7,73 +7,43 @@ export default defineConfig({
   description: "A JMAP client compatible with Node.js and the browser",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    nav: [],
+    nav: [
+      { text: "Getting Started", link: "/" },
+      { text: "API Reference", link: "/reference/api" },
+      { text: "JMAP Standard", link: "https://jmap.io/" },
+    ],
     sidebar: [
       {
         text: "Introduction",
         items: [
-          {
-            text: "Getting Started",
-            link: "/introduction/getting-started",
-          },
-          {
-            text: "Examples",
-            link: "/introduction/examples",
-          },
+          { text: "Getting Started", link: "/" },
+          { text: "Examples", link: "/examples" },
+          { text: "Best Practices", link: "/best-practices" },
         ],
       },
       {
         text: "Features",
         items: [
-          {
-            text: "Batching",
-            link: "/features/batching",
-          },
-          {
-            text: "Result References",
-            link: "/features/result-references",
-          },
-          {
-            text: "Capabilities",
-            link: "/features/capabilities",
-          },
-          {
-            text: "Events",
-            link: "/features/events",
-          },
-          {
-            text: "Blobs",
-            link: "/features/blobs",
-          },
-          {
-            text: "Hooks",
-            link: "/features/hooks",
-          },
+          { text: "Method Calls", link: "/features/method-calls" },
+          { text: "Capabilities", link: "/features/capabilities" },
+          { text: "Events", link: "/features/events" },
+          { text: "Blobs", link: "/features/blobs" },
         ],
       },
       {
         text: "Reference",
         items: [
-          {
-            text: "Configuration",
-            link: "/reference/configuration",
-          },
-          {
-            text: "Client API",
-            link: "/reference/client-api",
-          },
-          {
-            text: "Capability API",
-            link: "/reference/capability-api",
-          },
-          {
-            text: "Errors",
-            link: "/reference/errors",
-          },
-          {
-            text: "Types",
-            link: "/reference/types",
-          },
+          { text: "API", link: "/reference/api" },
+          { text: "Errors", link: "/reference/errors" },
+          { text: "Types", link: "/reference/types" },
+        ],
+      },
+      {
+        text: "Advanced",
+        items: [
+          { text: "Batching", link: "/advanced/batching" },
+          { text: "Hooks", link: "/advanced/hooks" },
+          { text: "Extending", link: "/advanced/extending" },
         ],
       },
     ],

@@ -1,5 +1,1 @@
 # Blobs
-
-## Uploading
-
-## Downloading
