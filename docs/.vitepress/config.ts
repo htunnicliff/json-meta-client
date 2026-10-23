@@ -26,6 +26,10 @@ export default defineConfig({
         text: "Features",
         items: [
           {
+            text: "Method Calls",
+            link: "/features/method-calls",
+          },
+          {
             text: "Batching",
             link: "/features/batching",
           },

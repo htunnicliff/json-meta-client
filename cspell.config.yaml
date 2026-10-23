@@ -3,6 +3,7 @@ language: en
 words:
   - Batchable
   - capnweb
+  - closeafter
   - Diátaxis
   - eventsource
   - frontmatter
@@ -12,6 +13,7 @@ words:
   - microtasks
   - oxfmt
   - oxlint
+  - reqheaders
   - tsgolint
   - tunnicliff
   - unstub

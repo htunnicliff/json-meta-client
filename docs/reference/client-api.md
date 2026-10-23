@@ -1,47 +1,74 @@
-# API
+# Client API
 
-## JsonMetaClient
-
-> TODO: Add the constructor signature and link to Configuration for full option details.
+## `JsonMetaClient`
 
 ```ts
+import { JsonMetaClient } from "json-meta-client";
+
 const client = new JsonMetaClient({
-  bearerToken: "<token>",
-  sessionUrl: "<url>",
-  capabilities: ["mail", "contacts"],
+  bearerToken: "<bearer-token>",
+  sessionUrl: "https://your-provider.example/.well-known/jmap",
+  capabilities: ["mail"],
 });
 ```
 
-### Parameters
+**Constructor:** `new JsonMetaClient(options: Config<Capabilities>)`
 
-> TODO: Complete current option descriptions; replace the obsolete logger entry with hooks and label middleware unstable.
+Creates a client without sending a request. The constructor accepts a [`Config`](./configuration.md) object. Capability selections determine the API’s inferred TypeScript type.
 
-- `bearerToken` - A valid bearer token
-- `sessionUrl` - The URI for creating a JMAP session
-- `capabilities` - An array of capabilities
-- `logger` (optional) -
-- `middleware` (optional) -
+## `api`
 
-## Return Value
+```ts
+const pending = client.api.Mailbox.get(args, { id: "get-mailboxes" });
+const result = await pending;
+```
 
-> TODO: Describe the client instance and its public members below.
+Each method takes its JMAP arguments and an optional `{ id?: string }` options object. The returned promise resolves to the response arguments and exposes:
 
-## api
+| Member         | Description                                                  |
+| -------------- | ------------------------------------------------------------ |
+| `$id`          | Explicit or generated method-call ID                         |
+| `$method`      | Protocol method name, such as `Mailbox/get`                  |
+| `$args`        | Arguments after middleware, including lazy account injection |
+| `ref(pointer)` | Typed result reference into this call’s response             |
 
-> TODO: Document entity/method calls, args, options.id, returned promise metadata, and .ref(); link to Method Calls.
+These members belong to the promise. They are not added to the resolved response. See [Method Calls](../features/method-calls.md) and [Result References](../features/result-references.md).
 
-## session and refreshSession()
+## `session`
 
-> TODO: Document `Promise<Session>`, lazy caching, explicit refresh, and capability validation on first successful load.
+**Type:** `Promise<Session>`
 
-## blob.upload() and blob.download()
+Loads the session on first access and caches its promise. API calls, blob helpers, and subscriptions also load the session when needed. Concurrent callers share the cached promise, including its rejection if loading fails.
 
-> TODO: List signatures, parameters, defaults, and return types; link to Blobs.
+## `refreshSession()`
 
-## onStateChange()
+**Returns:** `Promise<Session>`
 
-> TODO: List callback signature, options, `Promise<Disposable>` return, and cleanup; link to Events.
+Retrieves a fresh session and replaces the cached promise. Use it to refresh server metadata or retry a failed initial load. Configured capability support is checked on the first successful load; discrepancies produce console warnings.
 
-## cancelBatch()
+## `blob.upload(body, params?)`
 
-> TODO: Document queued-call cancellation, CancellationError, and limits for in-flight requests and later calls.
+- `body`: Fetch API `BodyInit`.
+- `params`: optional `{ accountId?: string }`.
+- Returns `Promise<BlobUploadResponse>` with the server’s blob metadata.
+
+## `blob.download(params)`
+
+- `params`: `{ blobId: string; name: string; type: string; accountId?: string }`.
+- Returns `Promise<Response>` for the downloaded body.
+
+Both helpers default to the primary mail account and use the session’s URL templates. See [Blobs](../features/blobs.md).
+
+## `onStateChange(handler, options?)`
+
+The handler receives either `(null, StateChangePayload)` or `(StateChangeError, undefined)`.
+
+Options are `{ pingSeconds?: number; signal?: AbortSignal }`, with `pingSeconds` defaulting to `30`.
+
+Returns `Promise<Disposable>`. The implementation supplies `[Symbol.dispose]()` when the symbol exists, or `disconnect()` otherwise. You can also close the stream by aborting the supplied signal. See [Events](../features/events.md) for setup, cleanup, and state-token handling.
+
+## `cancelBatch()`
+
+**Returns:** `void`
+
+Rejects currently queued method calls with `CancellationError` when called before the batch flush. It does not abort in-flight requests. Later calls may still run, but repeated cancellation does not cancel later batches in the current implementation. See [Batching](../features/batching.md).

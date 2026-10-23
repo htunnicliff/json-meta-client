@@ -1,13 +1,21 @@
 # Getting Started
 
-## Installation
+JSON Meta Client lets you call JMAP methods from TypeScript or JavaScript. This guide uses the `mail` capability to fetch email subjects.
 
-> TODO: List supported runtimes and required Web APIs; verify package-manager commands, including Deno’s npm package syntax.
+## Before You Start
+
+You’ll need a JMAP provider that supports mail, its session URL, and a bearer token with permission to read mail. Your provider’s documentation explains how to obtain them. Some providers expose the session at `https://your-provider.example/.well-known/jmap`.
+
+The client uses Web APIs including `fetch`, `Request`, `Response`, `URL.canParse()`, `crypto.randomUUID()`, and `Promise.withResolvers()`. Use a current runtime that provides these APIs, such as Node.js 24 or a current browser. Browser requests also require your provider to allow cross-origin access.
+
+Keep bearer tokens private. For a browser application, use an authentication flow supported by your provider; do not bundle a personal token into public assets.
+
+## Installation
 
 ::: code-group
 
 ```sh [npm]
-npm add json-meta-client
+npm install json-meta-client
 ```
 
 ```sh [pnpm]
@@ -23,48 +31,70 @@ bun add json-meta-client
 ```
 
 ```sh [deno]
-deno add json-meta-client
+deno add npm:json-meta-client
 ```
+
 :::
 
-## Usage
-
-> TODO: Explain obtaining a provider session URL and token; replace the token-like example value with an obvious placeholder.
-
-Configure a client with a bearer token, session URL, and capabilities
-supported by the JMAP server.
+## Create a Client
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "098b794a2f363189582614a13f47ea168852449da0eb51d6",
-  sessionUrl: "https://api.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  bearerToken: "<bearer-token>",
+  sessionUrl: "https://your-provider.example/.well-known/jmap",
+  capabilities: ["mail"],
 });
 ```
 
-Issue a JMAP request:
+Replace the token and URL with your provider’s values. The `mail` capability adds typed methods for emails, mailboxes, threads, and search snippets. See [Capabilities](../features/capabilities.md) for other options.
 
-> TODO: Revise the example into a working query/get flow: use consistent variable names, query Email for email IDs, and await the final result.
+Creating a client does not send a request. The client loads the session when it first needs it, then caches it.
+
+## Fetch Emails
 
 ```ts
-const queryMailboxes = client.api.Mailbox.query({
-  limit: 1,
-  filter: {
-    role: "inbox",
-  },
+const query = client.api.Email.query({ limit: 10 });
+const get = client.api.Email.get({
+  ids: query.ref("/ids"),
+  properties: ["subject", "from"],
 });
+const [, emails] = await Promise.all([query, get]);
 
-const getEmails = client.api.Email.get({
-  ids: mailboxQuery.ref("/ids"),
-});
+for (const email of emails.list) {
+  console.log(email.subject, email.from);
+}
+```
+
+`Email/query` finds email IDs. `Email/get` fetches the selected properties for those IDs. Creating both calls before awaiting them lets the client send both calls in one request. The server substitutes the query’s IDs into the get call using a [result reference](../features/result-references.md).
+
+For independent calls, you can await each method directly:
+
+```ts
+const mailboxes = await client.api.Mailbox.get({});
+console.log(mailboxes.list);
 ```
 
 ## Session and Accounts
 
-> TODO: Introduce lazy session loading, primary-account defaults, and explicit accountId overrides.
+By default, method calls use the session’s primary **mail** account. To use another account, pass `accountId` in the method arguments:
+
+```ts
+const session = await client.session;
+console.log(session.accounts);
+
+const mailboxes = await client.api.Mailbox.get({
+  accountId: "<account-id>",
+});
+```
+
+For capabilities such as contacts, explicitly select an account that supports the capability. The default is still the mail account, regardless of the entity being called.
+
+Use `await client.refreshSession()` to retrieve and cache a fresh session. If the initial session load fails, call `refreshSession()` to retry it.
 
 ## Next Steps
 
-> TODO: Link to Examples, Method Calls, Batching, and Errors.
+- Try the [Examples](./examples.md).
+- Learn how [Method Calls](../features/method-calls.md) and [Batching](../features/batching.md) work.
+- Read about [Errors](../reference/errors.md) before adding failure handling.
