@@ -14,11 +14,12 @@ export default defineConfig({
     ],
     sidebar: [
       {
-        text: "Introduction",
+        text: "Getting Started",
         items: [
-          { text: "Getting Started", link: "/" },
-          { text: "Examples", link: "/examples" },
+          { text: "Introduction", link: "/" },
           { text: "Best Practices", link: "/best-practices" },
+          { text: "Testing", link: "/testing" },
+          { text: "Examples", link: "/examples" },
         ],
       },
       {
@@ -34,6 +35,7 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "API", link: "/reference/api" },
+          { text: "Capabilities", link: "/reference/capabilities" },
           { text: "Errors", link: "/reference/errors" },
           { text: "Types", link: "/reference/types" },
         ],

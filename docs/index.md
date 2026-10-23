@@ -1,4 +1,4 @@
-# Getting Started
+# Introduction
 
 ## Installation
 
@@ -62,7 +62,7 @@ import {data as pkg} from './pkg.data.ts'
 
 :::
 
-## Usage
+## Configuration
 
 Configure a client with a bearer token, session URL, and [capabilities](./features/capabilities.md):
 
@@ -76,6 +76,8 @@ const client = new JsonMetaClient({
 });
 ```
 
+## Usage
+
 Find the inbox:
 
 ::: code-group
@@ -83,6 +85,7 @@ Find the inbox:
 ```ts [example.ts]
 const queryMailboxes = await client.api.Mailbox.query({
   filter: { role: "inbox" },
+  limit: 1,
 });
 
 const [inboxId] = queryMailboxes.list;
@@ -96,6 +99,7 @@ const [inboxId] = queryMailboxes.list;
       "Mailbox/query",
       {
         "filter": { "role": "inbox" },
+        "limit": 1,
         "accountId": "u26714004"
       },
       "Mailbox/query::e64dc905-5f3e-445b-94da-06e6f18e29e8"
@@ -195,8 +199,9 @@ for await (const email of getEmails()) {
 | Listen for state changes                | [Events](./features/events.md)             |
 | Upload and download files               | [Blobs](./features/blobs.md)               |
 | Do things the _right way™_              | [Best Practices](./best-practices.md)      |
+| Test with this library                  | [Testing](./testing.md)                    |
 | Understand the API                      | [API](./reference/api.md)                  |
 | Handle failures                         | [Errors](./reference/errors.md)            |
 | Understand how method calls are batched | [Batching](./advanced/batching.md)         |
-| Define custom capabilities              | [Capabilities](./advanced/extending.md)    |
+| Define custom capabilities              | [Extending](./advanced/extending.md)       |
 | Hook into the request lifecycle         | [Hooks](./advanced/hooks.md)               |
