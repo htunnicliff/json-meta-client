@@ -1,74 +1,101 @@
 # Client API
 
-## `JsonMetaClient`
+Import the client from the package root:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<bearer-token>",
   sessionUrl: "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
   capabilities: ["mail"],
 });
 ```
 
-**Constructor:** `new JsonMetaClient(options: Config<Capabilities>)`
+## Constructor
 
-Creates a client without sending a request. The constructor accepts a [`Config`](./configuration.md) object. Capability selections determine the API’s inferred TypeScript type.
+`new JsonMetaClient(options: Config<Capabilities>)`
+
+Validates the configuration and creates the client. Construction does not perform network I/O. The capability array determines the inferred API type. See [Configuration](./configuration.md) for required and optional fields.
 
 ## `api`
 
-```ts
-const pending = client.api.Mailbox.get(args, { id: "get-mailboxes" });
-const result = await pending;
-```
+`client.api.<Entity>.<method>(arguments, options?)`
 
-Each method takes its JMAP arguments and an optional `{ id?: string }` options object. The returned promise resolves to the response arguments and exposes:
+Queues a JMAP method and returns a promise for its response arguments. The optional options object has one field, `id?: string`, for choosing the call ID. Keep IDs unique within a batch.
 
-| Member         | Description                                                  |
+The original promise has these additional members:
+
+| Member         | Value                                                        |
 | -------------- | ------------------------------------------------------------ |
-| `$id`          | Explicit or generated method-call ID                         |
-| `$method`      | Protocol method name, such as `Mailbox/get`                  |
-| `$args`        | Arguments after middleware, including lazy account injection |
-| `ref(pointer)` | Typed result reference into this call’s response             |
+| `$id`          | Chosen ID, or a generated `<Entity>/<method>::<random-UUID>` |
+| `$method`      | JMAP method name, such as `Email/get`                        |
+| `$args`        | Arguments after middleware has run                           |
+| `ref(pointer)` | A typed reference to a value in this method's response       |
 
-These members belong to the promise. They are not added to the resolved response. See [Method Calls](../features/method-calls.md) and [Result References](../features/result-references.md).
+The automatically injected account ID in `$args` needs a loaded session before it can be read. These promise members do not become properties of the resolved response.
+
+See [Method calls](../features/method-calls.md) for accounts and outcomes, and [Batching](../features/batching.md) for scheduling.
 
 ## `session`
 
-**Type:** `Promise<Session>`
+`Promise<Session>`
 
-Loads the session on first access and caches its promise. API calls, blob helpers, and subscriptions also load the session when needed. Concurrent callers share the cached promise, including its rejection if loading fails.
+Gets the cached session promise, starting a session request on first access. Methods, blob helpers, and subscriptions also access it as needed.
+
+Concurrent callers share the promise. Its rejection is cached as well; requesting `client.session` again does not retry a failed load.
 
 ## `refreshSession()`
 
-**Returns:** `Promise<Session>`
+`refreshSession(): Promise<Session>`
 
-Retrieves a fresh session and replaces the cached promise. Use it to refresh server metadata or retry a failed initial load. Configured capability support is checked on the first successful load; discrepancies produce console warnings.
+Starts a fresh session request and replaces the cached promise. Use it to reload endpoint and account metadata or to retry a failed session load.
 
-## `blob.upload(body, params?)`
+On the first successful load, configured entity capabilities are compared with the session's advertised capabilities. Missing support produces a console warning rather than blocking requests.
 
-- `body`: Fetch API `BodyInit`.
-- `params`: optional `{ accountId?: string }`.
-- Returns `Promise<BlobUploadResponse>` with the server’s blob metadata.
+## `blob.upload()`
 
-## `blob.download(params)`
+`blob.upload(body, params?): Promise<BlobUploadResponse>`
 
-- `params`: `{ blobId: string; name: string; type: string; accountId?: string }`.
-- Returns `Promise<Response>` for the downloaded body.
+| Parameter          | Type               | Meaning                                              |
+| ------------------ | ------------------ | ---------------------------------------------------- |
+| `body`             | `BodyInit`         | Bytes or another Fetch-compatible request body       |
+| `params.accountId` | `string`, optional | Upload account; defaults to the primary mail account |
 
-Both helpers default to the primary mail account and use the session’s URL templates. See [Blobs](../features/blobs.md).
+Uses the session's upload URL and returns the server's metadata, including `accountId`, `blobId`, `type`, and `size`.
 
-## `onStateChange(handler, options?)`
+## `blob.download()`
 
-The handler receives either `(null, StateChangePayload)` or `(StateChangeError, undefined)`.
+`blob.download(params): Promise<Response>`
 
-Options are `{ pingSeconds?: number; signal?: AbortSignal }`, with `pingSeconds` defaulting to `30`.
+| Parameter   | Type               | Meaning                                              |
+| ----------- | ------------------ | ---------------------------------------------------- |
+| `blobId`    | `string`           | Stored blob to retrieve                              |
+| `name`      | `string`           | Filename for the download URL                        |
+| `type`      | `string`           | Media type for the download URL                      |
+| `accountId` | `string`, optional | Blob's account; defaults to the primary mail account |
 
-Returns `Promise<Disposable>`. The implementation supplies `[Symbol.dispose]()` when the symbol exists, or `disconnect()` otherwise. You can also close the stream by aborting the supplied signal. See [Events](../features/events.md) for setup, cleanup, and state-token handling.
+Returns a Fetch `Response` whose body the caller consumes. Both blob helpers use HTTP hooks and run independently of method batches. See [Blobs](../features/blobs.md).
+
+## `onStateChange()`
+
+`onStateChange(handler, options?): Promise<Disposable>`
+
+The handler accepts either `(null, StateChangePayload)` or `(StateChangeError, undefined)`.
+
+| Option        | Default | Meaning                                |
+| ------------- | ------- | -------------------------------------- |
+| `pingSeconds` | `30`    | Requested server ping interval         |
+| `signal`      | None    | An abort event closes the subscription |
+
+The promise resolves after subscription setup, without waiting for a confirmed connection. The returned object has `[Symbol.dispose]()` when that symbol exists at runtime, or `disconnect()` otherwise. Passing a fresh abort signal provides a consistent cleanup mechanism.
+
+See [Events](../features/events.md) for state handling and the distinction between setup and callback errors.
 
 ## `cancelBatch()`
 
-**Returns:** `void`
+`cancelBatch(): void`
 
-Rejects currently queued method calls with `CancellationError` when called before the batch flush. It does not abort in-flight requests. Later calls may still run, but repeated cancellation does not cancel later batches in the current implementation. See [Batching](../features/batching.md).
+Rejects calls still in the queue with `CancellationError`. Call it synchronously before the batch flush. It does not abort an HTTP request already in progress.
+
+Only the first invocation triggers cancellation because the client retains one abort controller. Later calls can run, but subsequent invocations of `cancelBatch()` do not cancel their batches. See [Batching](../features/batching.md).

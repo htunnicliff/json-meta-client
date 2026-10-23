@@ -1,74 +1,82 @@
 # Types
 
-## Public Imports
+Import public types from `json-meta-client`. Most application code can let TypeScript infer method arguments, responses, and references from the configured client.
 
-Import public types from the package root:
+## Configuration and hooks
 
 ```ts
 import type {
   AfterResponseHook,
   BeforeRequestHook,
   BuiltInCapabilityName,
-  Capability,
   CapabilityOption,
   Config,
-  InferMethodsFromCapability,
-  MethodContract,
-  OnStateChangeOptions,
-  StateChangePayload,
 } from "json-meta-client";
 ```
 
-Internal helpers such as `Ref`, `ClientApi`, and `Middleware` are not public exports. Prefer inference for method promises and result references.
+| Export                  | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `Config<Capabilities>`  | Constructor configuration for a readonly capability array type            |
+| `BuiltInCapabilityName` | Supported built-in names, such as `"mail"`                                |
+| `CapabilityOption`      | A built-in name or a capability definition                                |
+| `BeforeRequestHook`     | Receives `{ request }`; returns a request or a promise for one            |
+| `AfterResponseHook`     | Receives `{ request, response }`; returns a response or a promise for one |
 
-## Client Configuration
+For a reusable configuration, preserve the capability names as literals so the client retains their method types:
 
-| Export                  | Purpose                                                  |
-| ----------------------- | -------------------------------------------------------- |
-| `Config<Capabilities>`  | Constructor options for a readonly capability array type |
-| `BuiltInCapabilityName` | Union of built-in configuration names                    |
-| `CapabilityOption`      | A built-in name or `Capability` definition               |
-| `DEFAULT_CAPABILITIES`  | Runtime constant containing the core capability          |
+```ts
+const options = {
+  sessionUrl: "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
+  capabilities: ["mail"] as const,
+};
 
-`DEFAULT_CAPABILITIES` is a value export. Import it without `type` if you need to inspect it at runtime. See [Configuration](./configuration.md) for option details.
+const client = new JsonMetaClient(options);
+```
 
-## Hook Types
+`DEFAULT_CAPABILITIES` is a value export containing the core definition. Import it without `type` when you want to inspect the value.
 
-`BeforeRequestHook` receives `{ request: Request }` and returns `Request | Promise<Request>`.
+## Capability contracts
 
-`AfterResponseHook` receives `{ request: Request; response: Response }` and returns `Response | Promise<Response>`.
+```ts
+import type { Capability, InferMethodsFromCapability, MethodContract } from "json-meta-client";
+```
 
-See [Hooks](../features/hooks.md) for ordering, body handling, and error behavior.
+`Capability<Entity, Methods, Urn>` carries the definition's entity names, method contracts, and identifier. `MethodContract` defines `input` and `output`, while `InferMethodsFromCapability<C>` retrieves a definition's method map.
 
-## Capability Types
+See [Capability API](./capability-api.md) for a complete custom definition and an output type that depends on input properties.
 
-- `Capability<Entity, Methods, Urn>` describes a capability’s entity names, method contracts, and identifier.
-- `MethodContract` has `input` and `output` members.
-- `InferMethodsFromCapability<C>` extracts a definition’s method map.
+## Response inference
 
-See [Capability API](./capability-api.md) for custom definitions and argument-dependent outputs.
-
-## Event Types
-
-`StateChangePayload` contains `accountId`, `entity`, and `state` strings, plus the `isPrimaryAccount` boolean. Primary-account detection uses the session’s primary mail account.
-
-`OnStateChangeOptions` accepts `pingSeconds?: number` and `signal?: AbortSignal`. See [Events](../features/events.md) for state-token semantics.
-
-## Inferred Method Types
-
-Built-in method contracts can derive their outputs from the supplied arguments. For example, selecting email properties narrows the records returned by `Email/get`:
+Built-in contracts can narrow returned records to match the requested properties:
 
 ```ts
 const result = await client.api.Email.get({
   ids: ["<email-id>"],
-  properties: ["subject", "from"],
+  properties: ["subject", "receivedAt"],
 });
 
-for (const email of result.list) {
-  console.log(email.subject, email.from);
+for (const message of result.list) {
+  console.log(message.subject, message.receivedAt);
 }
 ```
 
-Keep literal property selections when storing them in a variable, for example with `as const`. `.ref()` similarly infers the selected value from its response pointer.
+If you store a property selection separately, preserve its literals with `as const`. A widened array can lose the information the contract needs for precise output inference.
 
-Protocol types such as `Session` and `BlobUploadResponse` come from [`jmap-rfc-types`](https://www.npmjs.com/package/jmap-rfc-types). Add that package as a direct dependency if your application imports its types. Some built-in capabilities still use `any`; see [Capabilities](../features/capabilities.md).
+Result references carry the type selected by their pointer, so a reference to a query's `/ids` can be used where an ID array is expected. Internal helpers such as `Ref`, `ClientApi`, and `Middleware` are not package-root exports; prefer the inferred values instead of importing internal paths.
+
+These are compile-time guarantees. They do not check actual server payloads, and some built-in extensions use `any`. See [Capabilities](../features/capabilities.md) for the current coverage.
+
+## Event types
+
+```ts
+import type { OnStateChangeOptions, StateChangePayload } from "json-meta-client";
+```
+
+`OnStateChangeOptions` contains `pingSeconds?: number` and `signal?: AbortSignal`.
+
+`StateChangePayload` contains the strings `accountId`, `entity`, and `state`, plus `isPrimaryAccount: boolean`. The primary-account flag refers to the session's primary mail account. See [Events](../features/events.md) before using state tokens for synchronization.
+
+## Protocol types
+
+The underlying protocol types, including `Session` and `BlobUploadResponse`, come from [`jmap-rfc-types`](https://www.npmjs.com/package/jmap-rfc-types). Add that package as a direct dependency when importing its types in your application.

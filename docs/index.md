@@ -1,39 +1,56 @@
 # JSON Meta Client
 
-JSON Meta Client is a TypeScript JMAP client for Node.js and the browser. Call JMAP methods through a typed API, group calls into a single HTTP request, and use one call’s result as another call’s input.
+Build JMAP requests with ordinary TypeScript method calls. JSON Meta Client handles session discovery, authentication headers, request batching, and matching each response to its caller.
 
-[JMAP](https://jmap.io/) is a protocol for working with data such as email, mailboxes, and contacts. Your provider determines which capabilities and methods are available.
+[JMAP](https://jmap.io/) defines methods for accessing data such as mailboxes and messages. Your server decides which extensions it supports; the client supplies types and an HTTP interface to those methods.
 
-::: warning Alpha software
-The library is in alpha. Its API may change between releases.
+::: warning Alpha release
+The API is still evolving. Check release notes when upgrading.
 :::
 
-## Start Here
+## Your first request
 
-Follow [Getting Started](./introduction/getting-started.md) to install the package and make your first request. You’ll need a JMAP provider’s session URL and a bearer token.
-
-## Query and Fetch in One Request
-
-With a client configured for the `mail` capability:
+The [getting started guide](./introduction/getting-started.md) walks through installation, credentials, and fetching mail. Once a client is configured, a method call looks like this:
 
 ```ts
-const query = client.api.Email.query({ limit: 10 });
-const get = client.api.Email.get({
-  ids: query.ref("/ids"),
-  properties: ["subject", "from"],
-});
-const [, emails] = await Promise.all([query, get]);
+const result = await client.api.Mailbox.get({});
 
-for (const email of emails.list) {
-  console.log(email.subject);
+for (const mailbox of result.list) {
+  console.log(mailbox.name);
 }
 ```
 
-The query is deliberately created without `await`. Both calls enter the same [batch](./features/batching.md), and the server resolves the [result reference](./features/result-references.md) before fetching the emails.
+The result contains the method's response arguments. Session loading and the JMAP request envelope are handled for you.
 
-## Explore the Docs
+## Let the server connect the calls
 
-- [Examples](./introduction/examples.md): find an inbox, read emails, and watch for changes.
-- [Capabilities](./features/capabilities.md): choose built-in capabilities or define your own.
-- [Client API](./reference/client-api.md): look up methods and return values.
-- [Errors](./reference/errors.md): handle failed requests and method calls.
+A query returns IDs; a get call retrieves their records. Create both calls together and pass a reference between them:
+
+```ts
+const query = client.api.Email.query({ limit: 5 });
+const get = client.api.Email.get({
+  ids: query.ref("/ids"),
+  properties: ["subject"],
+});
+
+const [, messages] = await Promise.all([query, get]);
+console.log(messages.list);
+```
+
+Both methods travel in one API request. The server resolves the reference after running the query. Learn the timing rules in [Batching](./features/batching.md) and the pointer syntax in [Result references](./features/result-references.md).
+
+## Find your way around
+
+| You want to…                      | Read                                                 |
+| --------------------------------- | ---------------------------------------------------- |
+| Connect to a provider             | [Getting started](./introduction/getting-started.md) |
+| Read an inbox or update a message | [Examples](./introduction/examples.md)               |
+| Choose accounts and call methods  | [Method calls](./features/method-calls.md)           |
+| Enable a server extension         | [Capabilities](./features/capabilities.md)           |
+| Transfer files                    | [Blobs](./features/blobs.md)                         |
+| Respond to changes                | [Events](./features/events.md)                       |
+| Customize HTTP requests           | [Hooks](./features/hooks.md)                         |
+| Look up a signature               | [Client API](./reference/client-api.md)              |
+| Diagnose a failure                | [Errors](./reference/errors.md)                      |
+
+Examples use TypeScript and modern Web APIs. JavaScript applications use the same runtime API, without compile-time argument and response checking.

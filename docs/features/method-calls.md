@@ -1,47 +1,59 @@
-# Method Calls
+# Method calls
 
-Call a JMAP method with `client.api.<Entity>.<method>(args, options)`. Entity names are case-sensitive; method names match the JMAP protocol.
+JMAP names methods as `Entity/method`. On the client, call them as `client.api.Entity.method(arguments, options)`:
 
 ```ts
-const mailboxes = await client.api.Mailbox.query({
+const result = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
 
-console.log(mailboxes.ids);
+console.log(result.ids);
 ```
 
-The promise resolves to the method’s response arguments, such as `ids` or `list`. You do not need to unpack the JMAP invocation tuple or HTTP response.
+Entity names are case-sensitive. The promise resolves to the response arguments, so `result` above is the query response rather than an HTTP response or JMAP invocation tuple.
 
-The configured [capabilities](./capabilities.md) determine the methods TypeScript offers. The client does not validate method arguments or response records at runtime.
+## Arguments and accounts
 
-## Accounts
+Pass the arguments defined by the method's JMAP specification. The configured [capabilities](./capabilities.md) supply TypeScript contracts; the client does not validate argument values or returned records at runtime.
 
-If you omit `accountId`, the client supplies the session’s primary mail account. Pass an explicit account ID for shared accounts or capabilities that use a different account:
+For methods with an `accountId`, you can usually omit it to use the primary mail account. Choose another account explicitly:
 
 ```ts
-const result = await client.api.Mailbox.get({ accountId: "<account-id>" });
+const result = await client.api.Mailbox.get({
+  accountId: "<shared-account-id>",
+});
 ```
 
-## Call IDs and Metadata
+Inspect `session.accounts` after `await client.session` to find available accounts. Capability selection does not change the default account, so supply one explicitly for contacts and other extensions when needed.
 
-The optional second argument accepts an `id`. Use a unique ID for each call in a batch:
+## What happens when you call a method
+
+The call runs argument middleware and immediately joins the client's queue. A microtask flushes queued calls into an HTTP request; awaiting the promise observes its result rather than starting it.
+
+Create independent calls together to [batch them](./batching.md). For a dependency between two methods, use a [result reference](./result-references.md).
+
+## Identify a pending call
+
+The optional second argument lets you choose a call ID:
 
 ```ts
-const pending = client.api.Mailbox.get({}, { id: "get-mailboxes" });
+const pending = client.api.Mailbox.get({}, { id: "mailbox-list" });
 
-console.log(pending.$id); // "get-mailboxes"
+console.log(pending.$id); // "mailbox-list"
 console.log(pending.$method); // "Mailbox/get"
 
 const result = await pending;
 ```
 
-Without an explicit ID, the client generates `<Entity>/<method>::<random-UUID>`. The pending promise also exposes `$args`, the arguments after middleware has run. The automatically injected account ID is resolved lazily; await the session before reading it from `$args`.
+IDs must be unique within the batch. If omitted, the client creates an ID in the form `<Entity>/<method>::<random-UUID>`.
 
-Metadata and `.ref()` belong to the pending promise, rather than its resolved value. See [Result References](./result-references.md) to pass results between calls in the same request.
+The promise also has `$args` and `.ref(pointer)`. `$args` exposes the arguments after middleware, including rewritten reference keys. An automatically supplied account ID is a lazy property that needs the session to have loaded before you read it.
 
-## Responses and Errors
+These members are attached to the original promise. They are not properties of `result` or of a new promise returned by `.then()`.
 
-A method-level error rejects that call’s promise. A transport failure can reject every call in a batch. See [Errors](../reference/errors.md).
+## Interpret success and failure
 
-A successful `set` response can still contain failures for individual records. Check fields such as `notCreated`, `notUpdated`, and `notDestroyed`; those failures do not reject the promise.
+A method error rejects that call. A failure while loading the session or sending the HTTP request can reject all calls in the affected batch. The [error reference](../reference/errors.md) describes the error classes.
+
+A resolved `set` response only means the method itself succeeded. Check its per-record failure maps before telling a user that a record was created, updated, or destroyed.

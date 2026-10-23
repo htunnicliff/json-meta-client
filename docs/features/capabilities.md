@@ -2,21 +2,25 @@
 
 # Capabilities
 
-A capability describes a JMAP extension: its identifier, the entities it provides, and their method types. Configure the capabilities you plan to use so TypeScript can offer the corresponding `client.api` methods.
+Capabilities describe the extensions a JMAP server understands. A client definition associates a capability identifier with entity names and TypeScript method contracts.
+
+## Select the extensions you use
 
 ```ts
 const client = new JsonMetaClient({
-  bearerToken: "<bearer-token>",
   sessionUrl: "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
   capabilities: ["mail", "submission"],
 });
 ```
 
-For each batch, the client adds the core URN and the configured URNs associated with the called entities to the request’s `using` array. Choosing a capability does not add support for it to the server.
+This selection exposes mail and submission methods to TypeScript. For each request, the client includes the core identifier and the configured identifiers associated with the entities being called in JMAP's `using` array.
 
-## Built-in Capabilities
+Core method types are always available, even with `capabilities: []`. You do not have to add `core` explicitly.
 
-| Configuration name      | Identifier                                 | Entities                                      |
+## Built-in definitions
+
+| Name in configuration   | Capability identifier                      | Entities                                      |
 | ----------------------- | ------------------------------------------ | --------------------------------------------- |
 | `core`                  | `urn:ietf:params:jmap:core`                | `Core`, `Blob`, `PushSubscription`            |
 | `mail`                  | `urn:ietf:params:jmap:mail`                | `Mailbox`, `Thread`, `Email`, `SearchSnippet` |
@@ -27,19 +31,21 @@ For each batch, the client adds the core URN and the configured URNs associated 
 | `sieve`                 | `urn:ietf:params:jmap:sieve`               | `SieveScript`                                 |
 | `community:maskedEmail` | `https://www.fastmail.com/dev/maskedemail` | `MaskedEmail`                                 |
 
-Core method types are always included in the client API, and every request includes the core URN. You do not need to list `core` yourself.
+The `blob`, `contacts`, and `sieve` definitions still use `any` for some inputs or records. Their type checking is less complete than that of the mail definitions.
 
-The `blob`, `contacts`, and `sieve` definitions are not fully typed: some records or method arguments use `any`. The `blob` extension is separate from the [HTTP blob helpers](./blobs.md).
+The `blob` capability adds JMAP methods on `client.api.Blob`. Uploading and downloading raw bytes through `client.blob` are separate [HTTP operations](./blobs.md).
 
-## Choosing Capabilities
+## Check server and account support
 
-Check your provider’s documentation or inspect `await client.session`. On the first successful session load, the client warns if a configured entity’s capability is absent from `session.capabilities`. This warning does not prevent requests or remove methods from the API.
+Configuration supplies types; it cannot add an extension to a server. Check your provider's documentation or inspect `session.capabilities` after `await client.session`.
 
-An empty `capabilities` array is allowed; core method types remain available. For non-mail capabilities, pass an account ID that supports the capability. See [Method Calls](./method-calls.md).
+On the first successful session load, the client warns about configured entity capabilities missing from the session. It still permits calls. The server may reject a method or capability it does not support.
 
-## Custom Capabilities
+Account support also matters. Choose an account that supports the extension and pass its `accountId`. The client's automatic account selection always uses the primary mail account.
 
-Use `defineCapability()` for a server extension:
+## Describe a custom extension
+
+Use `defineCapability()` to retain literal entity names and attach your server's method contracts:
 
 ```ts
 import { defineCapability } from "json-meta-client";
@@ -57,12 +63,12 @@ const notes = defineCapability({
 }>();
 ```
 
-Pass the definition alongside built-in names in `capabilities: ["mail", notes]`. The identifier and methods must match a real extension supported by your server. The example identifier illustrates the API only.
+Register it alongside built-ins with `capabilities: ["mail", notes]`. This example assumes a hypothetical notes extension; replace its identifier, methods, and types with your server's actual contract.
 
-Without `.withMethods<...>()`, a definition permits arbitrary methods with unknown output types. See [Capability API](../reference/capability-api.md) for more on authoring contracts.
+Without `.withMethods<...>()`, the definition allows arbitrary method names and argument keys, with unknown response data. The [capability reference](../reference/capability-api.md) explains typed and argument-dependent contracts.
 
-## Combining Capabilities
+## Share an entity across extensions
 
-Capabilities can share an entity. Their method contracts are combined as TypeScript intersections, and calls on that entity include all its mapped capability identifiers in `using`.
+Multiple capabilities can contribute methods to the same entity. Their contracts combine by TypeScript intersection, and calls on that entity include all its configured identifiers in `using`.
 
-Keep shared method declarations compatible. The client does not detect conflicting contracts; incompatible declarations can produce unusable types such as `never`. Definitions provide type information, not runtime validation.
+Keep overlapping declarations compatible. Conflicting types can collapse to `never`, and the client does not diagnose conflicts or validate responses at runtime.

@@ -1,51 +1,55 @@
-# Result References
+# Result references
 
-A result reference tells the JMAP server to use data from an earlier method result as an argument to another call in the same request.
+A result reference passes data between methods inside a JMAP request. Instead of downloading a result and sending part of it back, you tell the server which earlier result to read.
 
-## Query Then Get
+## Fetch records from a query
 
 ```ts
-const query = client.api.Email.query({ limit: 10 });
+const query = client.api.Email.query({ limit: 5 });
 const get = client.api.Email.get({
   ids: query.ref("/ids"),
-  properties: ["subject"],
+  properties: ["subject", "receivedAt"],
 });
 
-const [, emails] = await Promise.all([query, get]);
+const [, messages] = await Promise.all([query, get]);
 ```
 
-Call `.ref()` on the pending method promise. Do not await the query before creating the get call: awaiting it would let the first batch complete.
+`query.ref("/ids")` describes the `ids` field of the query response. It does not read that field in JavaScript. The server runs the query, resolves the reference, and passes the resulting array to `Email/get`.
 
-## Pointer Paths
+Keep the original method promise to call `.ref()`. After awaiting the query, use the ordinary `result.ids` value for a later request.
 
-The pointer selects a value from the response arguments:
+## Choose a pointer
 
-| Pointer      | Selected value                    |
-| ------------ | --------------------------------- |
-| `/ids`       | The query’s ID array              |
-| `/list/0/id` | The first record’s ID             |
-| `/list/*/id` | An array of IDs from every record |
+Pointers start at the response arguments, without the surrounding JMAP response tuple.
 
-TypeScript infers the selected value’s type from the method’s response. The server evaluates the pointer at runtime, so the selected data must actually exist.
+| Pointer      | Meaning                                   |
+| ------------ | ----------------------------------------- |
+| `/ids`       | The entire `ids` field                    |
+| `/list/0/id` | The first record's ID                     |
+| `/list/*/id` | IDs collected from every record in `list` |
 
-## Wire Format
+The wildcard is JMAP's extension to JSON Pointer. TypeScript checks supported paths against the response type and carries the selected value's type into the receiving argument. The server still needs to find that data at runtime: an empty list, for example, has no first record.
 
-The client rewrites a referenced argument into JMAP’s `#` form. For the query/get example, the get arguments include:
+## Understand the request representation
+
+For the query/get example, the client replaces the `ids` argument with `#ids`:
 
 ```json
 {
   "#ids": {
-    "name": "Email/query",
     "resultOf": "<query-call-id>",
+    "name": "Email/query",
     "path": "/ids"
   }
 }
 ```
 
-`name` identifies the source method, `resultOf` identifies the call, and `path` selects its response data. The client also rewrites reference keys within nested argument objects. Whether a reference at a particular location is accepted depends on the server and method; the standard query/get pattern uses a top-level argument.
+`resultOf` names the earlier call, `name` identifies its method response, and `path` selects the value. The client supplies these fields from the source promise.
 
-## Constraints and Failures
+The reference middleware also rewrites keys inside nested objects. A server must explicitly support references in those locations; use top-level arguments such as `ids` for the standard JMAP pattern.
 
-Create the source call first, then the dependent call, on the same client and within the same batch. A reference cannot point into a previous HTTP request. After awaiting a result, pass its ordinary values instead.
+## Keep references within a request
 
-A failed source call or invalid pointer can cause the dependent call to reject with a JMAP error. See [Batching](./batching.md) and [Errors](../reference/errors.md).
+Create the source first and the receiving call second, synchronously on the same client. An intervening `await` can flush the source into an earlier request, making the reference unusable. Calls on different clients have different queues.
+
+Observe both promises, as the example does with `Promise.all()`. A source failure or invalid pointer can produce a JMAP error for the dependent method as well. See [Batching](./batching.md) and [Errors](../reference/errors.md).

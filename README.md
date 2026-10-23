@@ -1,123 +1,64 @@
-# json-meta-client
+# JSON Meta Client
+
+A TypeScript client for [JMAP](https://jmap.io/), the protocol used by email and other data services. JSON Meta Client gives you typed method calls, automatic request batching, and references between results in the same request. It runs in Node.js and browsers with modern Web APIs.
 
 > [!WARNING]
-> This library is alpha software.
+> The package is alpha software. Public APIs can change between releases.
 
-## Overview
-
-A [JMAP][jmap] client compatible with Node.js and the browser.
-
-## Installation
+## Install
 
 ```sh
-pnpm add json-meta-client
+npm install json-meta-client
 ```
 
-## Usage
+Use a current runtime, such as Node.js 24. You will need a JMAP session URL and a bearer token from your provider. Browser use also requires the provider to allow cross-origin requests.
 
-Create a client with the capabilities your JMAP server supports:
+## Read some mail
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<token>",
-  sessionUrl: "<session-url>",
-  capabilities: ["mail", "submission", "contacts"],
-});
-```
-
-#### Issue a single JMAP request
-
-```ts
-const response = await client.api.Mailbox.query({
-  filter: { role: "inbox" },
-  limit: 1,
+  sessionUrl:
+    "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
+  capabilities: ["mail"],
 });
 
-const [inboxId] = response.ids;
-```
-
-<details>
-<summary>View JMAP request</summary>
-
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "accountId": "<primary-account-id>",
-        "filter": { "role": "inbox" },
-        "limit": 1
-      },
-      "<opaque id>"
-    ]
-  ]
-}
-```
-
-</details>
-
-#### Issue a batch of JMAP requests
-
-This takes advantage of result references[^1]
-
-```ts
-import { ref } from "json-meta-client";
-
-// Note the lack of `await` here:
-const emailsQuery = client.api.Email.query({
-  inMailbox: inboxId,
+const query = client.api.Email.query({
+  sort: [{ property: "receivedAt", isAscending: false }],
   limit: 10,
 });
-
-const emails = await client.api.Email.get({
-  ids: ref(emailsQuery, "/ids"),
+const get = client.api.Email.get({
+  ids: query.ref("/ids"),
+  properties: ["subject", "from"],
 });
-```
 
-<details>
-<summary>View JMAP request</summary>
-
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "accountId": "<primary-account-id>",
-        "inMailbox": "<inbox-id>",
-        "limit": 10
-      },
-      "<opaque id #1>"
-    ],
-    [
-      "Email/get",
-      {
-        "accountId": "<primary-account-id>",
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "<opaque id #1>",
-          "path": "/ids"
-        }
-      },
-      "<opaque id #2>"
-    ]
-  ]
+const [, emails] = await Promise.all([query, get]);
+for (const email of emails.list) {
+  console.log(email.subject, email.from);
 }
 ```
 
-</details>
+Creating both calls before awaiting them puts them in one batch. The server uses the IDs from `Email/query` as the input to `Email/get`; the application receives the response arguments directly.
 
-[^1]: [RFC 8620 § 3.7 - References to Previous Method Results](https://jmap.io/spec/rfc8620/#section-3.7)
+The client discovers endpoint URLs through the session and defaults to its primary mail account. Pass `accountId` explicitly to work with another account. Keep bearer tokens out of source control and public browser bundles.
 
-[jmap]: https://jmap.io/
+## Documentation
+
+Start with the [installation and first-call guide](docs/introduction/getting-started.md), then try the [recipes](docs/introduction/examples.md). The [documentation index](docs/index.md) links to feature guides and the API reference.
+
+## Work on the project
+
+The repository pins its Node.js version in `.node-version` and its pnpm version in `package.json`.
+
+```sh
+pnpm install
+pnpm test
+pnpm build
+pnpm docs:dev
+```
+
+Run `pnpm docs:build` to check the documentation site, `pnpm fmt:check` for formatting, and `pnpm spelling:check` for spelling.
+
+Released under the [MIT license](LICENSE).

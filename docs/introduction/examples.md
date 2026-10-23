@@ -1,26 +1,28 @@
 # Examples
 
-These recipes assume a `client` created as shown in [Getting Started](./getting-started.md), with the `mail` capability. Replace placeholder IDs with values from your provider. Each recipe builds on the preceding values where noted.
+These recipes use the mail client from [Getting started](./getting-started.md). IDs in angle brackets are placeholders for values from your account.
 
-## Find the Inbox
+## Find the inbox
+
+Mailbox roles identify standard folders without relying on their display names.
 
 ```ts
-const mailboxes = await client.api.Mailbox.query({
+const result = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
 
-const [inboxId] = mailboxes.ids;
+const [inboxId] = result.ids;
 if (!inboxId) {
-  throw new Error("No inbox found in this account");
+  throw new Error("This account has no inbox mailbox");
 }
 ```
 
-A successful query can return an empty `ids` array. Check it before using the inbox ID.
+Keep `inboxId` for the next recipe. A successful query may return no IDs, so check before using the first result.
 
-## Read Inbox Emails
+## Read recent inbox messages
 
-Using `inboxId` from the previous recipe:
+Filter by the inbox ID, sort newest first, and fetch only the fields needed for a message list:
 
 ```ts
 const query = client.api.Email.query({
@@ -33,17 +35,17 @@ const get = client.api.Email.get({
   properties: ["subject", "from", "receivedAt"],
 });
 
-const [, emails] = await Promise.all([query, get]);
-for (const email of emails.list) {
-  console.log(email.subject, email.from, email.receivedAt);
+const [, messages] = await Promise.all([query, get]);
+for (const message of messages.list) {
+  console.log(message.receivedAt, message.from, message.subject);
 }
 ```
 
-This fetches up to ten recent inbox emails in one method-call request. See [Result References](../features/result-references.md).
+The two methods share one request. `Promise.all()` observes failures from both promises, including a query failure that prevents the server from resolving the reference.
 
-## Mark an Email as Read
+## Mark a message as read
 
-Patch the `$seen` keyword while leaving other keywords unchanged:
+Use a JMAP patch path to set one keyword without replacing the message's other keywords:
 
 ```ts
 const emailId = "<email-id>";
@@ -53,33 +55,36 @@ const result = await client.api.Email.set({
   },
 });
 
-if (result.notUpdated?.[emailId]) {
-  console.error(result.notUpdated[emailId]);
+const failure = result.notUpdated?.[emailId];
+if (failure) {
+  console.error("Could not update the message:", failure);
 } else if (result.updated && Object.hasOwn(result.updated, emailId)) {
-  console.log("Marked as read");
+  console.log("Message marked as read");
 }
 ```
 
-Per-record failures are part of the successful response, so check `notUpdated` even when the promise resolves. See [Errors](../reference/errors.md).
+A set call can resolve successfully while individual changes fail. Inspect the relevant `notCreated`, `notUpdated`, or `notDestroyed` map, as well as handling a rejected method promise.
 
-## Upload and Download a Blob
+## Round-trip a text file
 
 ```ts
-const uploaded = await client.blob.upload(new Blob(["Hello, JMAP!"], { type: "text/plain" }));
+const upload = await client.blob.upload(
+  new Blob(["A note from my application"], { type: "text/plain" }),
+);
 
-const response = await client.blob.download({
-  accountId: uploaded.accountId,
-  blobId: uploaded.blobId,
-  name: "hello.txt",
-  type: uploaded.type,
+const download = await client.blob.download({
+  accountId: upload.accountId,
+  blobId: upload.blobId,
+  name: "note.txt",
+  type: upload.type,
 });
 
-console.log(await response.text());
+console.log(await download.text());
 ```
 
-Uploading stores a blob; it does not create an email or attachment record. See [Blobs](../features/blobs.md).
+The upload stores bytes and returns a blob ID. Creating a message or attaching the blob to a record requires the appropriate JMAP method as a separate step. See [Blobs](../features/blobs.md).
 
-## Watch for Changes
+## Listen for mail changes
 
 ```ts
 const controller = new AbortController();
@@ -87,19 +92,19 @@ const controller = new AbortController();
 await client.onStateChange(
   (error, change) => {
     if (error) {
-      console.error(error);
+      console.error("Could not process a notification:", error);
       return;
     }
 
-    if (change.entity === "Email" && change.isPrimaryAccount) {
-      console.log("Email data changed:", change.state);
+    if (change.isPrimaryAccount && change.entity === "Email") {
+      console.log("Mail has changed; refresh the message list", change.state);
     }
   },
   { signal: controller.signal },
 );
 
-// Call when the view or application no longer needs updates:
+// Run during view or application cleanup.
 controller.abort();
 ```
 
-The notification does not contain email records. Use a saved data-type state with `Email/changes`, or rerun a query, to fetch updates. See [Events](../features/events.md) for state tokens and cleanup.
+The notification carries a state token, not the changed records. Refresh your query or use `Email/changes` with a previously saved data state. The [events guide](../features/events.md) explains which state tokens to keep and how to clean up a subscription.

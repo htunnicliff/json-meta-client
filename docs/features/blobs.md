@@ -1,40 +1,51 @@
 # Blobs
 
-Use `client.blob` to transfer raw data through the session’s upload and download URLs. These HTTP helpers are separate from `client.api.Blob` methods and do not enter method-call batches.
+A blob is a stored sequence of bytes. Use `client.blob` to upload or download those bytes through the URLs advertised in the session.
 
-## Uploading
+These helpers make their own HTTP requests. They do not join API method batches and are separate from the methods on `client.api.Blob`.
+
+## Upload bytes
 
 ```ts
-const uploaded = await client.blob.upload(new Blob(["Hello, JMAP!"], { type: "text/plain" }));
+const upload = await client.blob.upload(new Blob(["Meeting notes"], { type: "text/plain" }));
 
-console.log(uploaded.blobId, uploaded.type, uploaded.size);
+console.log(upload.accountId, upload.blobId, upload.type, upload.size);
 ```
 
-The body accepts a Fetch API `BodyInit`, such as a `Blob`, string, or byte array. A `Blob` with a type lets Fetch set the content type. The promise returns the server’s upload metadata, including `accountId`, `blobId`, `type`, and `size`.
+The body accepts Fetch's `BodyInit` values, including strings, byte arrays, and `Blob` objects. Giving a `Blob` a MIME type lets Fetch supply its content type.
 
-To choose an account, pass `{ accountId: "<account-id>" }` as the second argument.
+The response is the server's upload metadata. Save the blob ID if a subsequent JMAP method will use the content. An upload alone does not create an email, attachment record, or other application record.
 
-## Downloading
+To upload into a particular account, pass `{ accountId: "<account-id>" }` as the second argument.
+
+## Download bytes
+
+Using the metadata from the upload above:
 
 ```ts
 const response = await client.blob.download({
-  blobId: uploaded.blobId,
-  accountId: uploaded.accountId,
-  name: "hello.txt",
-  type: "text/plain",
+  accountId: upload.accountId,
+  blobId: upload.blobId,
+  name: "meeting-notes.txt",
+  type: upload.type,
 });
 
-const text = await response.text();
+const contents = await response.text();
+console.log(contents);
 ```
 
-`download()` returns a Fetch API `Response`. Read it with `.text()`, `.blob()`, or `.arrayBuffer()` as appropriate. Response bodies can only be consumed once unless cloned first.
+The return value is a standard `Response`. Choose `.text()`, `.blob()`, or `.arrayBuffer()` for the content you expect. Reading the body consumes it; clone the response first if you need a second reader.
 
-## Accounts and URLs
+`name` and `type` are download URL parameters. They describe the download and do not modify the stored bytes.
 
-Both helpers load the session as needed and expand its URL templates. Without `accountId`, they use the primary mail account. Pass an explicit account when working with blobs elsewhere.
+## Accounts, authentication, and URLs
 
-The `name` and `type` download parameters fill the server’s download URL template; they do not change the stored blob.
+Both helpers load the session when necessary. An omitted account ID uses its primary mail account; supply an explicit ID when the blob belongs elsewhere.
 
-## Failures
+The client expands the session's `uploadUrl` or `downloadUrl`, attaches its bearer token, and runs the configured [HTTP hooks](./hooks.md). Each supplied template parameter must have a matching placeholder. A missing placeholder raises `InvalidUriTemplateError`.
 
-Non-success HTTP responses reject with `HttpError`; fetch failures reject with `NetworkError`. A parameter without a matching URL-template placeholder produces `InvalidUriTemplateError`. See [Errors](../reference/errors.md).
+## Handle failures
+
+An unsuccessful HTTP status produces `HttpError`, while failures sending the request produce `NetworkError`. Uploads also parse the server's JSON metadata. Downloads leave body consumption to you, so handle errors from the body-reading method as well as from `download()` itself.
+
+See [Errors](../reference/errors.md) for guards and diagnostic fields.

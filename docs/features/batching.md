@@ -1,43 +1,46 @@
 # Batching
 
-JSON Meta Client automatically groups queued method calls into one JMAP request. Calls queue immediately, and the client schedules a flush with `queueMicrotask()`.
+Calls created together on one client can share a single JMAP request. This reduces HTTP round trips while keeping a separate promise for every method.
 
-## Concurrent Calls
-
-Create calls together before awaiting their results:
+## Create the calls before awaiting
 
 ```ts
 const mailboxes = client.api.Mailbox.get({});
-const emails = client.api.Email.query({ limit: 10 });
+const recentIds = client.api.Email.query({ limit: 10 });
 
-const [mailboxResult, emailResult] = await Promise.all([mailboxes, emails]);
+const [mailboxResult, queryResult] = await Promise.all([mailboxes, recentIds]);
 ```
 
-Both calls enter the same batch. Awaiting the first call before creating the second sends separate requests. Create all calls for a batch synchronously; an intervening `await` can allow the batch to flush.
+Both calls enter the queue immediately. The client uses `queueMicrotask()` to schedule its flush, so calls created synchronously together enter the same batch.
 
-The client does not split a batch to fit server limits. Keep the session’s advertised limits in mind when creating many calls.
+An `await` between calls gives the queued flush a chance to run. In particular, awaiting one method's result before creating the next sends separate requests. Create all members of a batch before yielding control.
 
-## Dependent Calls
+## Combine dependent methods
 
-Use a [result reference](./result-references.md) when a call needs data from an earlier call in the batch:
+When the second method needs a value from the first, let the server resolve a reference:
 
 ```ts
 const query = client.api.Email.query({ limit: 10 });
 const get = client.api.Email.get({ ids: query.ref("/ids") });
-const [queryResult, emails] = await Promise.all([query, get]);
+
+const [, messages] = await Promise.all([query, get]);
 ```
 
-The server evaluates the reference, so no client-side round trip is needed between query and get. `Promise.all()` also observes rejections from both calls.
+The query precedes the get call in the request. The server substitutes the query's IDs into the get arguments. See [Result references](./result-references.md) for the available pointer forms.
 
-## Failures
+## Handle every outcome
 
-Each method call has its own promise. A method error rejects that call; it does not automatically reject unrelated calls in the batch. An HTTP, network, or session-loading failure rejects all calls affected by the request.
+Each promise settles according to its own method response. One method error can leave other calls successful, although a dependent method may also fail if its source result is unavailable.
 
-`Promise.all()` rejects when any input rejects. Use `Promise.allSettled()` if you need to inspect every outcome.
+A session or transport failure affects every call in the request. `Promise.all()` rejects as soon as an input rejects; use `Promise.allSettled()` when you need to examine success and failure for each method separately.
 
-## Cancelling a Batch
+## Respect server limits
 
-Call `cancelBatch()` synchronously before the queued batch flushes:
+The client does not divide a large batch into smaller requests to fit the server's advertised limits. Read the session's limits and control how many calls you create together. If you split work across requests, references must stay within each individual request.
+
+## Cancel queued work
+
+Call `cancelBatch()` before the scheduled flush to reject the queued promises with `CancellationError`:
 
 ```ts
 const pending = client.api.Mailbox.get({});
@@ -46,8 +49,12 @@ client.cancelBatch();
 try {
   await pending;
 } catch (error) {
-  // The queued call rejects with CancellationError.
+  console.log("The queued call was cancelled");
 }
 ```
 
-Cancellation clears queued calls. It does not abort an in-flight fetch. Later calls can still run, but the current implementation uses a single abort controller: only the first `cancelBatch()` triggers cancellation. Do not rely on repeated calls to cancel later batches.
+Cancellation does not abort a request that has already started. New calls can still run afterward.
+
+::: warning Current cancellation limit
+The client uses one abort controller for its lifetime. Only the first `cancelBatch()` call emits an abort event; subsequent calls do not cancel later batches. Treat cancellation as a one-time operation on that client.
+:::

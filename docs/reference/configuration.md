@@ -1,60 +1,64 @@
 # Configuration
 
-Pass a configuration object to `new JsonMetaClient(options)`.
-
-## Required Options
-
-| Option         | Type                              | Description                                             |
-| -------------- | --------------------------------- | ------------------------------------------------------- |
-| `bearerToken`  | `string`                          | Non-empty bearer token sent in the authorization header |
-| `sessionUrl`   | `string \| URL`                   | Absolute URL from which to retrieve the JMAP session    |
-| `capabilities` | `ReadonlyArray<CapabilityOption>` | Built-in names and custom capability definitions        |
-
-The constructor validates the token’s shape and whether the URL can be parsed. Authentication and server support are determined when requests run.
+The constructor accepts `Config<Capabilities>`, where `Capabilities` is the type of the readonly capability array.
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<bearer-token>",
   sessionUrl: "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
   capabilities: ["mail"],
 });
 ```
 
-## Capability Selection
+## Required fields
 
-Each entry may be a built-in capability name or an object with a string `urn` and an array of string `entities`. Use `defineCapability()` to author custom definitions and preserve their types.
+| Field          | Type                              | Requirements                                          |
+| -------------- | --------------------------------- | ----------------------------------------------------- |
+| `sessionUrl`   | `string \| URL`                   | A parseable absolute session URL                      |
+| `bearerToken`  | `string`                          | A non-empty token, attached as bearer authorization   |
+| `capabilities` | `ReadonlyArray<CapabilityOption>` | Built-in names, custom definitions, or an empty array |
 
-An empty array is valid. Core API types and the core request URN are included automatically. See [Capabilities](../features/capabilities.md) for the built-in names and details of shared entities.
+Construction checks the token and URL shapes. Successful validation does not establish that the token is authorized or the endpoint is a working JMAP server; those checks happen through actual requests.
 
-## Hooks
+## Capability entries
 
-`hooks` accepts two optional arrays:
+Use a built-in name such as `"mail"`, or an object containing `urn: string` and `entities: ReadonlyArray<string>`. `defineCapability()` helps preserve literal names and attach method contracts to a custom definition.
 
-```ts
-import type { Config } from "json-meta-client";
+Core types and the core request identifier are included automatically. An empty capability array is valid. See [Capabilities](../features/capabilities.md) for names and server-support behavior.
 
-const hooks: Config<["mail"]>["hooks"] = {
-  beforeRequest: [({ request }) => request],
-  afterResponse: [({ response }) => response],
-};
-```
+## `hooks`
 
-`beforeRequest` functions return `Request | Promise<Request>`. `afterResponse` functions receive both `request` and `response`, and return `Response | Promise<Response>`. Each array runs in order and is awaited. See [Hooks](../features/hooks.md) for scope and examples.
+An optional object with two optional arrays:
 
-## Middleware
+| Field           | Callback receives                          | Callback returns                  |
+| --------------- | ------------------------------------------ | --------------------------------- |
+| `beforeRequest` | `{ request: Request }`                     | `Request` or `Promise<Request>`   |
+| `afterResponse` | `{ request: Request; response: Response }` | `Response` or `Promise<Response>` |
 
-::: warning Unstable API
-The `middleware` option may change. Prefer HTTP hooks for request and response customization.
+The arrays may be readonly. Their hooks run sequentially in the given order, passing each returned object to the next hook. These hooks cover session loading, method requests, and blobs; event streams use a separate connection.
+
+See [Hooks](../features/hooks.md) for examples and error propagation.
+
+## `middleware`
+
+::: warning Unstable option
+The middleware API may change. Use HTTP hooks when you need access to a request or response.
 :::
 
-`middleware` is an optional array of synchronous JSON-value transforms. Each receives the method arguments and returns the arguments for the next transform.
+An optional readonly array of synchronous functions, each taking and returning a JSON value. Middleware transforms method arguments when a call is created.
 
-Built-in transforms run first: nested result-reference rewriting, then lazy account ID injection. Your transforms run afterward in array order. They run when you create a call, before the session necessarily loads, so do not eagerly read an automatically injected `accountId` before loading the session.
+Transforms run in this order:
 
-## Validation and Defaults
+1. Rewrite result-reference argument keys.
+2. Add a lazy `accountId` property when it is absent.
+3. Run your supplied transforms in array order.
 
-Invalid constructor options throw `ConfigurationError`, with `CapabilityConfigurationError` for invalid capability definitions or unknown names. Capability support warnings occur on the first successful session load and do not throw.
+The session may not have loaded when middleware runs. Reading or spreading an object with an automatically injected account ID can evaluate that lazy property and throw. Load the session first if your transform needs to read the account ID.
 
-The client defaults omitted method and blob account IDs to the primary mail account. It does not select an account based on the entity’s capability. Pass `accountId` explicitly when needed. See [Errors](./errors.md).
+## Defaults and validation errors
+
+Method and blob account IDs default to the primary mail account. There is no automatic selection of an account based on the called entity's capability.
+
+The constructor throws `ConfigurationError` for rejected configuration and `CapabilityConfigurationError` for unknown built-in names or invalid capability identifiers/entities. The latter includes the given capability and available built-in names. See [Errors](./errors.md).

@@ -1,16 +1,20 @@
-# Getting Started
+# Getting started
 
-JSON Meta Client lets you call JMAP methods from TypeScript or JavaScript. This guide uses the `mail` capability to fetch email subjects.
+This guide connects a client to a JMAP mail account and reads a few message subjects.
 
-## Before You Start
+## Prepare your runtime and credentials
 
-You’ll need a JMAP provider that supports mail, its session URL, and a bearer token with permission to read mail. Your provider’s documentation explains how to obtain them. Some providers expose the session at `https://your-provider.example/.well-known/jmap`.
+Use a runtime with `fetch`, `Request`, `Response`, `URL.canParse()`, `crypto.randomUUID()`, and `Promise.withResolvers()`. Node.js 24 and current browsers provide these APIs.
 
-The client uses Web APIs including `fetch`, `Request`, `Response`, `URL.canParse()`, `crypto.randomUUID()`, and `Promise.withResolvers()`. Use a current runtime that provides these APIs, such as Node.js 24 or a current browser. Browser requests also require your provider to allow cross-origin access.
+Ask your provider for:
 
-Keep bearer tokens private. For a browser application, use an authentication flow supported by your provider; do not bundle a personal token into public assets.
+- Its JMAP session URL. Some providers use `https://your-provider.example/.well-known/jmap`.
+- A bearer token authorized to read your mail.
+- Confirmation that it supports the JMAP mail capability.
 
-## Installation
+For browser applications, the provider must also allow cross-origin requests. Obtain credentials through a flow intended for your application; a token bundled into public JavaScript is visible to everyone who downloads it.
+
+## Add the package
 
 ::: code-group
 
@@ -36,65 +40,69 @@ deno add npm:json-meta-client
 
 :::
 
-## Create a Client
+## Connect a client
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<bearer-token>",
   sessionUrl: "https://your-provider.example/.well-known/jmap",
+  bearerToken: "<bearer-token>",
   capabilities: ["mail"],
 });
 ```
 
-Replace the token and URL with your provider’s values. The `mail` capability adds typed methods for emails, mailboxes, threads, and search snippets. See [Capabilities](../features/capabilities.md) for other options.
+Replace both placeholders with your provider's values. The constructor checks the configuration without making an HTTP request. Selecting `mail` makes the mail methods available to TypeScript; it does not enable that extension on the server.
 
-Creating a client does not send a request. The client loads the session when it first needs it, then caches it.
-
-## Fetch Emails
+## Make a call
 
 ```ts
-const query = client.api.Email.query({ limit: 10 });
+const mailboxes = await client.api.Mailbox.get({});
+
+for (const mailbox of mailboxes.list) {
+  console.log(mailbox.id, mailbox.name);
+}
+```
+
+On this first call, the client fetches the session to discover the API endpoint and primary mail account. It then sends `Mailbox/get`. The promise resolves to the response arguments, including `list`.
+
+The session promise is cached. You can inspect it with `await client.session` and replace it with `await client.refreshSession()`. A failed session load is cached too, so use `refreshSession()` when you are ready to retry.
+
+## Query and retrieve messages
+
+```ts
+const query = client.api.Email.query({
+  sort: [{ property: "receivedAt", isAscending: false }],
+  limit: 5,
+});
 const get = client.api.Email.get({
   ids: query.ref("/ids"),
   properties: ["subject", "from"],
 });
-const [, emails] = await Promise.all([query, get]);
 
-for (const email of emails.list) {
-  console.log(email.subject, email.from);
+const [, messages] = await Promise.all([query, get]);
+for (const message of messages.list) {
+  console.log(message.subject, message.from);
 }
 ```
 
-`Email/query` finds email IDs. `Email/get` fetches the selected properties for those IDs. Creating both calls before awaiting them lets the client send both calls in one request. The server substitutes the query’s IDs into the get call using a [result reference](../features/result-references.md).
+The query finds the five most recent message IDs. The get call uses those IDs to request subjects and senders. Creating both calls synchronously lets them share one request, and `.ref("/ids")` tells the server where to obtain the get call's input.
 
-For independent calls, you can await each method directly:
+Awaiting the query before creating the get call would send two requests. Read [Batching](../features/batching.md) for the scheduling rules.
 
-```ts
-const mailboxes = await client.api.Mailbox.get({});
-console.log(mailboxes.list);
-```
+## Choose another account
 
-## Session and Accounts
-
-By default, method calls use the session’s primary **mail** account. To use another account, pass `accountId` in the method arguments:
+Omitting `accountId` selects the session's primary **mail** account. To access a shared account or a different capability, inspect the session and supply an appropriate account explicitly:
 
 ```ts
 const session = await client.session;
 console.log(session.accounts);
 
-const mailboxes = await client.api.Mailbox.get({
+const result = await client.api.Mailbox.get({
   accountId: "<account-id>",
 });
 ```
 
-For capabilities such as contacts, explicitly select an account that supports the capability. The default is still the mail account, regardless of the entity being called.
+The default does not change when you call a contacts or custom method. Your chosen account must support the requested capability.
 
-Use `await client.refreshSession()` to retrieve and cache a fresh session. If the initial session load fails, call `refreshSession()` to retry it.
-
-## Next Steps
-
-- Try the [Examples](./examples.md).
-- Learn how [Method Calls](../features/method-calls.md) and [Batching](../features/batching.md) work.
-- Read about [Errors](../reference/errors.md) before adding failure handling.
+You can now work through the [recipes](./examples.md), configure more [capabilities](../features/capabilities.md), or add [error handling](../reference/errors.md).

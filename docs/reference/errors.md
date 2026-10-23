@@ -1,8 +1,10 @@
 # Errors
 
-## Handling Errors
+Failures can occur before a call is queued, while an HTTP request is running, or inside a successful JMAP response. Handle the level relevant to your operation.
 
-Library error classes extend `JsonMetaError`. Each class has an exported `is*Error` guard for narrowing caught values:
+## Narrow a caught error
+
+Library errors extend `JsonMetaError`. Each exported class has a matching guard, such as `isHttpError`:
 
 ```ts
 import { isHttpError, isJmapError } from "json-meta-client";
@@ -11,61 +13,63 @@ try {
   await client.api.Mailbox.get({});
 } catch (error) {
   if (isHttpError(error)) {
-    console.error("HTTP status:", error.status);
+    console.error("Request failed with HTTP status", error.status);
   } else if (isJmapError(error)) {
-    console.error("JMAP error:", error.type, error.detail);
+    console.error("Method failed:", error.type, error.detail);
   } else {
     throw error;
   }
 }
 ```
 
-Errors can contain request objects, arguments, or configuration values. Choose diagnostic fields deliberately when logging; avoid exposing tokens or private data.
+Keep a fallback for other values. For example, invalid JSON in a successful response can throw `SyntaxError`, and after-response hook exceptions are passed through unchanged.
 
-## Configuration Errors
+Errors may retain requests, configuration, or method arguments. Log selected fields rather than entire objects when those objects could contain credentials or private data.
 
-`ConfigurationError` indicates invalid client configuration. It is thrown synchronously by constructor validation and can also occur while resolving lazily injected account IDs.
+## Configuration
 
-`CapabilityConfigurationError` extends `ConfigurationError` and adds:
+| Class                          | Meaning                                                                       | Useful fields                          |
+| ------------------------------ | ----------------------------------------------------------------------------- | -------------------------------------- |
+| `ConfigurationError`           | Invalid client setup or an unavailable session during lazy account resolution | `cause`, when provided                 |
+| `CapabilityConfigurationError` | An unknown built-in capability or invalid definition                          | `givenCapability`, `availableBuiltIns` |
 
-- `givenCapability`: the invalid definition or built-in name.
-- `availableBuiltIns`: supported built-in names.
+`CapabilityConfigurationError` extends `ConfigurationError`. Constructor validation is synchronous, so catch it around construction rather than around a later method promise.
 
-An unsupported server capability produces a console warning on the first successful session load rather than a thrown exception.
+A configured capability missing from the server's first successfully loaded session produces a console warning. It does not prevent calls from being sent.
 
-## HTTP and Network Errors
+## HTTP and network failures
 
-| Error          | Meaning                                                 | Diagnostic fields                               |
-| -------------- | ------------------------------------------------------- | ----------------------------------------------- |
-| `HttpError`    | Received a response with `ok === false`                 | `status`, `request`, `response`, `responseData` |
-| `NetworkError` | Could not prepare, send, or read a request successfully | `request` when available, `cause`               |
+| Class          | Meaning                                                              | Useful fields                                   |
+| -------------- | -------------------------------------------------------------------- | ----------------------------------------------- |
+| `HttpError`    | A returned response has `ok === false`                               | `status`, `request`, `response`, `responseData` |
+| `NetworkError` | Request preparation, sending, or reading a JSON response body failed | `request` when available, `cause`               |
 
-`responseData` contains parsed JSON or text when it could be read. Before-request hook failures are also wrapped in `NetworkError` unless they already extend `JsonMetaError`.
+For `HttpError`, `responseData` holds parsed JSON or text when the body could be read. A before-request hook exception is wrapped in `NetworkError` unless it is already a `JsonMetaError`.
 
-Transport or session failures reject all method calls sharing the affected batch.
+Session and transport failures reject every method in the affected batch. Reading a downloaded blob's body is the caller's responsibility; errors from that read need their own handling.
 
-## Method Errors
+## Method failures
 
-`JmapError` represents a JMAP method error with a string `type`. It exposes `type`, optional problem-detail fields (`detail`, `instance`, `limit`, `methodCallId`, `status`), and the associated `methodCall` when available. The original details are in `cause`.
+`JmapError` represents a method error with a string `type`. It exposes that type, the original details as `cause`, and the associated `methodCall` when available. Optional detail fields are `detail`, `instance`, `limit`, `methodCallId`, and `status`.
 
-`MethodCallError` indicates a missing response, an unexpected method name, or an error response without recognized problem details. It exposes `methodCall` and `responseData` when available.
+`MethodCallError` means the client could not use the method response: it was missing, had an unexpected method name, or supplied unrecognized error details. Diagnostic fields are `methodCall` and `responseData` when available.
 
-These errors reject the affected method promise. Unrelated calls in the batch may succeed.
+These failures reject the affected promise. Other methods in the batch may still succeed.
 
-A successful `set` response can contain per-record failures in `notCreated`, `notUpdated`, or `notDestroyed`. Inspect those fields explicitly; they do not reject the promise.
+### Record-level failures
 
-## Cancellation and Events
+A `set` response can resolve while some requested changes fail. Check `notCreated`, `notUpdated`, and `notDestroyed` alongside the successful result fields. These entries do not become rejected promises. The [mark-as-read recipe](../introduction/examples.md#mark-a-message-as-read) demonstrates this check.
 
-`CancellationError` rejects queued calls cleared by `cancelBatch()`. It does not indicate that an in-flight HTTP request was aborted.
+## Cancellation and subscriptions
 
-`StateChangeError` is delivered to an event subscription’s callback when processing an incoming message fails. Subscription setup errors instead reject `onStateChange()`. See [Events](../features/events.md).
+`CancellationError` rejects work removed from the queue by `cancelBatch()`. It does not mean an in-flight fetch was aborted. See the current limits in [Batching](../features/batching.md).
 
-## Other Errors
+`StateChangeError` is passed to an event handler when an incoming notification cannot be processed. Subscription setup failures instead reject `onStateChange()`. See [Events](../features/events.md) for cleanup and asynchronous handler work.
 
-`InvalidUriTemplateError` means a supplied parameter has no matching placeholder in a session URL template. It exposes `uriTemplate`, `givenParameters`, and `availableParameters`.
+## URL templates and fallback errors
 
-`UnknownError` is a fallback library error, including when constructing a `JmapError` with unrecognized problem details.
+`InvalidUriTemplateError` reports a supplied parameter whose placeholder is absent from a session URL template. It exposes `uriTemplate`, `givenParameters`, and `availableParameters`.
 
-Not every failure is wrapped in a library error. For example, malformed successful JSON can produce `SyntaxError`, and exceptions from after-response hooks propagate directly. Keep a fallback path when handling caught values.
+`UnknownError` is a fallback, including when `JmapError` is constructed with unrecognized problem details.
 
-All classes above have matching guards, such as `isNetworkError`, `isMethodCallError`, and `isJsonMetaError`, exported from `json-meta-client`.
+All the classes on this page, their matching `is*Error` guards, and `isJsonMetaError` are available from `json-meta-client`.
