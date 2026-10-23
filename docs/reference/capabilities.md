@@ -1,5 +1,9 @@
 # Capabilities
 
+:::warning IN PROGRESS
+These docs are not yet complete.
+:::
+
 <script setup>
   import {data as builtIns } from './capabilities.data.ts';
 

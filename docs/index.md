@@ -1,5 +1,9 @@
 # Introduction
 
+:::warning IN PROGRESS
+These docs are not yet complete.
+:::
+
 ## Installation
 
 Install the library using a package manager:
@@ -64,7 +68,7 @@ import {data as pkg} from './pkg.data.ts'
 
 ## Configuration
 
-Configure a client with a bearer token, session URL, and [capabilities](./features/capabilities.md):
+Configure a client with a bearer token, session URL, and capabilities:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -72,7 +76,7 @@ import { JsonMetaClient } from "json-meta-client";
 const client = new JsonMetaClient({
   bearerToken: "<token>",
   sessionUrl: "<server>/.well-known/jmap",
-  capabilities: ["mail"],
+  capabilities: ["mail", "submission"],
 });
 ```
 
