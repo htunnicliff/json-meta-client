@@ -180,10 +180,19 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;
-} & (Method extends "set" ? {
-  /** Reference an object created by this /set call using its creation ID. */
-  created: <Key extends keyof NonNullable<Args extends { create?: infer C } ? C : never> & string>(id: Key) => `#${Key}`;
-} : {});
+} & (Method extends "set"
+    ? {
+        /**
+         * Reference an object created by this /set call using its creation ID.
+         * The call consuming this reference must be queued in the same batch.
+         */
+        created: <
+          Key extends keyof NonNullable<Args extends { create?: infer C } ? C : never> & string,
+        >(
+          id: Key,
+        ) => `#${Key}`;
+      }
+    : {});
 
 /**
  * A partially-configured capability that supports using

@@ -1,3 +1,4 @@
+import type { Request as JMAPRequest } from "jmap-rfc-types";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { mail } from "../capabilities/mail.ts";
@@ -6,9 +7,20 @@ import { JsonMetaClient } from "../client.ts";
 
 const apiUrl = "https://example.test/api";
 
+function isJmapRequest(value: unknown): value is JMAPRequest {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "using" in value &&
+    Array.isArray(value.using) &&
+    "methodCalls" in value &&
+    Array.isArray(value.methodCalls)
+  );
+}
+
 function setup() {
-  const requests: unknown[] = [];
-  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+  const requests: JMAPRequest[] = [];
+  const fetchMock = vi.fn<typeof fetch>(async (input) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url.endsWith("/session")) {
       return Response.json({
@@ -21,11 +33,9 @@ function setup() {
       });
     }
     if (url === apiUrl) {
-      const bodyText = input instanceof Request ? await input.text() : String(init?.body ?? "");
-      const parsed: unknown = JSON.parse(bodyText);
-      const body = parsed as {
-        methodCalls: Array<[string, unknown, string]>;
-      };
+      if (!(input instanceof Request)) throw new TypeError("Expected a Request");
+      const body: unknown = JSON.parse(await input.text());
+      if (!isJmapRequest(body)) throw new TypeError("Expected a JMAP request");
       requests.push(body);
       return Response.json({
         methodResponses: body.methodCalls.map(([method, , id]) => [method, {}, id]),
@@ -70,9 +80,8 @@ describe("set creation references", () => {
     });
     await Promise.all([draft, sent]);
     expect(requests).toHaveLength(1);
-    const payload = requests[0] as unknown as {
-      methodCalls: Array<[string, { create: Record<string, unknown> }, string]>;
-    };
+    const payload = requests[0];
+    if (!payload) throw new Error("Expected one JMAP request");
     expect(payload.methodCalls[1]?.[1]).toMatchObject({
       create: { submission: { emailId: "#draft", identityId: "identity" } },
     });
@@ -81,7 +90,7 @@ describe("set creation references", () => {
   it("rejects an unknown creation ID from a real Email.set call", async () => {
     const { client } = setup();
     const draft = client.api.Email.set({ create: { draft: { subject: "Hello" } } });
-    expect(() => draft.created("missing" as never)).toThrow(RangeError);
+    expect(() => Reflect.apply(draft.created, draft, ["missing"])).toThrow(RangeError);
     await draft;
   });
 
