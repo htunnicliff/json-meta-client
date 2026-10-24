@@ -15,6 +15,10 @@ import type {
 
 import type { Capability } from "../../capability.ts";
 
+export interface ContactsAccountCapabilities {
+  mayCreateAddressBook: boolean;
+}
+
 export const contacts: Capability<
   "AddressBook" | "ContactCard",
   {
@@ -59,7 +63,8 @@ export const contacts: Capability<
       };
     };
   },
-  "urn:ietf:params:jmap:contacts"
+  "urn:ietf:params:jmap:contacts",
+  ContactsAccountCapabilities
 > = {
   urn: "urn:ietf:params:jmap:contacts",
   entities: ["AddressBook", "ContactCard"],

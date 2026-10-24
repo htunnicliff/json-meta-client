@@ -53,6 +53,31 @@ describe("Capability type", () => {
         }>(),
       );
     });
+
+    it("preserves account and session capability detail types", () => {
+      interface AccountCapabilities {
+        mayCreateExample: boolean;
+      }
+
+      interface SessionCapabilities {
+        maxExamples: number;
+      }
+
+      const configured = cap.withMethods<
+        CapabilityMethods<Entities>,
+        AccountCapabilities,
+        SessionCapabilities
+      >();
+
+      type Expected = Capability<
+        Entities,
+        CapabilityMethods<Entities>,
+        "urn:ietf:params:jmap:mail",
+        AccountCapabilities,
+        SessionCapabilities
+      >;
+      expectTypeOf(configured).toEqualTypeOf<Expected>();
+    });
   });
 });
 
