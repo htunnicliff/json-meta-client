@@ -9,7 +9,7 @@ import type { Capability } from "../capability.ts";
 /**
  * Server-wide limits and features advertised by the JMAP Core capability.
  *
- * @see https://www.rfc-editor.org/rfc/rfc8620.html#section-2.1
+ * @see https://www.rfc-editor.org/rfc/rfc8620.html#section-2
  */
 export interface CoreSessionCapabilities {
   maxSizeUpload: number;

@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 
+import { blob, contacts, sieve, submission } from "../capabilities/index.ts";
 import { JsonMetaClient, defineCapability } from "../index.ts";
 import type {
   CapabilityOption,
@@ -54,7 +55,10 @@ describe("session capability details", () => {
           isPersonal: false,
           isReadOnly: true,
           accountCapabilities: {
-            "urn:ietf:params:jmap:contacts": { mayCreateAddressBook: false },
+            "urn:ietf:params:jmap:contacts": {
+              maxAddressBooksPerCard: null,
+              mayCreateAddressBook: false,
+            },
           },
         },
       },
@@ -117,6 +121,93 @@ describe("session capability details", () => {
     if (core) {
       expectTypeOf(core.maxCallsInRequest).toBeNumber();
       expectTypeOf(core.vendorVersion).toBeString();
+    }
+  });
+});
+
+describe("built-in RFC capability details", () => {
+  const client = new JsonMetaClient({
+    ...options,
+    capabilities: ["submission", "blob", "contacts", "sieve"],
+  });
+
+  it("infers identical session details from built-in names and objects", () => {
+    const objectClient = new JsonMetaClient({
+      ...options,
+      capabilities: [submission, blob, contacts, sieve],
+    });
+
+    expectTypeOf(client.session).toEqualTypeOf(objectClient.session);
+    expectTypeOf(client.refreshSession).toEqualTypeOf(objectClient.refreshSession);
+  });
+
+  it("exposes submission limits and SMTP extension arguments per account", async () => {
+    const account = (await client.session).accounts["primary"]!;
+
+    expectTypeOf(account.accountCapabilities[submission.urn]).toEqualTypeOf<
+      | {
+          maxDelayedSend: number;
+          submissionExtensions: Record<string, string[]>;
+        }
+      | undefined
+    >();
+  });
+
+  it("exposes blob management limits and supported names per account", async () => {
+    const account = (await client.session).accounts["primary"]!;
+
+    expectTypeOf(account.accountCapabilities[blob.urn]).toEqualTypeOf<
+      | {
+          maxSizeBlobSet: number | null;
+          maxDataSources: number;
+          supportedTypeNames: string[];
+          supportedDigestAlgorithms: string[];
+        }
+      | undefined
+    >();
+  });
+
+  it("exposes contact address book limits and permissions per account", async () => {
+    const account = (await client.session).accounts["primary"]!;
+
+    expectTypeOf(account.accountCapabilities[contacts.urn]).toEqualTypeOf<
+      | {
+          maxAddressBooksPerCard: number | null;
+          mayCreateAddressBook: boolean;
+        }
+      | undefined
+    >();
+  });
+
+  it("exposes Sieve implementation per session and limits per account", async () => {
+    const session = await client.session;
+    const account = session.accounts["primary"]!;
+
+    expectTypeOf(session.capabilities[sieve.urn]).toEqualTypeOf<
+      { implementation: string } | undefined
+    >();
+    expectTypeOf(account.accountCapabilities[sieve.urn]).toEqualTypeOf<
+      | {
+          maxSizeScriptName: number;
+          maxSizeScript: number | null;
+          maxNumberScripts: number | null;
+          maxNumberRedirects: number | null;
+          sieveExtensions: string[];
+          notificationMethods: string[] | null;
+          externalLists: string[] | null;
+        }
+      | undefined
+    >();
+
+    const details = account.accountCapabilities[sieve.urn];
+    if (details) {
+      // @ts-expect-error - Sieve implementation is session metadata, not account metadata.
+      void details.implementation;
+    }
+    const implementation = session.capabilities[sieve.urn];
+    if (implementation) {
+      // @ts-expect-error - Script limits are account metadata, not session metadata.
+      void implementation.maxSizeScript;
     }
   });
 });
