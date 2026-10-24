@@ -142,7 +142,7 @@ export type CapabilityMethods<Entity extends string> = {
 
 export type Augment<T extends CapabilityMethods<string>> = {
   [Entity in keyof T]: {
-    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method]>;
+    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method], Method & string>;
   };
 };
 
@@ -167,7 +167,7 @@ export interface AugmentedOptions {
   id?: string;
 }
 
-export type AugmentMethod<Contract extends MethodContract> = <
+export type AugmentMethod<Contract extends MethodContract, Method extends string = string> = <
   Args extends MethodArguments<Contract>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
@@ -180,7 +180,10 @@ export type AugmentMethod<Contract extends MethodContract> = <
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;
-};
+} & (Method extends "set" ? {
+  /** Reference an object created by this /set call using its creation ID. */
+  created: <Key extends keyof NonNullable<Args extends { create?: infer C } ? C : never> & string>(id: Key) => `#${Key}`;
+} : {});
 
 /**
  * A partially-configured capability that supports using
