@@ -5,7 +5,26 @@ import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-i
 export default defineConfig({
   title: "JSON Meta Client",
   description: "A JMAP client compatible with Node.js and the browser",
+  lastUpdated: true,
+  lang: "en-US",
+  cleanUrls: true,
+  sitemap: {
+    hostname: "https://json-meta-client.dev",
+  },
   themeConfig: {
+    search: {
+      provider: "local",
+    },
+    lastUpdated: {
+      formatOptions: {
+        dateStyle: "long",
+        timeStyle: "short",
+        localeMatcher: "best fit",
+      },
+    },
+    editLink: {
+      pattern: "https://github.com/htunnicliff/json-meta-client/edit/main/docs/:path",
+    },
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: "Getting Started", link: "/" },
