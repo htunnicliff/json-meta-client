@@ -61,8 +61,8 @@ export function createApi<T extends object>({
                 });
 
                 const created = (id: string): string => {
-                  const create = (methodCall.args as { create?: Record<string, unknown> }).create;
-                  if (!create || !Object.hasOwn(create, id)) {
+                  const create = Reflect.get(methodCall.args, "create") as unknown;
+                  if (typeof create !== "object" || create === null || !Object.hasOwn(create, id)) {
                     throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
                   }
                   return `#${id}`;
