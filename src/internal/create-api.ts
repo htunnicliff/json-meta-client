@@ -60,7 +60,16 @@ export function createApi<T extends object>({
                   resultOf: methodCall.id,
                 });
 
+                const created = (id: string): string => {
+                  const create = (methodCall.args as { create?: Record<string, unknown> }).create;
+                  if (!create || !Object.hasOwn(create, id)) {
+                    throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
+                  }
+                  return `#${id}`;
+                };
+
                 const withMethodCall = Object.assign(withRefMethod, {
+                  ...(method === "set" ? { created } : {}),
                   $id: methodCall.id,
                   $args: methodCall.args,
                   $method: methodCall.method,
