@@ -21,7 +21,8 @@ function setup() {
       });
     }
     if (url === apiUrl) {
-      const body = JSON.parse(String(init?.body)) as {
+      const bodyText = input instanceof Request ? await input.text() : String(init?.body);
+      const body = JSON.parse(bodyText) as {
         methodCalls: Array<[string, unknown, string]>;
       };
       requests.push(body);
