@@ -109,7 +109,7 @@ const [inboxId] = queryMailboxes.list;
         "limit": 1,
         "accountId": "*********"
       },
-      "Mailbox/query::e64dc905-5f3e-445b-94da-06e6f18e29e8"
+      "Mailbox/query::e64dc905"
     ]
   ]
 }
@@ -163,14 +163,14 @@ async function* getEmails(limit = 10) {
         "anchor": "<last-email-id>",
         "accountId": "*********"
       },
-      "Email/query::68ed8b27-dc50-45f2-a7f1-5f328d8ded9e"
+      "Email/query::d1ca7ea5"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::68ed8b27-dc50-45f2-a7f1-5f328d8ded9e",
+          "resultOf": "Email/query::68ed8b27",
           "path": "/ids"
         },
         "properties": [
@@ -183,7 +183,7 @@ async function* getEmails(limit = 10) {
         ],
         "accountId": "*********"
       },
-      "Email/get::a4f7a29b-f086-4b6c-8adb-89e4f12bad69"
+      "Email/get::a4f7a29b"
     ]
   ]
 }

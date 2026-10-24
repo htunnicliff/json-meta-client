@@ -54,20 +54,20 @@ for (const mailbox of getMailboxes.list) {
         },
         "accountId": "*********"
       },
-      "Mailbox/query::33f05dca-6c62-499d-9dd8-86cfbecc1c1c"
+      "Mailbox/query::33f05dca"
     ],
     [
       "Mailbox/get",
       {
         "#ids": {
           "name": "Mailbox/query",
-          "resultOf": "Mailbox/query::33f05dca-6c62-499d-9dd8-86cfbecc1c1c",
+          "resultOf": "Mailbox/query::33f05dca",
           "path": "/ids"
         },
         "properties": ["id", "name"],
         "accountId": "*********"
       },
-      "Mailbox/get::8094dff8-4f6a-4ffa-a16b-95d87f34641d"
+      "Mailbox/get::8094dff8"
     ]
   ]
 }
@@ -121,14 +121,14 @@ for (const email of getEmails.list) {
         },
         "accountId": "*********"
       },
-      "Email/query::6f7adf07-3acb-44c7-9bb3-eea4294278fc"
+      "Email/query::6f7adf07"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::6f7adf07-3acb-44c7-9bb3-eea4294278fc",
+          "resultOf": "Email/query::6f7adf07",
           "path": "/ids"
         },
         "properties": [
@@ -140,7 +140,7 @@ for (const email of getEmails.list) {
         ],
         "accountId": "*********"
       },
-      "Email/get::c2ef5d19-35d9-46e6-8917-4a2f3ebbcf42"
+      "Email/get::c2ef5d19"
     ]
   ]
 }
@@ -186,14 +186,14 @@ const identity = identities.list[0];
         },
         "accountId": "*********"
       },
-      "Mailbox/query::7478d066-7714-44e5-b050-d6a17b48d7e4"
+      "Mailbox/query::7478d066"
     ],
     [
       "Identity/get",
       {
         "accountId": "*********"
       },
-      "Identity/get::f33ce75b-c4b6-49d4-a712-b4f36b262a8e"
+      "Identity/get::f33ce75b"
     ]
   ]
 }
@@ -298,7 +298,7 @@ await client.api.EmailSubmission.set({
         },
         "accountId": "*********"
       },
-      "Email/set::e6af7055-3bc4-436a-9da9-6f6d5778b7bb"
+      "Email/set::e6af7055"
     ],
     [
       "EmailSubmission/set",
@@ -312,7 +312,7 @@ await client.api.EmailSubmission.set({
         "onSuccessDestroyEmail": ["#submission"],
         "accountId": "*********"
       },
-      "EmailSubmission/set::ac3e2f7c-7d67-4e1e-ba54-5f41df26ee5a"
+      "EmailSubmission/set::ac3e2f7c"
     ]
   ]
 }
