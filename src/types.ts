@@ -91,12 +91,13 @@ type JmapAccount = JmapSession["accounts"][string];
 
 /**
  * A JMAP session augmented with the capability details configured for a client.
+ * Configured capabilities may be absent from the server or an individual account.
  */
 export type ClientSession<T extends ReadonlyArray<CapabilityOption>> = JmapSession & {
-  capabilities: SessionCapabilityDetails<ResolvedClientCapability<T>>;
+  capabilities: Partial<SessionCapabilityDetails<ResolvedClientCapability<T>>>;
   accounts: {
     [accountId: string]: JmapAccount & {
-      accountCapabilities: AccountCapabilityDetails<ResolvedClientCapability<T>>;
+      accountCapabilities: Partial<AccountCapabilityDetails<ResolvedClientCapability<T>>>;
     };
   };
 };

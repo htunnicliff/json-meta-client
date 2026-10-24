@@ -42,18 +42,23 @@ describe(JsonMetaClient, () => {
       capabilities: [contacts],
     }).session;
 
-    expectTypeOf(session.capabilities[core.urn].maxCallsInRequest).toBeNumber();
-    expectTypeOf(session.capabilities[core.urn].collationAlgorithms).toEqualTypeOf<string[]>();
+    expectTypeOf(session.capabilities[core.urn]?.maxCallsInRequest).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(session.capabilities[core.urn]?.collationAlgorithms).toEqualTypeOf<
+      string[] | undefined
+    >();
     expectTypeOf(
-      session.accounts["example-account"]!.accountCapabilities[mail.urn].maxSizeAttachmentsPerEmail,
-    ).toBeNumber();
+      session.accounts["example-account"]!.accountCapabilities[mail.urn]
+        ?.maxSizeAttachmentsPerEmail,
+    ).toEqualTypeOf<number | undefined>();
     expectTypeOf(
-      session.accounts["example-account"]!.accountCapabilities[mail.urn].maxMailboxDepth,
-    ).toEqualTypeOf<number | null>();
+      session.accounts["example-account"]!.accountCapabilities[mail.urn]?.maxMailboxDepth,
+    ).toEqualTypeOf<number | null | undefined>();
     expectTypeOf(
       contactsSession.accounts["example-account"]!.accountCapabilities[contacts.urn]
-        .mayCreateAddressBook,
-    ).toBeBoolean();
+        ?.mayCreateAddressBook,
+    ).toEqualTypeOf<boolean | undefined>();
   });
 
   describe("isolated", () => {
@@ -142,8 +147,8 @@ describe(JsonMetaClient, () => {
 
       expectTypeOf<DefaultEntities>().toEqualTypeOf<"Core" | "Blob" | "PushSubscription">();
       expectTypeOf(
-        (await emptyClient.session).capabilities[core.urn].maxCallsInRequest,
-      ).toBeNumber();
+        (await emptyClient.session).capabilities[core.urn]?.maxCallsInRequest,
+      ).toEqualTypeOf<number | undefined>();
     });
 
     it("filters entity properties in Email/get requests", async () => {
@@ -246,10 +251,12 @@ describe(JsonMetaClient, () => {
         const session = await client.session;
         const refreshedSession = await client.refreshSession();
 
-        expectTypeOf(session.capabilities[example.urn]).toEqualTypeOf<ExampleSessionCapabilities>();
+        expectTypeOf(session.capabilities[example.urn]).toEqualTypeOf<
+          ExampleSessionCapabilities | undefined
+        >();
         expectTypeOf(
           session.accounts["example-account"]!.accountCapabilities[example.urn],
-        ).toEqualTypeOf<ExampleAccountCapabilities>();
+        ).toEqualTypeOf<ExampleAccountCapabilities | undefined>();
         expectTypeOf(refreshedSession).toEqualTypeOf(session);
       });
 
