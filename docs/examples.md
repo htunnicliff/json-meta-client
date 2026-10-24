@@ -254,7 +254,7 @@ await client.api.EmailSubmission.set({
   create: {
     // Send the email that was created
     submission: {
-      emailId: draft.created("draft"),
+      emailId: draft.createdRef("draft"),
       identityId: identity.id,
     },
   },

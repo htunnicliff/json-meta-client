@@ -60,7 +60,7 @@ export function createApi<T extends object>({
                   resultOf: methodCall.id,
                 });
 
-                const created = (id: string): string => {
+                const createdRef = (id: string): string => {
                   const args = methodCall.args;
                   const create =
                     typeof args === "object" && args !== null
@@ -73,7 +73,7 @@ export function createApi<T extends object>({
                 };
 
                 const withMethodCall = Object.assign(withRefMethod, {
-                  ...(method === "set" ? { created } : {}),
+                  ...(method === "set" ? { createdRef } : {}),
                   $id: methodCall.id,
                   $args: methodCall.args,
                   $method: methodCall.method,

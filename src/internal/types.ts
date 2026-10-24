@@ -186,7 +186,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
          * Reference an object created by this /set call using its creation ID.
          * The call consuming this reference must be queued in the same batch.
          */
-        created: <
+        createdRef: <
           Key extends keyof NonNullable<Args extends { create?: infer C } ? C : never> & string,
         >(
           id: Key,

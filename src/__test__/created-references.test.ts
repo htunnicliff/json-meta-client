@@ -67,13 +67,13 @@ describe("set creation references", () => {
       },
     });
 
-    expectTypeOf(draft.created("draft")).toEqualTypeOf<"#draft">();
-    expect(draft.created("draft")).toBe("#draft");
+    expectTypeOf(draft.createdRef("draft")).toEqualTypeOf<"#draft">();
+    expect(draft.createdRef("draft")).toBe("#draft");
 
     const sent = client.api.EmailSubmission.set({
       create: {
         submission: {
-          emailId: draft.created("draft"),
+          emailId: draft.createdRef("draft"),
           identityId: "identity",
         },
       },
@@ -90,14 +90,14 @@ describe("set creation references", () => {
   it("rejects an unknown creation ID from a real Email.set call", async () => {
     const { client } = setup();
     const draft = client.api.Email.set({ create: { draft: { subject: "Hello" } } });
-    expect(() => Reflect.apply(draft.created, draft, ["missing"])).toThrow(RangeError);
+    expect(() => Reflect.apply(draft.createdRef, draft, ["missing"])).toThrow(RangeError);
     await draft;
   });
 
   it("only augments set methods", async () => {
     const { client } = setup();
     const query = client.api.Email.query({});
-    expect(query).not.toHaveProperty("created");
+    expect(query).not.toHaveProperty("createdRef");
     await query;
   });
 });
