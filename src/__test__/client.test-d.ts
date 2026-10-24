@@ -12,7 +12,7 @@ import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 import type { BuiltInCapabilityName, DefaultCapabilities } from "../built-ins.ts";
-import { core, mail } from "../capabilities/index.ts";
+import { contacts, core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
@@ -34,6 +34,33 @@ const client = new JsonMetaClient({
 type DefaultEntities = DefaultCapabilities[number]["entities"][number];
 
 describe(JsonMetaClient, () => {
+  it("exposes built-in capability details on the session", async () => {
+    const session = await client.session;
+    const contactsSession = await new JsonMetaClient({
+      bearerToken,
+      sessionUrl,
+      capabilities: [contacts],
+    }).session;
+
+    expectTypeOf(session.capabilities[core.urn]?.maxCallsInRequest).toEqualTypeOf<
+      number | undefined
+    >();
+    expectTypeOf(session.capabilities[core.urn]?.collationAlgorithms).toEqualTypeOf<
+      string[] | undefined
+    >();
+    expectTypeOf(
+      session.accounts["example-account"]!.accountCapabilities[mail.urn]
+        ?.maxSizeAttachmentsPerEmail,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      session.accounts["example-account"]!.accountCapabilities[mail.urn]?.maxMailboxDepth,
+    ).toEqualTypeOf<number | null | undefined>();
+    expectTypeOf(
+      contactsSession.accounts["example-account"]!.accountCapabilities[contacts.urn]
+        ?.mayCreateAddressBook,
+    ).toEqualTypeOf<boolean | undefined>();
+  });
+
   describe("isolated", () => {
     it("provides the client's API and a cancellation function", () => {
       client.isolated((api, cancel) => {
@@ -83,7 +110,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf<BuiltInCapabilityName>().toEqualTypeOf<keyof typeof BUILT_IN_CAPABILITIES>();
     });
 
-    it("accepts readonly name arrays in separately declared options", () => {
+    it("accepts readonly name arrays in separately declared options", async () => {
       const options: Config<readonly ["mail"]> = {
         bearerToken,
         sessionUrl,
@@ -91,6 +118,12 @@ describe(JsonMetaClient, () => {
       };
       const objectClient = new JsonMetaClient({ bearerToken, sessionUrl, capabilities: [mail] });
       expectTypeOf(new JsonMetaClient(options).api).toEqualTypeOf(objectClient.api);
+      expectTypeOf(
+        (await new JsonMetaClient(options).session).accounts["example-account"]!
+          .accountCapabilities[mail.urn],
+      ).toEqualTypeOf(
+        (await objectClient.session).accounts["example-account"]!.accountCapabilities[mail.urn],
+      );
     });
 
     it("rejects names that are not built-in exports", () => {
@@ -103,7 +136,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf(invalidClient).toBeObject();
     });
 
-    it("has default capability methods when capabilities is empty", () => {
+    it("has default capability methods when capabilities is empty", async () => {
       const emptyClient = new JsonMetaClient({
         bearerToken,
         sessionUrl,
@@ -113,6 +146,9 @@ describe(JsonMetaClient, () => {
       expectTypeOf<keyof typeof emptyClient.api>().toEqualTypeOf<DefaultEntities>();
 
       expectTypeOf<DefaultEntities>().toEqualTypeOf<"Core" | "Blob" | "PushSubscription">();
+      expectTypeOf(
+        (await emptyClient.session).capabilities[core.urn]?.maxCallsInRequest,
+      ).toEqualTypeOf<number | undefined>();
     });
 
     it("filters entity properties in Email/get requests", async () => {
@@ -179,14 +215,26 @@ describe(JsonMetaClient, () => {
         output: Output<this["input"]>;
       }
 
+      interface ExampleAccountCapabilities {
+        mayCreateExample: boolean;
+      }
+
+      interface ExampleSessionCapabilities {
+        maxExamples: number;
+      }
+
       const example = defineCapability({
         urn: "test:example",
         entities: ["Example"],
-      }).withMethods<{
-        Example: {
-          get: GetContract;
-        };
-      }>();
+      }).withMethods<
+        {
+          Example: {
+            get: GetContract;
+          };
+        },
+        ExampleAccountCapabilities,
+        ExampleSessionCapabilities
+      >();
 
       const client = new JsonMetaClient({
         sessionUrl,
@@ -197,6 +245,19 @@ describe(JsonMetaClient, () => {
       it("exposes the custom capability's entities", () => {
         expectTypeOf(client.api).toHaveProperty("Example");
         expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Example" | DefaultEntities>();
+      });
+
+      it("exposes capability details on the session", async () => {
+        const session = await client.session;
+        const refreshedSession = await client.refreshSession();
+
+        expectTypeOf(session.capabilities[example.urn]).toEqualTypeOf<
+          ExampleSessionCapabilities | undefined
+        >();
+        expectTypeOf(
+          session.accounts["example-account"]!.accountCapabilities[example.urn],
+        ).toEqualTypeOf<ExampleAccountCapabilities | undefined>();
+        expectTypeOf(refreshedSession).toEqualTypeOf(session);
       });
 
       it("preserves custom capability contracts in isolated callbacks", () => {

@@ -6,7 +6,6 @@ import type {
   Request as JMAPRequest,
   Response as JMAPResponse,
   ProblemDetails,
-  Session,
   StateChange,
 } from "jmap-rfc-types";
 import type { SetOptional, SetRequired } from "type-fest";
@@ -36,6 +35,7 @@ import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested
 import type {
   CapabilityOption,
   ClientApi,
+  ClientSession,
   Config,
   OnStateChangeHandler,
   OnStateChangeOptions,
@@ -82,29 +82,31 @@ export class JsonMetaClient<
   readonly api: API;
 
   /**
-   * Get the {@link Session} from cache, falling back to a fresh session
+   * Get the {@link ClientSession} from cache, falling back to a fresh session
    */
-  get session(): Promise<Session> {
+  get session(): Promise<ClientSession<GivenCapabilities>> {
     return this.#session ?? this.refreshSession();
   }
 
   /**
-   * Retrieve and cache a new {@link Session}.
+   * Retrieve and cache a new {@link ClientSession}.
    *
    * Upon loading the session for the first time, the client
    * capabilities will be evaluated against the capabilities
-   * provided in the actual {@link Session}; discrepancies will
+   * provided in the actual {@link ClientSession}; discrepancies will
    * result in a logged warning.
    */
-  refreshSession = (): Promise<Session> => {
-    this.#session = this.#fetchJson<Session>(this.#config.sessionUrl).then((result) => {
-      const isFirstLoad = !this.#sessionSync;
-      this.#sessionSync = result;
-      if (isFirstLoad) {
-        this.#validateSessionCapabilities(this.#sessionSync);
-      }
-      return result;
-    });
+  refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
+    this.#session = this.#fetchJson<ClientSession<GivenCapabilities>>(this.#config.sessionUrl).then(
+      (result) => {
+        const isFirstLoad = !this.#sessionSync;
+        this.#sessionSync = result;
+        if (isFirstLoad) {
+          this.#validateSessionCapabilities(this.#sessionSync);
+        }
+        return result;
+      },
+    );
 
     return this.#session;
   };
@@ -226,24 +228,24 @@ export class JsonMetaClient<
 
   /**
    * A reference to a promise that is used to access
-   * the {@link Session} synchronously
+   * the {@link ClientSession} synchronously
    */
-  #session: Promise<Session> | undefined;
+  #session: Promise<ClientSession<GivenCapabilities>> | undefined;
 
   /**
-   * The {@link Session} received from the session URI
+   * The {@link ClientSession} received from the session URI
    */
-  #sessionSync: Session | undefined;
+  #sessionSync: ClientSession<GivenCapabilities> | undefined;
 
   /**
    * Evaluates the capabilities configured in the client with
    * the actual capabilities exposed by the JMAP server
-   * in its {@link Session} object.
+   * in its {@link ClientSession} object.
    *
    * Any of the configured capabilities that are not found in
    * the session will be logged as a warning
    */
-  #validateSessionCapabilities(session: Session): void {
+  #validateSessionCapabilities(session: ClientSession<GivenCapabilities>): void {
     const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
     const availableUrns = new Set(Object.keys(session.capabilities));
 

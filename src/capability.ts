@@ -10,11 +10,15 @@ export interface MethodContract {
  * - Known entities (type and value)
  * - Known urn (value)
  * - Known methods (type)
+ * - Known account capability details (type)
+ * - Known session capability details (type)
  */
 export interface Capability<
   Entity extends string = string,
   _Methods extends CapabilityMethods<Entity> = CapabilityMethods<Entity>,
   Urn extends string = string,
+  _AccountCapabilities = unknown,
+  _SessionCapabilities = unknown,
 > {
   urn: Urn;
   entities: ReadonlyArray<Entity>;

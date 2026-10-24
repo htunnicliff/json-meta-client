@@ -7,6 +7,20 @@ import type {
 
 import type { Capability } from "../capability.ts";
 
+/**
+ * Account limits and features advertised by the JMAP Mail capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3
+ */
+export interface MailAccountCapabilities {
+  maxMailboxesPerEmail: number | null;
+  maxMailboxDepth: number | null;
+  maxSizeMailboxName: number;
+  maxSizeAttachmentsPerEmail: number;
+  emailQuerySortOptions: string[];
+  mayCreateTopLevelMailbox: boolean;
+}
+
 export const mail: Capability<
   "Mailbox" | "Thread" | "Email" | "SearchSnippet",
   {
@@ -35,7 +49,8 @@ export const mail: Capability<
       get: SearchSnippetContracts.Get.Contract;
     };
   },
-  "urn:ietf:params:jmap:mail"
+  "urn:ietf:params:jmap:mail",
+  MailAccountCapabilities
 > = {
   urn: "urn:ietf:params:jmap:mail",
   entities: ["Mailbox", "Thread", "Email", "SearchSnippet"],

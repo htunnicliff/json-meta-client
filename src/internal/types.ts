@@ -198,9 +198,14 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
  * A partially-configured capability that supports using
  * layers of generics. The first layer captures the {@link Entity}
  * type, while the second layer captures the {@link CapabilityMethods}
+ * and its account and session capability details.
  */
 export interface ConfigurableCapability<Entity extends string, Urn extends string = string> {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
-  withMethods<M extends CapabilityMethods<Entity>>(): Capability<Entity, M, Urn>;
+  withMethods<
+    M extends CapabilityMethods<Entity>,
+    AccountCapabilities = unknown,
+    SessionCapabilities = unknown,
+  >(): Capability<Entity, M, Urn, AccountCapabilities, SessionCapabilities>;
 }
