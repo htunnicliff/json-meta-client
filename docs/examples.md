@@ -276,21 +276,21 @@ await client.api.EmailSubmission.set({
       "Email/set",
       {
         "create": {
-          "my-email": {
+          "draft": {
             "keywords": { "$draft": true },
             "mailboxIds": { "P2k": true },
             "from": [{ "email": "****************" }],
             "to": [{ "email": "someone@example.com" }],
             "subject": "Hi there",
             "bodyValues": {
-              "my-body": {
+              "body": {
                 "value": "Hello there!\nI hope you are well.\nBest,\nMe",
                 "charset": "utf-8"
               }
             },
             "textBody": [
               {
-                "partId": "my-body",
+                "partId": "body",
                 "type": "text/plain"
               }
             ]
@@ -304,12 +304,12 @@ await client.api.EmailSubmission.set({
       "EmailSubmission/set",
       {
         "create": {
-          "my-submission": {
-            "emailId": "#my-email",
+          "submission": {
+            "emailId": "#draft",
             "identityId": "123634456"
           }
         },
-        "onSuccessDestroyEmail": ["#my-submission"],
+        "onSuccessDestroyEmail": ["#submission"],
         "accountId": "*********"
       },
       "EmailSubmission/set::ac3e2f7c-7d67-4e1e-ba54-5f41df26ee5a"
