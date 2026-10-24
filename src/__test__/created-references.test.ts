@@ -21,8 +21,9 @@ function setup() {
       });
     }
     if (url === apiUrl) {
-      const bodyText = input instanceof Request ? await input.text() : String(init?.body);
-      const body = JSON.parse(bodyText) as {
+      const bodyText = input instanceof Request ? await input.text() : String(init?.body ?? "");
+      const parsed: unknown = JSON.parse(bodyText);
+      const body = parsed as {
         methodCalls: Array<[string, unknown, string]>;
       };
       requests.push(body);
@@ -69,7 +70,7 @@ describe("set creation references", () => {
     });
     await Promise.all([draft, sent]);
     expect(requests).toHaveLength(1);
-    const payload = requests[0] as {
+    const payload = requests[0] as unknown as {
       methodCalls: Array<[string, { create: Record<string, unknown> }, string]>;
     };
     expect(payload.methodCalls[1]?.[1]).toMatchObject({
@@ -80,7 +81,7 @@ describe("set creation references", () => {
   it("rejects an unknown creation ID from a real Email.set call", async () => {
     const { client } = setup();
     const draft = client.api.Email.set({ create: { draft: { subject: "Hello" } } });
-    expect(() => draft.created("missing" as "draft")).toThrow(RangeError);
+    expect(() => draft.created("missing" as never)).toThrow(RangeError);
     await draft;
   });
 
