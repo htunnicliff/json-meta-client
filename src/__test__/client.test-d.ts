@@ -34,6 +34,23 @@ const client = new JsonMetaClient({
 type DefaultEntities = DefaultCapabilities[number]["entities"][number];
 
 describe(JsonMetaClient, () => {
+  describe("isolated", () => {
+    it("provides the client's API and a cancellation function", () => {
+      client.isolated((api, cancel) => {
+        expectTypeOf(api).toEqualTypeOf(client.api);
+        expectTypeOf(cancel).toEqualTypeOf<() => void>();
+      });
+    });
+
+    it("infers synchronous and asynchronous callback results", () => {
+      const synchronous = client.isolated(() => ({ value: "result" }));
+      const asynchronous = client.isolated(async () => ({ value: "result" }));
+
+      expectTypeOf(synchronous).toEqualTypeOf<{ value: string }>();
+      expectTypeOf(asynchronous).toEqualTypeOf<Promise<{ value: string }>>();
+    });
+  });
+
   describe("api", () => {
     it("infers the same methods from built-in names and objects", () => {
       const namedClient = new JsonMetaClient({
@@ -180,6 +197,17 @@ describe(JsonMetaClient, () => {
       it("exposes the custom capability's entities", () => {
         expectTypeOf(client.api).toHaveProperty("Example");
         expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Example" | DefaultEntities>();
+      });
+
+      it("preserves custom capability contracts in isolated callbacks", () => {
+        const result = client.isolated((api) => {
+          expectTypeOf(api).toEqualTypeOf(client.api);
+          return api.Example.get({ ids: ["example"], properties: ["some"] });
+        });
+
+        expectTypeOf<Awaited<typeof result>["list"][number]>().toEqualTypeOf<
+          Pick<Example, "some">
+        >();
       });
 
       it("preserves built-in and custom contracts when mixing names and objects", () => {

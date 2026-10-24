@@ -220,6 +220,121 @@ describe("client batching contract", () => {
     },
   );
 
+  describe("isolated", () => {
+    it("returns the callback's synchronous result unchanged", () => {
+      const result = { value: "result" };
+
+      expect(client.isolated(() => result)).toBe(result);
+    });
+
+    it("returns the callback's promise unchanged", async () => {
+      const result = Promise.resolve("result");
+      const isolated = client.isolated(() => result);
+
+      expect(isolated).toBe(result);
+      await expect(isolated).resolves.toBe("result");
+    });
+
+    it("propagates a synchronous callback error", () => {
+      const error = new Error("Callback failed");
+
+      expect(() =>
+        client.isolated(() => {
+          throw error;
+        }),
+      ).toThrow(error);
+    });
+
+    it("propagates an asynchronous callback error", async () => {
+      const error = new Error("Callback failed");
+
+      await expect(
+        client.isolated(async () => {
+          throw error;
+        }),
+      ).rejects.toBe(error);
+    });
+
+    it("batches calls and result references separately from the default queue and other isolated calls", async () => {
+      const before = client.api.Email.query({ limit: 1 });
+      const first = client.isolated((api) => {
+        const query = api.Email.query({ limit: 2 });
+        const get = api.Email.get({ ids: query.ref("/ids") });
+        reply([
+          ["Email/query", { accountId, limit: 2 }, query.$id],
+          [
+            "Email/get",
+            { accountId, "#ids": { name: "Email/query", resultOf: query.$id, path: "/ids" } },
+            get.$id,
+          ],
+        ]);
+        return { query, get };
+      });
+      const second = client.isolated((api) => {
+        const email = api.Email.query({ limit: 3 });
+        const mailbox = api.Mailbox.query({ limit: 4 });
+        reply([
+          ["Email/query", { accountId, limit: 3 }, email.$id],
+          ["Mailbox/query", { accountId, limit: 4 }, mailbox.$id],
+        ]);
+        return { email, mailbox };
+      });
+      const after = client.api.Mailbox.query({ limit: 5 });
+      reply([
+        ["Email/query", { accountId, limit: 1 }, before.$id],
+        ["Mailbox/query", { accountId, limit: 5 }, after.$id],
+      ]);
+
+      await expect(
+        Promise.all([before, first.query, first.get, second.email, second.mailbox, after]),
+      ).resolves.toEqual([
+        { ids: [before.$id] },
+        { ids: [first.query.$id] },
+        { ids: [first.get.$id] },
+        { ids: [second.email.$id] },
+        { ids: [second.mailbox.$id] },
+        { ids: [after.$id] },
+      ]);
+    });
+
+    it("cancels isolated calls without affecting the default queue or other isolated queues", async () => {
+      const regular = client.api.Email.query({ limit: 1 });
+      reply([["Email/query", { accountId, limit: 1 }, regular.$id]]);
+      const sibling = client.isolated((api) => {
+        const call = api.Email.query({ limit: 4 });
+        reply([["Email/query", { accountId, limit: 4 }, call.$id]]);
+        return call;
+      });
+      const isolated = client.isolated((api, cancel) => {
+        const email = api.Email.query({ limit: 2 });
+        const mailbox = api.Mailbox.query({ limit: 3 });
+        cancel();
+        return Promise.allSettled([email, mailbox]);
+      });
+
+      await expect(isolated).resolves.toEqual([
+        { status: "rejected", reason: expect.any(CancellationError) },
+        { status: "rejected", reason: expect.any(CancellationError) },
+      ]);
+      await expect(regular).resolves.toEqual({ ids: [regular.$id] });
+      await expect(sibling).resolves.toEqual({ ids: [sibling.$id] });
+    });
+
+    it("keeps isolated calls queued when the default batch is cancelled", async () => {
+      const regular = client.api.Email.query({ limit: 1 });
+      const isolated = client.isolated((api) => {
+        const call = api.Email.query({ limit: 2 });
+        reply([["Email/query", { accountId, limit: 2 }, call.$id]]);
+        return call;
+      });
+
+      client.cancelBatch();
+
+      await expect(regular).rejects.toThrow(CancellationError);
+      await expect(isolated).resolves.toEqual({ ids: [isolated.$id] });
+    });
+  });
+
   describe("cancelBatch", () => {
     it("rejects queued calls without sending their batch", async () => {
       const email = client.api.Email.query({ limit: 1 });

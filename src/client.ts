@@ -67,15 +67,10 @@ export class JsonMetaClient<
     // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
-    // Initialize abort controller
-    this.#batchAbortController = new AbortController();
-
     // Initialize API proxy
-    this.api = createApi<API>({
-      processMethodCalls: this.#processQueuedMethodCalls,
-      middleware: this.#config.middleware,
-      signal: this.#batchAbortController.signal,
-    });
+    const controller = new AbortController();
+    this.api = this.#setupApi(controller);
+    this.cancelBatch = () => controller.abort();
 
     // Lock it down
     Object.freeze(this);
@@ -205,8 +200,16 @@ export class JsonMetaClient<
   /**
    * Clear pending JMAP requests
    */
-  cancelBatch = (): void => {
-    this.#batchAbortController.abort();
+  readonly cancelBatch: () => void;
+
+  /**
+   * Create an isolated API instance with a separate batch queue for JMAP requests
+   */
+  isolated = <R>(fn: (api: API, cancel: () => void) => R): R => {
+    const controller = new AbortController();
+    const api = this.#setupApi(controller);
+    const cancel = () => controller.abort();
+    return fn(api, cancel);
   };
 
   // ------------------- Internals -------------------
@@ -233,11 +236,6 @@ export class JsonMetaClient<
   #sessionSync: Session | undefined;
 
   /**
-   * An abort controller for the request batch instance
-   */
-  readonly #batchAbortController: AbortController;
-
-  /**
    * Evaluates the capabilities configured in the client with
    * the actual capabilities exposed by the JMAP server
    * in its {@link Session} object.
@@ -261,6 +259,17 @@ export class JsonMetaClient<
       );
       console.warn(error);
     }
+  }
+
+  /**
+   * Initialize a dedicated api
+   */
+  #setupApi({ signal }: { signal: AbortSignal }): API {
+    return createApi<API>({
+      processMethodCalls: this.#processQueuedMethodCalls,
+      middleware: this.#config.middleware,
+      signal,
+    });
   }
 
   /**
