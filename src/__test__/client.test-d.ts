@@ -16,7 +16,7 @@ import { contacts, core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
-import type { Ref, RefFn } from "../internal/ref.ts";
+import type { Ref, ResultRefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
 import type { Config } from "../types.ts";
@@ -336,7 +336,7 @@ describe(JsonMetaClient, () => {
             };
             readonly $method: string;
           } & {
-            ref: RefFn<{
+            resultRef: ResultRefFn<{
               accountId: ID;
               state: string;
               list: readonly Example[];
@@ -424,11 +424,11 @@ describe(JsonMetaClient, () => {
         expectTypeOf(pending).toExtend<Promise<unknown>>();
 
         // Supports refs with arbitrary pointers
-        expectTypeOf(pending.ref("/stuff")).toEqualTypeOf<Ref<unknown>>();
-        expectTypeOf(pending.ref("/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.resultRef("/stuff")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.resultRef("/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
 
         // @ts-expect-error - "/${string}" is required
-        assertType(ref(pending, "invalid"));
+        assertType(pending.resultRef("invalid"));
 
         // Result is unknown
         const result = await pending;

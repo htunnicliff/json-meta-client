@@ -68,8 +68,6 @@ const [inboxId] = response.ids;
 This takes advantage of result references[^1]
 
 ```ts
-import { ref } from "json-meta-client";
-
 // Note the lack of `await` here:
 const emailsQuery = client.api.Email.query({
   inMailbox: inboxId,
@@ -77,7 +75,7 @@ const emailsQuery = client.api.Email.query({
 });
 
 const emails = await client.api.Email.get({
-  ids: ref(emailsQuery, "/ids"),
+  ids: emailsQuery.resultRef("/ids"),
 });
 ```
 

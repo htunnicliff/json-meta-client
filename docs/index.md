@@ -134,7 +134,7 @@ async function* getEmails(limit = 10) {
     });
 
     const getEmails = await client.api.Email.get({
-      ids: queryEmails.ref("/ids"),
+      ids: queryEmails.resultRef("/ids"),
       properties: ["id", "to", "from", "subject", "sentAt"],
     });
 

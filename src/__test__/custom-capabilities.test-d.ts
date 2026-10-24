@@ -88,7 +88,7 @@ describe("public custom capability authoring", () => {
     const query = client.api.Note.query({ text: "draft" });
     const selected = client.api.Note.get({
       accountId: "custom-account",
-      ids: query.ref("/ids"),
+      ids: query.resultRef("/ids"),
       properties: ["id", "title"] as const,
     });
     const all = client.api.Note.get({ ids: ["note-1"] });

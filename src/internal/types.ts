@@ -10,7 +10,7 @@ import type {
 } from "type-fest";
 
 import type { Capability, MethodContract } from "../capability.ts";
-import type { Ref, WithRefFn } from "./ref.ts";
+import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
 
@@ -95,7 +95,7 @@ export type Middleware = (payload: JsonValue) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.
- * Used by the proxy API so callers may pass `ref(...)` in place of concrete args.
+ * Used by the proxy API so callers may pass `resultRef(...)` in place of concrete args.
  */
 export type AllowRefs<T> =
   | Ref<T>
@@ -176,7 +176,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
 >(
   args: Args,
   options?: AugmentedOptions,
-) => WithRefFn<Promise<Output>, Output> & {
+) => WithResultRefFn<Promise<Output>, Output> & {
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;

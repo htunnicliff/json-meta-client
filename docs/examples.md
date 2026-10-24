@@ -28,7 +28,7 @@ const queryMailboxes = client.api.Mailbox.query({
 });
 
 const getMailboxes = await client.api.Mailbox.get({
-  ids: queryMailboxes.ref("/ids"),
+  ids: queryMailboxes.resultRef("/ids"),
   properties: ["id", "name"],
 });
 
@@ -92,7 +92,7 @@ const queryEmails = client.api.Email.query({
 });
 
 const getEmails = await client.api.Email.get({
-  ids: queryEmails.ref("/ids"),
+  ids: queryEmails.resultRef("/ids"),
   properties: ["from", "subject", "sentAt"],
 });
 

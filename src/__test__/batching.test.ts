@@ -152,8 +152,8 @@ describe("client batching contract", () => {
 
   it("keeps multiple references to one pending call in the same request", async () => {
     const query = client.api.Email.query({ limit: 1 });
-    const first = client.api.Email.get({ ids: query.ref("/ids") });
-    const second = client.api.Email.get({ ids: query.ref("/ids"), properties: ["id"] });
+    const first = client.api.Email.get({ ids: query.resultRef("/ids") });
+    const second = client.api.Email.get({ ids: query.resultRef("/ids"), properties: ["id"] });
     const reference = { name: "Email/query", resultOf: query.$id, path: "/ids" };
     reply(
       [
@@ -259,7 +259,7 @@ describe("client batching contract", () => {
       const before = client.api.Email.query({ limit: 1 });
       const first = client.isolated((api) => {
         const query = api.Email.query({ limit: 2 });
-        const get = api.Email.get({ ids: query.ref("/ids") });
+        const get = api.Email.get({ ids: query.resultRef("/ids") });
         reply([
           ["Email/query", { accountId, limit: 2 }, query.$id],
           [

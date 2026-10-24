@@ -594,7 +594,7 @@ describe(JsonMetaClient, () => {
 
     it("turns nested result references into JMAP result-reference arguments", async () => {
       const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
-      const emailGet = client.api.Email.get({ ids: mailboxQuery.ref("/ids") });
+      const emailGet = client.api.Email.get({ ids: mailboxQuery.resultRef("/ids") });
       const apiScope = mockApi(
         {
           using: [core.urn, mail.urn],

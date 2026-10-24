@@ -14,7 +14,7 @@ export type Ref<T = unknown> = ResultReference & {
   readonly __type?: T;
 };
 
-export type RefFn<Output> = <
+export type ResultRefFn<Output> = <
   const Pointer extends (IsUnknown<Output> extends true
     ? ExtendedJSONPointer
     : PointerPaths<Output>),
@@ -22,20 +22,22 @@ export type RefFn<Output> = <
   pointer: Pointer,
 ) => Ref<ExtractByPointer<Output, Pointer>>;
 
-export type WithRefFn<T extends object, Output> = T & { ref: RefFn<Output> };
+export type WithResultRefFn<T extends object, Output> = T & {
+  resultRef: ResultRefFn<Output>;
+};
 
 export function isRef(input: unknown): input is Ref {
   return typeof input === "object" && input !== null && Object.hasOwn(input, refSymbol);
 }
 
 /**
- * Augment an object with the #ref() method for a given method call
+ * Augment an object with the #resultRef() method for a given method call
  */
 export function addRefMethod<Output, T extends object>(
   obj: T,
   { name, resultOf }: Pick<ResultReference, "name" | "resultOf">,
-): WithRefFn<T, Output> {
-  const ref: RefFn<Output> = (pointer) => {
+): WithResultRefFn<T, Output> {
+  const resultRef: ResultRefFn<Output> = (pointer) => {
     return {
       name,
       resultOf,
@@ -44,5 +46,5 @@ export function addRefMethod<Output, T extends object>(
     };
   };
 
-  return Object.assign(obj, { ref });
+  return Object.assign(obj, { resultRef });
 }
