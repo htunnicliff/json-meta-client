@@ -216,15 +216,11 @@ that are easily identifiable for debugging purposes.
 ::: code-group
 
 ```ts [draft-and-send.ts]
-const local = {
-  emailId: "my-email",
-  bodyId: "my-body",
-  submissionId: "my-submission",
-};
+const bodyId = "body";
 
-client.api.Email.set({
+const draft = client.api.Email.set({
   create: {
-    [local.emailId]: {
+    draft: {
       // Ensure the email is a draft
       keywords: { $draft: true },
 
@@ -238,7 +234,7 @@ client.api.Email.set({
 
       // Set the body
       bodyValues: {
-        [local.bodyId]: {
+        [bodyId]: {
           value:
             "Hello there!\nI hope you are well.\nBest,\nMe",
           charset: "utf-8",
@@ -246,7 +242,7 @@ client.api.Email.set({
       },
       textBody: [
         {
-          partId: local.bodyId,
+          partId: bodyId,
           type: "text/plain",
         },
       ],
@@ -257,14 +253,14 @@ client.api.Email.set({
 await client.api.EmailSubmission.set({
   create: {
     // Send the email that was created
-    [local.submissionId]: {
-      emailId: `#${local.emailId}`,
+    submission: {
+      emailId: draft.created("draft"),
       identityId: identity.id,
     },
   },
 
   // Delete the draft if it is sent successfully
-  onSuccessDestroyEmail: [`#${local.submissionId}`],
+  onSuccessDestroyEmail: ["#submission"],
 });
 ```
 
