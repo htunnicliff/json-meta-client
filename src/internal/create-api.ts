@@ -60,7 +60,20 @@ export function createApi<T extends object>({
                   resultOf: methodCall.id,
                 });
 
+                const createdRef = (id: string): string => {
+                  const args = methodCall.args;
+                  const create =
+                    typeof args === "object" && args !== null
+                      ? Reflect.get(args, "create")
+                      : undefined;
+                  if (typeof create !== "object" || create === null || !Object.hasOwn(create, id)) {
+                    throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
+                  }
+                  return `#${id}`;
+                };
+
                 const withMethodCall = Object.assign(withRefMethod, {
+                  ...(method === "set" ? { createdRef } : {}),
                   $id: methodCall.id,
                   $args: methodCall.args,
                   $method: methodCall.method,
