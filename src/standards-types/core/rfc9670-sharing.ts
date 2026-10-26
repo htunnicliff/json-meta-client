@@ -28,17 +28,32 @@ declare module "./index.ts" {
     accounts: { [id: string]: Account };
   }
 
-  export interface PrincipalGetArguments extends GetArguments<Principal> {}
+  export namespace PrincipalGet {
+    export interface Input extends MethodGet.Input<Principal> {}
+    export interface Output<Args> extends MethodGet.Output<Principal, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
 
-  export interface PrincipalGetResponse extends GetResponse<Principal, PrincipalGetArguments> {}
+  export namespace PrincipalChanges {
+    export interface Input extends MethodChanges.Input {}
+    export interface Output extends MethodChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  export interface PrincipalChangesArguments extends ChangesArguments {}
-
-  export interface PrincipalChangesResponse extends ChangesResponse {}
-
-  export type PrincipalSetArguments = SetArguments<Principal>;
-
-  export interface PrincipalSetResponse extends SetResponse<Principal, PrincipalSetArguments> {}
+  export namespace PrincipalSet {
+    export interface Input extends MethodSet.Input<Principal> {}
+    export interface Output extends MethodSet.Output<Principal> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
   export interface PrincipalFilter {
     accountIds: string[];
@@ -49,16 +64,23 @@ declare module "./index.ts" {
     timeZone: string;
   }
 
-  export type PrincipalQueryArguments = QueryArguments<Principal, PrincipalFilter>;
+  export namespace PrincipalQuery {
+    export interface Input extends MethodQuery.Input<Principal, PrincipalFilter> {}
+    export interface Output extends MethodQuery.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  export interface PrincipalQueryResponse extends QueryResponse {}
-
-  export interface PrincipalQueryChangesArguments extends QueryChangesArguments<
-    Principal,
-    PrincipalFilter
-  > {}
-
-  export interface PrincipalQueryChangesResponse extends QueryChangesResponse {}
+  export namespace PrincipalQueryChanges {
+    export interface Input extends MethodQueryChanges.Input<Principal, PrincipalFilter> {}
+    export interface Output extends MethodQueryChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
   export interface ShareNotificationEntity {
     name: string;
@@ -88,23 +110,32 @@ declare module "./index.ts" {
     shareWith: { [principalId: string]: SharingRights };
   }
 
-  export interface ShareNotificationGetArguments extends GetArguments<ShareNotification> {}
+  export namespace ShareNotificationGet {
+    export interface Input extends MethodGet.Input<ShareNotification> {}
+    export interface Output<Args> extends MethodGet.Output<ShareNotification, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
 
-  export interface ShareNotificationGetResponse extends GetResponse<
-    ShareNotification,
-    ShareNotificationGetArguments
-  > {}
+  export namespace ShareNotificationChanges {
+    export interface Input extends MethodChanges.Input {}
+    export interface Output extends MethodChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  export interface ShareNotificationChangesArguments extends ChangesArguments {}
-
-  export interface ShareNotificationChangesResponse extends ChangesResponse {}
-
-  export type ShareNotificationSetArguments = SetArguments<ShareNotification>;
-
-  export type ShareNotificationSetResponse = SetResponse<
-    ShareNotification,
-    ShareNotificationSetArguments
-  >;
+  export namespace ShareNotificationSet {
+    export interface Input extends MethodSet.Input<ShareNotification> {}
+    export interface Output extends MethodSet.Output<ShareNotification> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
   export interface ShareNotificationFilter {
     after: string | null;
@@ -113,17 +144,26 @@ declare module "./index.ts" {
     objectAccountId: string;
   }
 
-  export interface ShareNotificationQueryArguments extends QueryArguments<
-    ShareNotification,
-    ShareNotificationFilter
-  > {}
+  export namespace ShareNotificationQuery {
+    export interface Input extends MethodQuery.Input<ShareNotification, ShareNotificationFilter> {}
+    export interface Output extends MethodQuery.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  export interface ShareNotificationQueryResponse extends QueryResponse {}
+  export namespace ShareNotificationQueryChanges {
+    export interface Input extends MethodQueryChanges.Input<
+      ShareNotification,
+      ShareNotificationFilter
+    > {}
 
-  export interface ShareNotificationQueryChangesArguments extends QueryChangesArguments<
-    ShareNotification,
-    ShareNotificationFilter
-  > {}
+    export interface Output extends MethodQueryChanges.Output {}
 
-  export interface ShareNotificationQueryChangesResponse extends QueryChangesResponse {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }

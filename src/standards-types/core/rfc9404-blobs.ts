@@ -22,21 +22,28 @@ declare module "./index.ts" {
     type?: string;
   }
 
-  export interface BlobUploadMethodArguments {
-    accountId: string;
-    create: Record<string, BlobUploadParams>;
+  export namespace BlobUpload {
+    export interface Input {
+      accountId: string;
+      create: Record<string, FileUpload.Params>;
+    }
+
+    export interface Output {
+      accountId: string;
+      created: Record<string, UploadedBlob>;
+      notCreated: Record<string, SetError> | null;
+    }
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
   }
 
-  interface UploadedBlob {
-    id: BlobUploadResponse["blobId"];
-    type: BlobUploadResponse["type"];
-    size: BlobUploadResponse["size"];
-  }
-
-  export interface BlobUploadMethodResponse {
-    accountId: string;
-    created: Record<string, UploadedBlob>;
-    notCreated: Record<string, SetError> | null;
+  export interface UploadedBlob {
+    id: FileUpload.Result["blobId"];
+    type: FileUpload.Result["type"];
+    size: FileUpload.Result["size"];
   }
 
   export type Blob = {
@@ -49,6 +56,28 @@ declare module "./index.ts" {
     [key in `digest:${string}`]: string;
   };
 
+  export namespace BlobGet {
+    export interface Input {
+      accountId: string;
+      ids?: readonly string[];
+      properties?: readonly BlobGetProperties[];
+      offset?: number;
+      length?: number;
+    }
+
+    export interface Output {
+      accountId: string;
+      state: string;
+      list: ReadonlyArray<Blob>;
+      notFound: ReadonlyArray<string>;
+    }
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
   export type BlobGetProperties = {
     "data:asText"?: string;
     "data:asBase64"?: string;
@@ -58,29 +87,21 @@ declare module "./index.ts" {
     [key in `digest:${string}`]: string;
   };
 
-  export interface BlobGetArguments {
-    accountId: string;
-    ids?: readonly string[];
-    properties?: readonly BlobGetProperties[];
-    offset?: number;
-    length?: number;
-  }
+  export namespace BlobLookup {
+    export interface Input {
+      accountId: string;
+      typeNames: string[];
+      ids: string[];
+    }
 
-  export interface BlobGetResponse {
-    accountId: string;
-    state: string;
-    list: ReadonlyArray<Blob>;
-    notFound: ReadonlyArray<string>;
-  }
+    export interface Output {
+      list: BlobInfo[];
+    }
 
-  export interface BlobLookupArguments {
-    accountId: string;
-    typeNames: string[];
-    ids: string[];
-  }
-
-  export interface BlobLookupResponse {
-    list: BlobInfo[];
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
   }
 
   export interface BlobInfo {

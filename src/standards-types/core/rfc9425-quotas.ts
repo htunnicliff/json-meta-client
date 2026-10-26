@@ -24,15 +24,29 @@ declare module "./index.ts" {
     description?: string | null;
   }
 
-  export interface QuotaGetArguments extends GetArguments<Quota> {}
+  export namespace QuotaGet {
+    export interface Input extends MethodGet.Input<Quota> {}
 
-  export interface QuotaGetResponse extends GetResponse<Quota, QuotaGetArguments> {}
+    export interface Output<Args> extends MethodGet.Output<Quota, Args> {}
 
-  export interface QuotaChangesArguments extends ChangesArguments {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
 
-  export interface QuotaChangesResponse extends ChangesResponse {
-    updatedProperties: string[] | null;
-    [key: string]: unknown;
+  export namespace QuotaChanges {
+    export interface Input extends MethodChanges.Input {}
+
+    export interface Output extends MethodChanges.Output {
+      updatedProperties: string[] | null;
+      [key: string]: unknown;
+    }
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
   }
 
   export interface QuotaFilter {
@@ -42,11 +56,25 @@ declare module "./index.ts" {
     type: string;
   }
 
-  export interface QuotaQueryArguments extends QueryArguments<Quota, QuotaFilter> {}
+  export namespace QuotaQuery {
+    export interface Input extends MethodQuery.Input<Quota, QuotaFilter> {}
 
-  export interface QuotaQueryResult extends QueryResponse {}
+    export interface Output extends MethodQuery.Output {}
 
-  export type QuotaQueryChangesArguments = QueryChangesArguments<Quota, QuotaFilter>;
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  export interface QuotaQueryChangesResponse extends QueryChangesResponse {}
+  export namespace QuotaQueryChanges {
+    export interface Input extends MethodQueryChanges.Input<Quota, QuotaFilter> {}
+
+    export interface Output extends MethodQueryChanges.Output {}
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }

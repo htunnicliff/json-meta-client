@@ -24,6 +24,7 @@ words:
   - tunnicliff
   - unstub
   - webpush
+  - vacationresponse
 ignorePaths:
   - pnpm-lock.yaml
   - dist/

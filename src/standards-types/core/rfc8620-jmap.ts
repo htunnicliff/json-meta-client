@@ -1,6 +1,3 @@
-import type { Except, RequireAtLeastOne } from "type-fest";
-
-// oxlint-disable typescript/consistent-type-imports
 declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:core": {
@@ -68,64 +65,72 @@ declare module "./index.ts" {
     limit?: string;
   }
 
-  export interface GetArguments<T> {
-    accountId: string;
-    ids?: readonly string[];
-    properties?: readonly (keyof T)[];
-  }
-
-  export interface GetResponse<T, Args extends GetArguments<T>> {
-    accountId: string;
-    state: string;
-    list: ReadonlyArray<
-      Args["properties"] extends ReadonlyArray<infer P extends keyof T> ? Pick<T, P> : T
-    >;
-    notFound: ReadonlyArray<string>;
-  }
-
-  export interface ChangesArguments {
-    accountId: string;
-    sinceState: string;
-    maxChanges?: number;
-  }
-
-  export interface ChangesResponse {
-    accountId: string;
-    oldState: string;
-    newState: string;
-    hasMoreChanges: boolean;
-    created: string[];
-    updated: string[];
-    destroyed: string[];
-  }
-
-  export type SetArguments<T extends object> = RequireAtLeastOne<
-    {
+  export namespace MethodGet {
+    export interface Input<T> {
       accountId: string;
-      ifInState?: string;
-      create?: Record<string, RequireAtLeastOne<T>>;
-      update?: Record<string, PatchObject<T>>;
-      destroy?: string[];
-    },
-    "create" | "update" | "destroy"
-  >;
+      ids?: readonly string[];
+      properties?: readonly (keyof T)[];
+    }
+
+    export interface Output<T, Args> {
+      accountId: string;
+      state: string;
+      list: ReadonlyArray<
+        Args extends { properties?: readonly string[] }
+          ? ["properties"] extends ReadonlyArray<infer P extends keyof T>
+            ? Pick<T, P>
+            : T
+          : never
+      >;
+      notFound: ReadonlyArray<string>;
+    }
+
+    export interface Contract<T> {
+      input: Input<T>;
+      output: Output<T, this["input"]>;
+    }
+  }
+
+  export namespace MethodChanges {
+    export interface Input {
+      accountId: string;
+      sinceState: string;
+      maxChanges?: number;
+    }
+
+    export interface Output {
+      accountId: string;
+      oldState: string;
+      newState: string;
+      hasMoreChanges: boolean;
+      created: string[];
+      updated: string[];
+      destroyed: string[];
+    }
+  }
 
   export type PatchObject<T> = Partial<T> | Record<string, any>;
 
-  export interface SetResponse<T extends object, Args extends SetArguments<T>> {
-    accountId: string;
-    oldState: string | null;
-    newState: string;
-    created: Args["create"] extends object ? { [K in keyof Args["create"]]?: T } : null;
-    updated: Args["update"] extends object ? { [K in keyof Args["update"]]?: T | null } : null;
-    destroyed: Args["destroy"] extends string[] ? string[] | null : null;
-    notCreated: Args["create"] extends object
-      ? { [K in keyof Args["create"]]?: SetError } | null
-      : null;
-    notUpdated: Args["update"] extends object
-      ? { [K in keyof Args["update"]]?: SetError } | null
-      : null;
-    notDestroyed: Args["destroy"] extends string[] ? Record<string, SetError> | null : null;
+  export namespace MethodSet {
+    export interface Input<T extends object> {
+      accountId: string;
+      ifInState?: string;
+      create?: Record<string, T>;
+      update?: Record<string, PatchObject<T>>;
+      destroy?: string[];
+    }
+
+    export interface Output<T extends object> {
+      accountId: string;
+      oldState: string | null;
+      newState: string;
+      created: Record<string, T> | null;
+      updated: Record<string, T | null> | null;
+      destroyed: string[] | null;
+      notCreated: Record<string, SetError> | null;
+      notUpdated: Record<string, SetError> | null;
+      notDestroyed: Record<string, SetError> | null;
+    }
   }
 
   export interface SetError<T = object> {
@@ -135,70 +140,87 @@ declare module "./index.ts" {
     existingId?: string;
   }
 
-  export interface CopyArguments<T extends { id: string }> {
-    fromAccountId: string;
-    ifFromInState?: string;
-    accountId: string;
-    ifInState?: string;
-    create: Record<string, T>;
-    onSuccessDestroyOriginal?: boolean;
-    destroyFromIfInState?: string;
+  export namespace MethodCopy {
+    export interface Input<T extends { id: string }> {
+      fromAccountId: string;
+      ifFromInState?: string;
+      accountId: string;
+      ifInState?: string;
+      create: Record<string, T>;
+      onSuccessDestroyOriginal?: boolean;
+      destroyFromIfInState?: string;
+    }
+
+    export interface Output<T> {
+      fromAccountId: string;
+      accountId: string;
+      oldState: string | null;
+      newState: string;
+      created: Record<string, T> | null;
+      notCreated: Record<string, SetError> | null;
+    }
+
+    export interface Contract<T extends { id: string }> {
+      input: Input<T>;
+      output: Output<this["input"]>;
+    }
   }
 
-  export interface CopyResponse<T> {
-    fromAccountId: string;
-    accountId: string;
-    oldState: string | null;
-    newState: string;
-    created: Record<string, T> | null;
-    notCreated: Record<string, CopySetError> | null;
+  export namespace MethodQuery {
+    export interface Input<T extends object, Filter extends object = T> {
+      accountId: string;
+      filter?: FilterOperator<Filter> | FilterCondition<Filter>;
+      sort?: ReadonlyArray<Comparator<T>>;
+      position?: number;
+      anchor?: string;
+      anchorOffset?: number;
+      limit?: number;
+      calculateTotal?: boolean;
+    }
+
+    export interface Output {
+      accountId: string;
+      queryState: string;
+      canCalculateChanges: boolean;
+      position: number;
+      ids: string[];
+      total?: number;
+      limit?: number;
+    }
+
+    export interface Contract<T extends object, Filter extends object = T> {
+      input: Input<T, Filter>;
+      output: Output;
+    }
   }
 
-  export type CopySetError<T extends object = object> = Except<SetError<T>, "type"> & {
-    type: SetError<T>["type"];
-  };
+  export namespace MethodQueryChanges {
+    export interface Input<T extends object, Filter extends object> {
+      accountId: string;
+      filter?: FilterOperator<Filter> | FilterCondition<Filter>;
+      sort?: ReadonlyArray<Comparator<T>>;
+      sinceQueryState: string;
+      maxChanges?: number;
+      upToId?: string;
+      calculateTotal?: boolean;
+    }
 
-  export interface QueryArguments<T extends object, Filter extends object = T> {
-    accountId: string;
-    filter?: FilterOperator<Filter> | FilterCondition<Filter>;
-    sort?: ReadonlyArray<Comparator<T>>;
-    position?: number;
-    anchor?: string;
-    anchorOffset?: number;
-    limit?: number;
-    calculateTotal?: boolean;
-  }
+    export interface Output {
+      accountId: string;
+      oldQueryState: string;
+      newQueryState: string;
+      total?: number;
+      removed: string[];
+      added: ReadonlyArray<{
+        id: string;
+        index: number;
+      }>;
+    }
 
-  export interface QueryResponse {
-    accountId: string;
-    queryState: string;
-    canCalculateChanges: boolean;
-    position: number;
-    ids: string[];
-    total?: number;
-    limit?: number;
-  }
-
-  export interface QueryChangesArguments<T extends object, Filter extends object> {
-    accountId: string;
-    filter?: FilterOperator<Filter> | FilterCondition<Filter>;
-    sort?: ReadonlyArray<Comparator<T>>;
-    sinceQueryState: string;
-    maxChanges?: number;
-    upToId?: string;
-    calculateTotal?: boolean;
-  }
-
-  export interface QueryChangesResponse {
-    accountId: string;
-    oldQueryState: string;
-    newQueryState: string;
-    total?: number;
-    removed: string[];
-    added: ReadonlyArray<{
-      id: string;
-      index: number;
-    }>;
+    export interface Contract<T extends object, Filter extends object = T> {
+      input: Input<T, Filter>;
+      output: Output;
+    }
   }
 
   export type FilterCondition<Filter> = Partial<Filter>;
@@ -214,60 +236,114 @@ declare module "./index.ts" {
     collation?: string;
   }
 
-  export interface BlobUploadParams {
-    accountId: string;
+  export namespace FileUpload {
+    export interface Params {
+      accountId: string;
+    }
+
+    export interface Result {
+      accountId: string;
+      blobId: string;
+      type: string;
+      size: number;
+    }
   }
 
-  export interface BlobUploadResponse {
-    accountId: string;
-    blobId: string;
-    type: string;
-    size: number;
+  export namespace FileDownload {
+    export interface Params {
+      accountId: string;
+      blobId: string;
+      type: string;
+      name: string;
+    }
   }
 
-  export interface BlobDownloadParams {
-    accountId: string;
-    blobId: string;
-    type: string;
-    name: string;
+  export namespace CoreEcho {
+    export interface Contract {
+      input: any;
+      output: this["input"];
+    }
   }
 
-  export interface BlobCopyArguments {
-    fromAccountId: string;
-    accountId: string;
-    blobIds: string[];
+  export namespace BlobCopy {
+    export interface Input {
+      fromAccountId: string;
+      accountId: string;
+      blobIds: string[];
+    }
+
+    export interface Output {
+      fromAccountId: string;
+      accountId: string;
+      copied: Record<string, string> | null;
+      notCopied: Record<string, SetError> | null;
+    }
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
   }
 
-  export interface BlobCopyResponse {
-    fromAccountId: string;
-    accountId: string;
-    copied: Record<string, string> | null;
-    notCopied: Record<string, BlobCopySetError> | null;
+  export interface TypeState {
+    [type: string]: string;
   }
-
-  export type BlobCopySetError<T extends object = object> = Except<SetError<T>, "type"> & {
-    type: SetError<T>["type"];
-  };
 
   export interface StateChange {
     "@type": "StateChange";
-    changed: Record<string, Record<string, string>>;
+    changed: {
+      [accountId: string]: TypeState;
+    };
   }
 
-  export interface PushSubscriptionCreate {
+  export namespace PushSubscriptionGet {
+    export interface Contract {
+      input: Omit<MethodGet.Input<PushSubscription>, "accountId">;
+      output: MethodGet.Output<PushSubscription, this["input"]>;
+    }
+  }
+
+  export namespace PushSubscriptionSet {
+    export interface Input {
+      accountId: string;
+      ifInState?: string;
+      create?: Record<string, PushSubscriptionCreate>;
+      update?: Record<string, PatchObject<PushSubscription>>;
+      destroy?: string[];
+    }
+
+    export interface Output {
+      accountId: string;
+      oldState: string | null;
+      newState: string;
+      created: Record<string, PushSubscription> | null;
+      updated: Record<string, PushSubscription | null> | null;
+      destroyed: string[] | null;
+      notCreated: Record<string, SetError> | null;
+      notUpdated: Record<string, SetError> | null;
+      notDestroyed: Record<string, SetError> | null;
+    }
+
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export interface PushSubscription {
+    id: string;
     deviceClientId: string;
-    url: string;
-    keys?: {
-      p256dh: string;
-      auth: string;
-    };
     verificationCode?: string;
     expires?: string;
     types?: string[];
   }
 
-  export interface PushSubscription extends PushSubscriptionCreate {
-    id: string;
+  export interface PushSubscriptionCreate extends PushSubscription {
+    url: string;
+    keys?: {
+      p256dh: string;
+      auth: string;
+    };
   }
 
   export interface PushVerification {
@@ -279,6 +355,6 @@ declare module "./index.ts" {
   export interface EventSourceArguments {
     types: string;
     closeafter: "state" | "no";
-    ping: string;
+    ping: number;
   }
 }
