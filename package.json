@@ -64,7 +64,7 @@
     "oxlint-tsgolint": "7.0.2005",
     "pkg-pr-new": "0.0.91",
     "publint": "0.3.25",
-    "tsdown": "0.23.1",
+    "tsdown": "0.23.2",
     "typescript": "6.0.3",
     "vitepress": "2.0.0-alpha.20",
     "vitepress-plugin-group-icons": "1.8.1",
