@@ -1,4 +1,4 @@
-declare namespace JMAP {
+declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:blob": {};
   }
@@ -17,41 +17,61 @@ declare namespace JMAP {
     | { "data:asBase64": string }
     | { blobId: string; offset?: number; length?: number };
 
-  export interface BlobUploadObject {
+  export interface UploadObject {
     data: DataSourceObject[];
     type?: string;
   }
 
-  export interface BlobUploadArguments extends SetArguments<BlobUploadParams> {
+  export interface BlobUploadMethodArguments {
     accountId: string;
-    create?: Record<string, BlobUploadParams>;
+    create: Record<string, BlobUploadParams>;
   }
 
-  export interface BlobUploadResponse extends SetResponse<UploadObject, BlobUploadArguments> {}
-
-  export interface BlobGetProperties {
-    "data:asText"?: string;
-    "data:asBase64"?: string;
-    data?: string;
-    [`digest:${string}`]: string;
-    size: number;
+  interface UploadedBlob {
+    id: BlobUploadResponse["blobId"];
+    type: BlobUploadResponse["type"];
+    size: BlobUploadResponse["size"];
   }
 
-  export interface Blob {
+  export interface BlobUploadMethodResponse {
+    accountId: string;
+    created: Record<string, UploadedBlob>;
+    notCreated: Record<string, SetError> | null;
+  }
+
+  export type Blob = {
     "data:asText": string | null;
     "data:asBase64": string;
-    [`digest:${string}`]: string;
     isEncodingProblem: boolean;
     isTruncated: boolean;
     size: number;
-  }
+  } & {
+    [key in `digest:${string}`]: string;
+  };
 
-  export interface BlobGetArguments extends GetArguments<BlobGetProperties> {
+  export type BlobGetProperties = {
+    "data:asText"?: string;
+    "data:asBase64"?: string;
+    data?: string;
+    size: number;
+  } & {
+    [key in `digest:${string}`]: string;
+  };
+
+  export interface BlobGetArguments {
+    accountId: string;
+    ids?: readonly string[];
+    properties?: readonly BlobGetProperties[];
     offset?: number;
     length?: number;
   }
 
-  export interface BlobGetResponse extends GetResponse<Blob, BlobGetArguments> {}
+  export interface BlobGetResponse {
+    accountId: string;
+    state: string;
+    list: ReadonlyArray<Blob>;
+    notFound: ReadonlyArray<string>;
+  }
 
   export interface BlobLookupArguments {
     accountId: string;

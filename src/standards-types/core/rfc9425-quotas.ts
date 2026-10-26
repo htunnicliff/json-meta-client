@@ -1,4 +1,4 @@
-declare namespace JMAP {
+declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:quota": {};
   }
@@ -46,7 +46,7 @@ declare namespace JMAP {
 
   export interface QuotaQueryResult extends QueryResponse {}
 
-  export interface QuotaQueryChangesArguments extends QueryChangesArguments {}
+  export type QuotaQueryChangesArguments = QueryChangesArguments<Quota, QuotaFilter>;
 
   export interface QuotaQueryChangesResponse extends QueryChangesResponse {}
 }

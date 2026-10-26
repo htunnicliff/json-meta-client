@@ -1,3 +1,3 @@
-export declare namespace JMAPContacts {
+declare module "./index.ts" {
   //
 }

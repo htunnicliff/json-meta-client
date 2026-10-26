@@ -1,4 +1,4 @@
-declare namespace JMAP {
+declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:principals": {};
   }
@@ -36,7 +36,7 @@ declare namespace JMAP {
 
   export interface PrincipalChangesResponse extends ChangesResponse {}
 
-  export interface PrincipalSetArguments extends SetArguments<Principal> {}
+  export type PrincipalSetArguments = SetArguments<Principal>;
 
   export interface PrincipalSetResponse extends SetResponse<Principal, PrincipalSetArguments> {}
 
@@ -49,7 +49,7 @@ declare namespace JMAP {
     timeZone: string;
   }
 
-  export interface PrincipalQueryArguments extends QueryArguments<Principal, PrincipalFilter> {}
+  export type PrincipalQueryArguments = QueryArguments<Principal, PrincipalFilter>;
 
   export interface PrincipalQueryResponse extends QueryResponse {}
 
@@ -99,12 +99,12 @@ declare namespace JMAP {
 
   export interface ShareNotificationChangesResponse extends ChangesResponse {}
 
-  export interface ShareNotificationSetArguments extends SetArguments<ShareNotification> {}
+  export type ShareNotificationSetArguments = SetArguments<ShareNotification>;
 
-  export interface ShareNotificationSetResponse extends SetResponse<
+  export type ShareNotificationSetResponse = SetResponse<
     ShareNotification,
     ShareNotificationSetArguments
-  > {}
+  >;
 
   export interface ShareNotificationFilter {
     after: string | null;

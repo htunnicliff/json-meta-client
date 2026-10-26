@@ -1,3 +1,3 @@
-export declare namespace JsContact {
+declare module "./index.ts" {
   //
 }

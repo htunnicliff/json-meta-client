@@ -1,3 +1,3 @@
-export declare namespace JMAPMail {
+declare module "./index.ts" {
   //
 }

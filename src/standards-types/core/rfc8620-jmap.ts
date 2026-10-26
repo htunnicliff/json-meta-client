@@ -1,5 +1,7 @@
+import type { Except, RequireAtLeastOne } from "type-fest";
+
 // oxlint-disable typescript/consistent-type-imports
-declare namespace JMAP {
+declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:core": {
       maxSizeUpload: number;
@@ -97,11 +99,11 @@ declare namespace JMAP {
     destroyed: string[];
   }
 
-  export type SetArguments<T extends object> = import("type-fest").RequireAtLeastOne<
+  export type SetArguments<T extends object> = RequireAtLeastOne<
     {
       accountId: string;
       ifInState?: string;
-      create?: Record<string, import("type-fest").RequireAtLeastOne<T>>;
+      create?: Record<string, RequireAtLeastOne<T>>;
       update?: Record<string, PatchObject<T>>;
       destroy?: string[];
     },
@@ -126,7 +128,7 @@ declare namespace JMAP {
     notDestroyed: Args["destroy"] extends string[] ? Record<string, SetError> | null : null;
   }
 
-  export interface SetError<T extends Obj = Obj> {
+  export interface SetError<T = object> {
     type: string;
     description: string | null;
     properties?: ReadonlyArray<keyof T>;
@@ -152,14 +154,11 @@ declare namespace JMAP {
     notCreated: Record<string, CopySetError> | null;
   }
 
-  export type CopySetError<T extends Obj = Obj> = import("type-fest").Except<
-    SetError<T>,
-    "type"
-  > & {
+  export type CopySetError<T extends object = object> = Except<SetError<T>, "type"> & {
     type: SetError<T>["type"];
   };
 
-  export interface QueryArguments<T extends Obj, Filter extends Obj = T> {
+  export interface QueryArguments<T extends object, Filter extends object = T> {
     accountId: string;
     filter?: FilterOperator<Filter> | FilterCondition<Filter>;
     sort?: ReadonlyArray<Comparator<T>>;
@@ -180,7 +179,7 @@ declare namespace JMAP {
     limit?: number;
   }
 
-  export interface QueryChangesArguments<T extends Obj, Filter extends Obj> {
+  export interface QueryChangesArguments<T extends object, Filter extends object> {
     accountId: string;
     filter?: FilterOperator<Filter> | FilterCondition<Filter>;
     sort?: ReadonlyArray<Comparator<T>>;
@@ -202,17 +201,14 @@ declare namespace JMAP {
     }>;
   }
 
-  export interface FilterOperator<Filter extends Obj> {
+  export type FilterCondition<Filter> = Partial<Filter>;
+
+  export interface FilterOperator<Filter> {
     operator: "AND" | "OR" | "NOT";
     conditions: ReadonlyArray<FilterOperator<Filter> | FilterCondition<Filter>>;
   }
 
-  export type FilterCondition<Filter extends Obj> = import("type-fest").Except<
-    Partial<Filter>,
-    "operator"
-  >;
-
-  export interface Comparator<T extends Obj> {
+  export interface Comparator<T extends object> {
     property: keyof T;
     isAscending?: boolean;
     collation?: string;
@@ -249,10 +245,7 @@ declare namespace JMAP {
     notCopied: Record<string, BlobCopySetError> | null;
   }
 
-  export type BlobCopySetError<T extends Obj = Obj> = import("type-fest").Except<
-    SetError<T>,
-    "type"
-  > & {
+  export type BlobCopySetError<T extends object = object> = Except<SetError<T>, "type"> & {
     type: SetError<T>["type"];
   };
 
@@ -288,6 +281,4 @@ declare namespace JMAP {
     closeafter: "state" | "no";
     ping: string;
   }
-
-  type Obj = Record<string, unknown>;
 }

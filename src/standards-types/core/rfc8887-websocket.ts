@@ -1,4 +1,4 @@
-declare namespace JMAP {
+declare module "./index.ts" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:websocket": {
       url: string;
@@ -6,22 +6,22 @@ declare namespace JMAP {
     };
   }
 
-  export interface WebSocketRequest extends JMAP.Request {
+  export interface WebSocketRequest extends Request {
     "@type": "Request";
     id?: string;
   }
 
-  export interface WebSocketResponse extends JMAP.Response {
+  export interface WebSocketResponse extends Response {
     "@type": "Response";
     requestId?: string;
   }
 
-  export interface WebSocketProblemDetails extends JMAP.ProblemDetails {
+  export interface WebSocketProblemDetails extends ProblemDetails {
     "@type": "RequestError";
     requestId?: string;
   }
 
-  export interface WebSocketStateChange extends JMAP.StateChange {
+  export interface WebSocketStateChange extends StateChange {
     pushState?: string;
   }
 
