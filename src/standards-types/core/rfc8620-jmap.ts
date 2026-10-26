@@ -1,4 +1,4 @@
-import type { Except, RequireAtLeastOne, ValueOf } from "type-fest";
+import type { Except, RequireAtLeastOne } from "type-fest";
 
 export declare namespace JMAP {
   export interface Session<Urn extends string = string> {
