@@ -115,4 +115,27 @@ declare module "./index.ts" {
       output: Output;
     }
   }
+
+  export interface Thread {
+    id: string;
+    emailIds: string[];
+  }
+
+  export namespace ThreadGet {
+    export interface Input extends MethodGet.Input<Thread> {}
+    export interface Output<Args> extends MethodGet.Output<Thread, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
+
+  export namespace ThreadChanges {
+    export interface Input extends MethodChanges.Input {}
+    export interface Output extends MethodChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }
