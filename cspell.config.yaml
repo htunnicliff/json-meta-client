@@ -23,6 +23,7 @@ words:
   - tsgolint
   - tunnicliff
   - unstub
+  - webpush
 ignorePaths:
   - pnpm-lock.yaml
   - dist/
