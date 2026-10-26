@@ -1,10 +1,26 @@
-import type { Except, RequireAtLeastOne } from "type-fest";
+// oxlint-disable typescript/consistent-type-imports
+declare namespace JMAP {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:core": {
+      maxSizeUpload: number;
+      maxConcurrentUpload: number;
+      maxSizeRequest: number;
+      maxConcurrentRequests: number;
+      maxCallsInRequest: number;
+      maxObjectsInGet: number;
+      maxObjectsInSet: number;
+      collationAlgorithms: string[];
+    };
+  }
 
-export declare namespace JMAP {
-  export interface Session<Urn extends string = string> {
-    capabilities: { [Key in Urn]: unknown };
-    accounts: { [id: string]: Account<Urn> };
-    primaryAccounts: { [Key in Urn]: string };
+  export interface AccountCapabilities {
+    "urn:ietf:params:jmap:core": {};
+  }
+
+  export interface Session {
+    capabilities: SessionCapabilities;
+    accounts: { [id: string]: Account };
+    primaryAccounts: { [urn: string]: string };
     username: string;
     apiUrl: string;
     downloadUrl: string;
@@ -14,11 +30,11 @@ export declare namespace JMAP {
     [key: string]: unknown;
   }
 
-  export interface Account<Urn extends string = string> {
+  export interface Account {
     name: string;
     isPersonal: boolean;
     isReadOnly: boolean;
-    accountCapabilities: { [Key in Urn]: unknown };
+    accountCapabilities: { [urn: string]: unknown };
   }
 
   export type Invocation<T = unknown> = [name: string, argsOrResponse: T, methodCallId: string];
@@ -81,11 +97,11 @@ export declare namespace JMAP {
     destroyed: string[];
   }
 
-  export type SetArguments<T extends object> = RequireAtLeastOne<
+  export type SetArguments<T extends object> = import("type-fest").RequireAtLeastOne<
     {
       accountId: string;
       ifInState?: string;
-      create?: Record<string, RequireAtLeastOne<T>>;
+      create?: Record<string, import("type-fest").RequireAtLeastOne<T>>;
       update?: Record<string, PatchObject<T>>;
       destroy?: string[];
     },
@@ -136,7 +152,10 @@ export declare namespace JMAP {
     notCreated: Record<string, CopySetError> | null;
   }
 
-  export type CopySetError<T extends Obj = Obj> = Except<SetError<T>, "type"> & {
+  export type CopySetError<T extends Obj = Obj> = import("type-fest").Except<
+    SetError<T>,
+    "type"
+  > & {
     type: SetError<T>["type"];
   };
 
@@ -188,7 +207,10 @@ export declare namespace JMAP {
     conditions: ReadonlyArray<FilterOperator<Filter> | FilterCondition<Filter>>;
   }
 
-  export type FilterCondition<Filter extends Obj> = Except<Partial<Filter>, "operator">;
+  export type FilterCondition<Filter extends Obj> = import("type-fest").Except<
+    Partial<Filter>,
+    "operator"
+  >;
 
   export interface Comparator<T extends Obj> {
     property: keyof T;
@@ -227,7 +249,10 @@ export declare namespace JMAP {
     notCopied: Record<string, BlobCopySetError> | null;
   }
 
-  export type BlobCopySetError<T extends Obj = Obj> = Except<SetError<T>, "type"> & {
+  export type BlobCopySetError<T extends Obj = Obj> = import("type-fest").Except<
+    SetError<T>,
+    "type"
+  > & {
     type: SetError<T>["type"];
   };
 
