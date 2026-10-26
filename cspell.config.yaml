@@ -17,6 +17,7 @@ words:
   - JMAP
   - microtask
   - microtasks
+  - notjunk
   - oxfmt
   - oxlint
   - reqheaders
