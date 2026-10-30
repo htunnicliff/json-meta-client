@@ -65,6 +65,20 @@ declare module "./index.ts" {
     limit?: string;
   }
 
+  export type PickPropertiesForEntity<
+    T,
+    Args,
+    Options extends {
+      defaultProperties: keyof T;
+    } = {
+      defaultProperties: keyof T;
+    },
+  > = Args extends { properties?: readonly string[] }
+    ? ["properties"] extends ReadonlyArray<infer P extends keyof T>
+      ? Pick<T, P>
+      : Pick<T, Options["defaultProperties"]>
+    : never;
+
   export namespace MethodGet {
     export interface Input<T> {
       accountId: string;
@@ -75,13 +89,7 @@ declare module "./index.ts" {
     export interface Output<T, Args> {
       accountId: string;
       state: string;
-      list: ReadonlyArray<
-        Args extends { properties?: readonly string[] }
-          ? ["properties"] extends ReadonlyArray<infer P extends keyof T>
-            ? Pick<T, P>
-            : T
-          : never
-      >;
+      list: ReadonlyArray<PickPropertiesForEntity<Args, T>>;
       notFound: ReadonlyArray<string>;
     }
 

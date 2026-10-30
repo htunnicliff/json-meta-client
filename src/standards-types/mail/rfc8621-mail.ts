@@ -5,6 +5,7 @@ import type {
   MethodQuery,
   MethodQueryChanges,
   MethodSet,
+  PickPropertiesForEntity,
 } from "../core/index.ts";
 
 declare module "./index.ts" {
@@ -301,20 +302,56 @@ declare module "./index.ts" {
     }
   }
 
+  export type EmailCopyResult = Pick<Email, "id" | "blobId" | "threadId" | "size">;
+
   export namespace EmailCopy {
     export interface Input extends MethodCopy.Input<
       Pick<Email, "id"> & Partial<Pick<Email, "mailboxIds" | "keywords" | "receivedAt">>
     > {}
-    export interface Output extends MethodCopy.Output<
-      Pick<Email, "id" | "blobId" | "threadId" | "size">
-    > {}
+    export interface Output extends MethodCopy.Output<EmailCopyResult> {}
     export interface Contract {
       input: Input;
       output: Output;
     }
   }
 
-  // TODO: EmailImport
+  export namespace EmailImport {
+    export interface Input {
+      accountId: string;
+      ifInState?: string;
+      emails: {
+        [id: string]: Pick<Email, "blobId" | "mailboxIds" | "keywords" | "receivedAt">;
+      };
+    }
+    export interface Output extends Omit<MethodCopy.Output<EmailCopyResult>, "fromAccountId"> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 
-  // TODO: EmailParse
+  export namespace EmailParse {
+    export interface Input extends Pick<
+      EmailGet.Input,
+      | "bodyProperties"
+      | "fetchTextBodyValues"
+      | "fetchHTMLBodyValues"
+      | "fetchAllBodyValues"
+      | "maxBodyValueBytes"
+      | "accountId"
+      | "properties"
+    > {
+      blobIds: string[];
+    }
+    export interface Output<Args> {
+      accountId: string;
+      parsed: { [id: string]: PickPropertiesForEntity<Email, Args> | null };
+      notParsable: string[] | null;
+      notFound: string[] | null;
+    }
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
 }
