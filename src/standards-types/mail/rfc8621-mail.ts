@@ -511,4 +511,32 @@ declare module "./index.ts" {
       output: Output;
     }
   }
+
+  export interface VacationResponse {
+    id: "singleton";
+    isEnabled: boolean;
+    fromDate: string | null;
+    toDate: string | null;
+    subject: string | null;
+    textBody: string | null;
+    htmlBody: string | null;
+  }
+
+  export namespace VacationResponseGet {
+    export interface Input extends MethodGet.Input<VacationResponse> {}
+    export interface Output<Args> extends MethodGet.Output<VacationResponse, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
+
+  export namespace VacationResponseSet {
+    export interface Input extends MethodSet.Input<VacationResponse> {}
+    export interface Output extends MethodSet.Output<VacationResponse> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }
