@@ -142,7 +142,7 @@ declare module "./index.ts" {
     }
   }
 
-  export interface Email {
+  export interface EmailBase {
     id: string;
     blobId: string;
     threadId: string;
@@ -175,11 +175,7 @@ declare module "./index.ts" {
     sentAt: string | null;
   }
 
-  /**
-   * These properties are available on the email interface
-   * but must be explicitly requested in a `properties` array
-   */
-  export interface ComputedEmailFields {
+  export interface EmailComputedFields {
     bodyStructure: EmailBodyPart[];
     bodyValues: { [partId: string]: EmailBodyValue };
     textBody: EmailBodyPart[];
@@ -189,7 +185,9 @@ declare module "./index.ts" {
     preview: string;
   }
 
-  export type EmailCreate = /* TODO */ void;
+  export interface Email extends EmailBase, EmailComputedFields {
+    // TODO: Handle divergence between set, get, query, and filters
+  }
 
   export interface EmailAddress {
     email: string;
@@ -206,19 +204,22 @@ declare module "./index.ts" {
     value: string;
   }
 
-  export interface EmailBodyPart {
-    partId?: string;
-    blobId?: string;
+  export interface EmailBodySubPart {
+    partId: string | null;
+    blobId: string | null;
     size: number;
     headers: EmailHeader[];
-    name?: string;
+    name: string | null;
     type: string;
-    charset?: string;
-    disposition?: string;
-    cid?: string;
-    language?: string[];
-    location?: string;
-    subParts?: Omit<EmailBodyPart, "subParts">[];
+    charset: string | null;
+    disposition: string | null;
+    cid: string | null;
+    language: string[] | null;
+    location: string | null;
+  }
+
+  export interface EmailBodyPart extends EmailBodySubPart {
+    subParts: EmailBodySubPart[] | null;
   }
 
   export interface EmailBodyValue {
