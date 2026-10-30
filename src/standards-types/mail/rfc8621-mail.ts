@@ -354,4 +354,27 @@ declare module "./index.ts" {
       output: Output<this["input"]>;
     }
   }
+
+  export interface SearchSnippet {
+    emailId: string;
+    subject: string | null;
+    preview: string | null;
+  }
+
+  export namespace SearchSnippetGet {
+    type BaseInput = Pick<MethodQuery.Input<Email, EmailFilter>, "accountId" | "filter">;
+
+    export interface Input extends BaseInput {
+      emailIds: string[];
+    }
+    export interface Output {
+      accountId: string;
+      list: SearchSnippet[];
+      notFound: string[] | null;
+    }
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }
