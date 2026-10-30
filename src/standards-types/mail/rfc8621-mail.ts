@@ -185,9 +185,19 @@ declare module "./index.ts" {
     preview: string;
   }
 
-  export interface Email extends EmailBase, EmailComputedFields {
-    // TODO: Handle divergence between set, get, query, and filters
-  }
+  export interface ReadableEmail extends EmailBase, EmailComputedFields {}
+
+  export type WritableEmail = Omit<EmailBase, "id" | "headers"> &
+    (
+      | {
+          bodyStructure: EmailComputedFields["bodyStructure"];
+        }
+      | {
+          textBody: EmailComputedFields["textBody"];
+          htmlBody: EmailComputedFields["htmlBody"];
+          attachments: EmailComputedFields["attachments"];
+        }
+    );
 
   export interface EmailAddress {
     email: string;
@@ -229,14 +239,14 @@ declare module "./index.ts" {
   }
 
   export namespace EmailGet {
-    export interface Input extends MethodGet.Input<Email> {
+    export interface Input extends MethodGet.Input<ReadableEmail> {
       bodyProperties?: (keyof EmailBodyPart)[];
       fetchTextBodyValues?: boolean;
       fetchHTMLBodyValues?: boolean;
       fetchAllBodyValues?: boolean;
       maxBodyValueBytes?: number;
     }
-    export interface Output<Args> extends MethodGet.Output<Email, Args> {}
+    export interface Output<Args> extends MethodGet.Output<ReadableEmail, Args> {}
     export interface Contract {
       input: Input;
       output: Output<this["input"]>;
@@ -276,7 +286,7 @@ declare module "./index.ts" {
   }
 
   export namespace EmailQuery {
-    export interface Input extends MethodQuery.Input<Email, EmailFilter> {
+    export interface Input extends MethodQuery.Input<ReadableEmail, EmailFilter> {
       collapseThreads?: boolean;
     }
     export interface Output extends MethodQuery.Output {}
@@ -287,7 +297,7 @@ declare module "./index.ts" {
   }
 
   export namespace EmailQueryChanges {
-    export interface Input extends MethodQueryChanges.Input<Email, EmailFilter> {}
+    export interface Input extends MethodQueryChanges.Input<ReadableEmail, EmailFilter> {}
     export interface Output extends MethodQueryChanges.Output {}
     export interface Contract {
       input: Input;
@@ -296,19 +306,20 @@ declare module "./index.ts" {
   }
 
   export namespace EmailSet {
-    export interface Input extends MethodSet.Input<Email> {}
-    export interface Output extends MethodSet.Output<Email> {}
+    export interface Input extends MethodSet.Input<WritableEmail> {}
+    export interface Output extends MethodSet.Output<ReadableEmail> {}
     export interface Contract {
       input: Input;
       output: Output;
     }
   }
 
-  export type EmailCopyResult = Pick<Email, "id" | "blobId" | "threadId" | "size">;
+  export type EmailCopyResult = Pick<ReadableEmail, "id" | "blobId" | "threadId" | "size">;
 
   export namespace EmailCopy {
     export interface Input extends MethodCopy.Input<
-      Pick<Email, "id"> & Partial<Pick<Email, "mailboxIds" | "keywords" | "receivedAt">>
+      Pick<ReadableEmail, "id"> &
+        Partial<Pick<ReadableEmail, "mailboxIds" | "keywords" | "receivedAt">>
     > {}
     export interface Output extends MethodCopy.Output<EmailCopyResult> {}
     export interface Contract {
@@ -322,7 +333,7 @@ declare module "./index.ts" {
       accountId: string;
       ifInState?: string;
       emails: {
-        [id: string]: Pick<Email, "blobId" | "mailboxIds" | "keywords" | "receivedAt">;
+        [id: string]: Pick<ReadableEmail, "blobId" | "mailboxIds" | "keywords" | "receivedAt">;
       };
     }
     export interface Output extends Omit<MethodCopy.Output<EmailCopyResult>, "fromAccountId"> {}
@@ -347,7 +358,7 @@ declare module "./index.ts" {
     }
     export interface Output<Args> {
       accountId: string;
-      parsed: { [id: string]: PickPropertiesForEntity<Email, Args> | null };
+      parsed: { [id: string]: PickPropertiesForEntity<ReadableEmail, Args> | null };
       notParsable: string[] | null;
       notFound: string[] | null;
     }
@@ -364,7 +375,7 @@ declare module "./index.ts" {
   }
 
   export namespace SearchSnippetGet {
-    type BaseInput = Pick<MethodQuery.Input<Email, EmailFilter>, "accountId" | "filter">;
+    type BaseInput = Pick<MethodQuery.Input<ReadableEmail, EmailFilter>, "accountId" | "filter">;
 
     export interface Input extends BaseInput {
       emailIds: string[];
