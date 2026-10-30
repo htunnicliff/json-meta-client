@@ -377,4 +377,42 @@ declare module "./index.ts" {
       output: Output;
     }
   }
+
+  export interface Identity {
+    id: string;
+    name: string;
+    email: string;
+    replyTo: EmailAddress[] | null;
+    bcc: EmailAddress[] | null;
+    textSignature: string;
+    htmlSignature: string;
+    mayDelete: boolean;
+  }
+
+  export namespace IdentityGet {
+    export interface Input extends MethodGet.Input<Identity> {}
+    export interface Output<Args> extends MethodGet.Output<Identity, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
+
+  export namespace IdentityChanges {
+    export interface Input extends MethodChanges.Input {}
+    export interface Output extends MethodChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export namespace IdentitySet {
+    export interface Input extends MethodSet.Input<Identity> {}
+    export interface Output extends MethodSet.Output<Identity> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
 }
