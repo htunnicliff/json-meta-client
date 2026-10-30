@@ -5,6 +5,7 @@ import type {
   MethodQuery,
   MethodQueryChanges,
   MethodSet,
+  PatchObject,
   PickPropertiesForEntity,
 } from "../core/index.ts";
 
@@ -410,6 +411,101 @@ declare module "./index.ts" {
   export namespace IdentitySet {
     export interface Input extends MethodSet.Input<Identity> {}
     export interface Output extends MethodSet.Output<Identity> {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export type UndoStatus = "pending" | "final" | "canceled";
+
+  export interface EmailSubmission {
+    id: string;
+    identityId: string;
+    emailId: string;
+    threadId: string;
+    envelope: SubmissionEnvelope | null;
+    sendAt: string;
+    undoStatus: UndoStatus;
+    deliveryStatus: null | {
+      [recipientEmail: string]: DeliveryStatus;
+    };
+    dsnBlobIds: string[];
+    mdnBlobIds: string[];
+  }
+
+  export interface DeliveryStatus {
+    smtpReply: string;
+    delivered: "queued" | "yes" | "no" | "unknown";
+    displayed: "unknown" | "yes";
+  }
+
+  export interface SubmissionEnvelope {
+    mailFrom: SubmissionAddress;
+    rcptTo: SubmissionAddress[];
+  }
+
+  export interface SubmissionAddress {
+    email: string;
+    parameters?: {
+      [name: string]: string | null;
+    };
+  }
+
+  export namespace EmailSubmissionGet {
+    export interface Input extends MethodGet.Input<EmailSubmission> {}
+    export interface Output<Args> extends MethodGet.Output<EmailSubmission, Args> {}
+    export interface Contract {
+      input: Input;
+      output: Output<this["input"]>;
+    }
+  }
+
+  export namespace EmailSubmissionChanges {
+    export interface Input extends MethodChanges.Input {}
+    export interface Output extends MethodChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export interface EmailSubmissionFilter {
+    identityIds: string[];
+    emailIds: string[];
+    threadIds: string[];
+    undoStatus: UndoStatus;
+    before: string;
+    after: string;
+  }
+
+  export namespace EmailSubmissionQuery {
+    export interface Input extends MethodQuery.Input<EmailSubmission, EmailSubmissionFilter> {}
+    export interface Output extends MethodQuery.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export namespace EmailSubmissionQueryChanges {
+    export interface Input extends MethodQueryChanges.Input<
+      EmailSubmission,
+      EmailSubmissionFilter
+    > {}
+    export interface Output extends MethodQueryChanges.Output {}
+    export interface Contract {
+      input: Input;
+      output: Output;
+    }
+  }
+
+  export namespace EmailSubmissionSet {
+    export interface Input extends MethodSet.Input<EmailSubmission> {
+      onSuccessUpdateEmail?: { [submissionId: string]: PatchObject<EmailSubmission> };
+      onSuccessDestroyEmail?: string[];
+    }
+    export interface Output extends MethodSet.Output<EmailSubmission> {}
     export interface Contract {
       input: Input;
       output: Output;
