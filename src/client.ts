@@ -1,13 +1,3 @@
-import type {
-  BlobDownloadParams,
-  BlobUploadParams,
-  BlobUploadResponse,
-  EventSourceArguments,
-  Request as JMAPRequest,
-  Response as JMAPResponse,
-  ProblemDetails,
-  StateChange,
-} from "jmap-rfc-types";
 import type { SetOptional, SetRequired } from "type-fest";
 
 import type { DefaultCapabilities } from "./built-ins.ts";
@@ -32,6 +22,15 @@ import { MethodCallResult } from "./internal/method-call-result.ts";
 import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type {
+  FileDownload,
+  FileUpload,
+  EventSourceArguments,
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  ProblemDetails,
+  StateChange,
+} from "./standards-types/core/index.ts";
 import type {
   CapabilityOption,
   ClientApi,
@@ -117,13 +116,13 @@ export class JsonMetaClient<
      */
     upload: async (
       body: BodyInit,
-      params: SetOptional<BlobUploadParams, "accountId"> = {},
-    ): Promise<BlobUploadResponse> => {
+      params: SetOptional<FileUpload.Params, "accountId"> = {},
+    ): Promise<FileUpload.Result> => {
       const session = await this.session;
       const url = expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const data = await this.#fetchJson<BlobUploadResponse>(url, {
+      const data = await this.#fetchJson<FileUpload.Result>(url, {
         method: "POST",
         body,
       });
@@ -132,7 +131,7 @@ export class JsonMetaClient<
     /**
      * Download a blob
      */
-    download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
+    download: async (params: SetOptional<FileDownload.Params, "accountId">): Promise<Response> => {
       const session = await this.session;
       const url = expandURITemplate(session.downloadUrl, {
         ...params,
@@ -158,7 +157,7 @@ export class JsonMetaClient<
       // spellchecker:disable-next-line
       closeafter: "no",
       ping: pingSeconds.toFixed(0),
-    } satisfies EventSourceArguments);
+    } satisfies Record<keyof EventSourceArguments, string>);
     const { createEventSource } = await import("eventsource-client");
 
     const eventSource = createEventSource({

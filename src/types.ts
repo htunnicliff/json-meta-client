@@ -1,4 +1,3 @@
-import type { Session as JmapSession } from "jmap-rfc-types";
 import type { UnionToIntersection } from "type-fest";
 
 import type {
@@ -9,6 +8,7 @@ import type {
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
 import type { Augment, Middleware } from "./internal/types.ts";
+import type { Session as JmapSession } from "./standards-types/core/index.ts";
 
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   /**
@@ -105,7 +105,7 @@ export type ClientSession<T extends ReadonlyArray<CapabilityOption>> = JmapSessi
 export interface StateChangePayload {
   /** The account that the change occurred in  */
   accountId: string;
-  /** Whether the account ID is that of the primary account */
+  /** Whether the account string is that of the primary account */
   isPrimaryAccount: boolean;
   /** The type of entity that saw a change */
   entity: string;

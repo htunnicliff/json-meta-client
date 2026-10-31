@@ -1,6 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { Request as JMAPRequest, Response as JMAPResponse } from "jmap-rfc-types";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -8,6 +7,10 @@ import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
 import { JsonMetaClient } from "../client.ts";
 import { CancellationError } from "../errors.ts";
+import type {
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+} from "../standards-types/core/index.ts";
 
 const host = "https://batching.test";
 const accountId = "account";

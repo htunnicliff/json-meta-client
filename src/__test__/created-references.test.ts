@@ -1,9 +1,9 @@
-import type { Request as JMAPRequest } from "jmap-rfc-types";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { mail } from "../capabilities/mail.ts";
 import { submission } from "../capabilities/submission.ts";
 import { JsonMetaClient } from "../client.ts";
+import type { Request as JMAPRequest } from "../standards-types/core/index.ts";
 
 const apiUrl = "https://example.test/api";
 
@@ -87,7 +87,7 @@ describe("set creation references", () => {
     });
   });
 
-  it("rejects an unknown creation ID from a real Email.set call", async () => {
+  it("rejects an unknown creation string from a real Email.set call", async () => {
     const { client } = setup();
     const draft = client.api.Email.set({ create: { draft: { subject: "Hello" } } });
     expect(() => Reflect.apply(draft.createdRef, draft, ["missing"])).toThrow(RangeError);

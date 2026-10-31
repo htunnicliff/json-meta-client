@@ -20,10 +20,10 @@ export function createApi<T extends object>({
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): JsonValue => {
+  const applyMiddleware = (payload: JsonObject, entity: string, method: string): JsonValue => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
-      transformed = fn(transformed);
+      transformed = fn(transformed, { entity, method });
     }
     return transformed;
   };
@@ -49,7 +49,7 @@ export function createApi<T extends object>({
               const fn = (args: JsonObject, options?: AugmentedOptions) => {
                 const methodCall = new MethodCall({
                   method: `${entity}/${method}`,
-                  args: applyMiddleware(args),
+                  args: applyMiddleware(args, entity, method),
                   id: options?.id,
                 });
 

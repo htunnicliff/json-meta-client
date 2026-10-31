@@ -1,33 +1,28 @@
-import type { EmailSubmissionContracts, IdentityContracts } from "jmap-rfc-types/contracts";
-
 import type { Capability } from "../capability.ts";
+import type * as Standard from "../standards-types/mail/index.ts";
 
 /**
  * Account limits and SMTP extensions advertised by the JMAP Submission capability.
  *
  * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3.2
  */
-export interface SubmissionAccountCapabilities {
-  /** Maximum send delay in seconds; zero means delayed sending is unsupported. */
-  maxDelayedSend: number;
-  /** SMTP extension names mapped to their argument lists. */
-  submissionExtensions: Record<string, string[]>;
-}
+type Details = Standard.AccountCapabilities["urn:ietf:params:jmap:submission"];
+export interface SubmissionAccountCapabilities extends Details {}
 
 export const submission: Capability<
   "Identity" | "EmailSubmission",
   {
     Identity: {
-      get: IdentityContracts.Get.Contract;
-      set: IdentityContracts.Set.Contract;
-      changes: IdentityContracts.Changes.Contract;
+      get: Standard.IdentityGet.Contract;
+      set: Standard.IdentitySet.Contract;
+      changes: Standard.IdentityChanges.Contract;
     };
     EmailSubmission: {
-      get: EmailSubmissionContracts.Get.Contract;
-      set: EmailSubmissionContracts.Set.Contract;
-      query: EmailSubmissionContracts.Query.Contract;
-      queryChanges: EmailSubmissionContracts.QueryChanges.Contract;
-      changes: EmailSubmissionContracts.Changes.Contract;
+      get: Standard.EmailSubmissionGet.Contract;
+      set: Standard.EmailSubmissionSet.Contract;
+      query: Standard.EmailSubmissionQuery.Contract;
+      queryChanges: Standard.EmailSubmissionQueryChanges.Contract;
+      changes: Standard.EmailSubmissionChanges.Contract;
     };
   },
   "urn:ietf:params:jmap:submission",

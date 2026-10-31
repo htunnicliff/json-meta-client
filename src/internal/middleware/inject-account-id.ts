@@ -1,10 +1,10 @@
-import type { Session } from "jmap-rfc-types";
-
 import { mail } from "../../capabilities/mail.ts";
+import type { Session } from "../../standards-types/core/index.ts";
 import type { Middleware } from "../types.ts";
 
 export function injectAccountId(getSession: () => Session): Middleware {
-  return (args) => {
+  return (args, context) => {
+    if (context?.entity === "Core" || context?.entity === "PushSubscription") return args;
     // Add `accountId` if not set
     if (
       typeof args === "object" &&

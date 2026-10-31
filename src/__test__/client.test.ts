@@ -2,13 +2,6 @@
 // cspell:words reqheaders badheaders
 import { isDeepStrictEqual } from "node:util";
 
-import type {
-  BlobUploadResponse,
-  Request as JMAPRequest,
-  Response as JMAPResponse,
-  ProblemDetails,
-  Session,
-} from "jmap-rfc-types";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +21,13 @@ import {
   UnknownError,
 } from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
+import type {
+  FileUpload,
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  ProblemDetails,
+  Session,
+} from "../standards-types/core/index.ts";
 import type { AfterResponseHook, BeforeRequestHook } from "../types.ts";
 
 // ------ Fixtures ----------------------------------------
@@ -64,7 +64,16 @@ const DEFAULT_SESSION = {
   downloadUrl,
   eventSourceUrl: `${host}/events`,
   capabilities: {
-    [core.urn]: {},
+    [core.urn]: {
+      maxSizeUpload: 50000000,
+      maxConcurrentUpload: 4,
+      maxSizeRequest: 10000000,
+      maxConcurrentRequests: 4,
+      maxCallsInRequest: 16,
+      maxObjectsInGet: 500,
+      maxObjectsInSet: 500,
+      collationAlgorithms: [],
+    },
     [mail.urn]: {},
     [example.urn]: {},
   },
@@ -521,7 +530,7 @@ describe(JsonMetaClient, () => {
       });
       expect(scope.isDone()).toBe(true);
     });
-    it("sends a JMAP request with required capabilities and injected account ID", async () => {
+    it("sends a JMAP request with required capabilities and injected account string", async () => {
       const query = client.api.Mailbox.query({
         limit: 3,
         filter: {
@@ -566,7 +575,7 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
-    it("batches same-turn method calls and matches out-of-order responses by ID", async () => {
+    it("batches same-turn method calls and matches out-of-order responses by string", async () => {
       const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
       const emailQuery = client.api.Email.query({ limit: 1 });
       const apiScope = mockApi(
@@ -624,7 +633,7 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
-    it("preserves an explicitly supplied account ID", async () => {
+    it("preserves an explicitly supplied account string", async () => {
       const query = client.api.Mailbox.query({ accountId: "account-2", limit: 1 });
       const apiScope = mockApi(
         {
@@ -726,7 +735,7 @@ describe(JsonMetaClient, () => {
       expect(scope.isDone()).toBe(true);
     });
 
-    it("selects the requested response when an implicit method shares its call ID", async () => {
+    it("selects the requested response when an implicit method shares its call string", async () => {
       const set = client.api.Email.set({ destroy: ["email"] });
       const responseData = { accountId, oldState: "old", newState: "new", destroyed: ["email"] };
       const scope = nock(host)
@@ -906,7 +915,10 @@ describe(JsonMetaClient, () => {
       );
 
       await expect(query).resolves.toEqual({ ids: [] });
-      expect(mockMiddleware).toHaveBeenCalledExactlyOnceWith({ accountId, limit: 1 });
+      expect(mockMiddleware).toHaveBeenCalledExactlyOnceWith(
+        { accountId, limit: 1 },
+        { entity: "Mailbox", method: "query" },
+      );
       expect(mockMiddleware).toHaveReturnedWith({ foo: true });
 
       expect(apiScope.isDone()).toBe(true);
@@ -956,7 +968,7 @@ describe(JsonMetaClient, () => {
     it("posts body to correct url", async () => {
       const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
 
-      const providedResponse: BlobUploadResponse = {
+      const providedResponse: FileUpload.Result = {
         accountId,
         blobId: crypto.randomUUID(),
         size: blob.size,

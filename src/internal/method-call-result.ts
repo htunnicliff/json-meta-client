@@ -1,4 +1,4 @@
-import type { Invocation } from "jmap-rfc-types";
+import type { Invocation } from "../standards-types/core/index.ts";
 
 export class MethodCallResult<T> {
   constructor(result: Invocation<T>) {

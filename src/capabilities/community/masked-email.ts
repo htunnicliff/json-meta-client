@@ -1,6 +1,5 @@
-import type { GetArguments, GetResponse, SetArguments, SetResponse, UTCDate } from "jmap-rfc-types";
-
 import type { Capability } from "../../capability.ts";
+import type { MethodGet, MethodSet } from "../../standards-types/core/index.ts";
 
 type MaskedEmailState = "pending" | "enabled" | "disabled" | "deleted";
 
@@ -10,8 +9,8 @@ export interface MaskedEmail {
   state: MaskedEmailState;
   forDomain: string;
   description: string;
-  lastMessageAt: UTCDate | null;
-  createdAt: UTCDate;
+  lastMessageAt: string | null;
+  createdAt: string;
   createdBy: string;
   url: string | null;
   // emailPrefix: String (create-only)
@@ -19,8 +18,8 @@ export interface MaskedEmail {
 
 export declare namespace MaskedEmailContracts {
   export namespace Get {
-    export type Input = GetArguments<MaskedEmail>;
-    export type Output<A> = GetResponse<MaskedEmail, A>;
+    export type Input = MethodGet.Input<MaskedEmail>;
+    export type Output<A> = MethodGet.Output<MaskedEmail, A>;
     export interface Contract {
       input: Input;
       output: Output<this["input"]>;
@@ -28,11 +27,11 @@ export declare namespace MaskedEmailContracts {
   }
 
   export namespace Set {
-    export type Input = SetArguments<MaskedEmail & { emailPrefix: string }>;
-    export type Output<A> = SetResponse<MaskedEmail, A>;
+    export type Input = MethodSet.Input<MaskedEmail & { emailPrefix: string }>;
+    export type Output = MethodSet.Output<MaskedEmail>;
     export interface Contract {
       input: Input;
-      output: Output<this["input"]>;
+      output: Output;
     }
   }
 }

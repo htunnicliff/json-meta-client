@@ -1,5 +1,4 @@
-import type { Invocation } from "jmap-rfc-types";
-
+import type { Invocation } from "../standards-types/core/index.ts";
 import { randomHex } from "./random-hex.ts";
 
 interface MethodCallParams<T> {

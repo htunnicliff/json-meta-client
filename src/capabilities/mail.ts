@@ -1,52 +1,40 @@
-import type {
-  EmailContracts,
-  MailboxContracts,
-  SearchSnippetContracts,
-  ThreadContracts,
-} from "jmap-rfc-types/contracts";
-
 import type { Capability } from "../capability.ts";
+import type * as Standard from "../standards-types/mail/index.ts";
 
 /**
  * Account limits and features advertised by the JMAP Mail capability.
  *
  * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3
  */
-export interface MailAccountCapabilities {
-  maxMailboxesPerEmail: number | null;
-  maxMailboxDepth: number | null;
-  maxSizeMailboxName: number;
-  maxSizeAttachmentsPerEmail: number;
-  emailQuerySortOptions: string[];
-  mayCreateTopLevelMailbox: boolean;
-}
+type Details = Standard.AccountCapabilities["urn:ietf:params:jmap:mail"];
+export interface MailAccountCapabilities extends Details {}
 
 export const mail: Capability<
   "Mailbox" | "Thread" | "Email" | "SearchSnippet",
   {
     Mailbox: {
-      get: MailboxContracts.Get.Contract;
-      set: MailboxContracts.Set.Contract;
-      changes: MailboxContracts.Changes.Contract;
-      query: MailboxContracts.Query.Contract;
-      queryChanges: MailboxContracts.QueryChanges.Contract;
+      get: Standard.MailboxGet.Contract;
+      set: Standard.MailboxSet.Contract;
+      changes: Standard.MailboxChanges.Contract;
+      query: Standard.MailboxQuery.Contract;
+      queryChanges: Standard.MailboxQueryChanges.Contract;
     };
     Thread: {
-      get: ThreadContracts.Get.Contract;
-      changes: ThreadContracts.Changes.Contract;
+      get: Standard.ThreadGet.Contract;
+      changes: Standard.ThreadChanges.Contract;
     };
     Email: {
-      get: EmailContracts.Get.Contract;
-      changes: EmailContracts.Changes.Contract;
-      query: EmailContracts.Query.Contract;
-      queryChanges: EmailContracts.QueryChanges.Contract;
-      set: EmailContracts.Set.Contract;
-      copy: EmailContracts.Copy.Contract;
-      import: EmailContracts.Import.Contract;
-      parse: EmailContracts.Parse.Contract;
+      get: Standard.EmailGet.Contract;
+      changes: Standard.EmailChanges.Contract;
+      query: Standard.EmailQuery.Contract;
+      queryChanges: Standard.EmailQueryChanges.Contract;
+      set: Standard.EmailSet.Contract;
+      copy: Standard.EmailCopy.Contract;
+      import: Standard.EmailImport.Contract;
+      parse: Standard.EmailParse.Contract;
     };
     SearchSnippet: {
-      get: SearchSnippetContracts.Get.Contract;
+      get: Standard.SearchSnippetGet.Contract;
     };
   },
   "urn:ietf:params:jmap:mail",

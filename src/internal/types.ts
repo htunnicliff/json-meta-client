@@ -91,7 +91,10 @@ export type PointerPaths<T> =
       : never
     : never;
 
-export type Middleware = (payload: JsonValue) => JsonValue;
+export type Middleware = (
+  payload: JsonValue,
+  context?: { entity: string; method: string },
+) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.

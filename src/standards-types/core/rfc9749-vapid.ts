@@ -1,7 +1,5 @@
-declare module "./index.ts" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:webpush-vapid": {
-      applicationServerKey: string;
-    };
-  }
+export interface Rfc9749SessionCapabilities {
+  "urn:ietf:params:jmap:webpush-vapid": {
+    applicationServerKey: string;
+  };
 }

@@ -1,19 +1,12 @@
-import type {
-  ChangesArguments,
-  ChangesResponse,
-  CopyArguments,
-  CopyResponse,
-  GetArguments,
-  GetResponse,
-  QueryArguments,
-  QueryChangesArguments,
-  QueryChangesResponse,
-  QueryResponse,
-  SetArguments,
-  SetResponse,
-} from "jmap-rfc-types";
-
 import type { Capability } from "../../capability.ts";
+import type {
+  MethodChanges,
+  MethodCopy,
+  MethodGet,
+  MethodQuery,
+  MethodQueryChanges,
+  MethodSet,
+} from "../../standards-types/core/index.ts";
 
 /**
  * Account limits and permissions advertised by the JMAP Contacts capability.
@@ -31,42 +24,42 @@ export const contacts: Capability<
   {
     AddressBook: {
       get: {
-        input: GetArguments<any>;
-        output: GetResponse<any, any>;
+        input: MethodGet.Input<any>;
+        output: MethodGet.Output<any, any>;
       };
       changes: {
-        input: ChangesArguments;
-        output: ChangesResponse;
+        input: MethodChanges.Input;
+        output: MethodChanges.Output;
       };
       set: {
-        input: SetArguments<any>;
-        output: SetResponse<any, any>;
+        input: MethodSet.Input<any>;
+        output: MethodSet.Output<any>;
       };
     };
     ContactCard: {
       get: {
-        input: GetArguments<any>;
-        output: GetResponse<any, any>;
+        input: MethodGet.Input<any>;
+        output: MethodGet.Output<any, any>;
       };
       changes: {
-        input: ChangesArguments;
-        output: ChangesResponse;
+        input: MethodChanges.Input;
+        output: MethodChanges.Output;
       };
       query: {
-        input: QueryArguments<any>;
-        output: QueryResponse;
+        input: MethodQuery.Input<any>;
+        output: MethodQuery.Output;
       };
       queryChanges: {
-        input: QueryChangesArguments<any, any>;
-        output: QueryChangesResponse;
+        input: MethodQueryChanges.Input<any, any>;
+        output: MethodQueryChanges.Output;
       };
       set: {
-        input: SetArguments<any>;
-        output: SetResponse<any, any>;
+        input: MethodSet.Input<any>;
+        output: MethodSet.Output<any>;
       };
       copy: {
-        input: CopyArguments<any>;
-        output: CopyResponse<any>;
+        input: MethodCopy.Input<any>;
+        output: MethodCopy.Output<any>;
       };
     };
   },

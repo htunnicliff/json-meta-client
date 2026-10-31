@@ -1,14 +1,10 @@
-import type {
-  GetArguments,
-  GetResponse,
-  QueryArguments,
-  QueryResponse,
-  SetArguments,
-  SetError,
-  SetResponse,
-} from "jmap-rfc-types";
-
 import type { Capability } from "../../capability.ts";
+import type {
+  MethodGet,
+  MethodQuery,
+  MethodSet,
+  SetError,
+} from "../../standards-types/core/index.ts";
 
 // cspell:words enotify extlists
 
@@ -44,16 +40,16 @@ export const sieve: Capability<
   {
     SieveScript: {
       get: {
-        input: GetArguments<any>;
-        output: GetResponse<any, any>;
+        input: MethodGet.Input<any>;
+        output: MethodGet.Output<any, any>;
       };
       query: {
-        input: QueryArguments<any>;
-        output: QueryResponse;
+        input: MethodQuery.Input<any>;
+        output: MethodQuery.Output;
       };
       set: {
-        input: SetArguments<any>;
-        output: SetResponse<any, any>;
+        input: MethodSet.Input<any>;
+        output: MethodSet.Output<any>;
       };
       validate: {
         input: {

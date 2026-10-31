@@ -1,13 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-arguments
-import type {
-  Email,
-  EmailAddress,
-  GetArguments,
-  GetResponse,
-  ID,
-  Mailbox,
-  MailboxRole,
-} from "jmap-rfc-types";
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
@@ -19,6 +9,13 @@ import { JsonMetaClient } from "../client.ts";
 import type { Ref, ResultRefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
+// oxlint-disable typescript/no-unnecessary-type-arguments
+import type { MethodGet } from "../standards-types/core/index.ts";
+import type {
+  ReadableEmail as Email,
+  EmailAddress,
+  Mailbox,
+} from "../standards-types/mail/index.ts";
 import type { Config } from "../types.ts";
 
 const host = "https://example.test";
@@ -165,8 +162,8 @@ describe(JsonMetaClient, () => {
 
       // Present
       expectTypeOf(email.id).toBeString();
-      expectTypeOf(email.to).toEqualTypeOf<EmailAddress[] | undefined>();
-      expectTypeOf(email.from).toEqualTypeOf<EmailAddress[] | undefined>();
+      expectTypeOf(email.to).toEqualTypeOf<EmailAddress[] | null>();
+      expectTypeOf(email.from).toEqualTypeOf<EmailAddress[] | null>();
 
       // Not present
       expectTypeOf(email).not.toHaveProperty("keywords");
@@ -190,7 +187,7 @@ describe(JsonMetaClient, () => {
       // Present
       expectTypeOf(mailbox.id).toBeString();
       expectTypeOf(mailbox.name).toBeString();
-      expectTypeOf(mailbox.role).toEqualTypeOf<MailboxRole | null>();
+      expectTypeOf(mailbox.role).toEqualTypeOf<string | null>();
 
       // Not present
       expectTypeOf(mailbox).not.toHaveProperty("totalThreads");
@@ -208,8 +205,8 @@ describe(JsonMetaClient, () => {
         };
       }
 
-      type Input = GetArguments<Example>;
-      type Output<A> = GetResponse<Example, A>;
+      type Input = MethodGet.Input<Example>;
+      type Output<A> = MethodGet.Output<Example, A>;
       interface GetContract {
         input: Input;
         output: Output<this["input"]>;
@@ -287,10 +284,10 @@ describe(JsonMetaClient, () => {
 
       it("respects accountId optionality", () => {
         type GivenArgs = GetContract["input"];
-        expectTypeOf<GivenArgs["accountId"]>().toEqualTypeOf<ID>();
+        expectTypeOf<GivenArgs["accountId"]>().toEqualTypeOf<string>();
 
         type ClientArgs = Parameters<typeof client.api.Example.get>[0];
-        expectTypeOf<ClientArgs["accountId"]>().toEqualTypeOf<AllowRefs<ID | undefined>>();
+        expectTypeOf<ClientArgs["accountId"]>().toEqualTypeOf<AllowRefs<string | undefined>>();
       });
 
       it("respects generics (`properties` for Get requests, in this case)", async () => {
@@ -325,10 +322,10 @@ describe(JsonMetaClient, () => {
         // Correct batch result type
         expectTypeOf(pending).toEqualTypeOf<
           Promise<{
-            accountId: ID;
+            accountId: string;
             state: string;
             list: readonly Example[];
-            notFound: ReadonlyArray<ID>;
+            notFound: ReadonlyArray<string>;
           }> & {
             readonly $id: string;
             readonly $args: {
@@ -337,10 +334,10 @@ describe(JsonMetaClient, () => {
             readonly $method: string;
           } & {
             resultRef: ResultRefFn<{
-              accountId: ID;
+              accountId: string;
               state: string;
               list: readonly Example[];
-              notFound: ReadonlyArray<ID>;
+              notFound: ReadonlyArray<string>;
             }>;
           }
         >();
@@ -348,18 +345,18 @@ describe(JsonMetaClient, () => {
         // Correct awaited result
         const result = await pending;
         expectTypeOf(result).toMatchObjectType<{
-          accountId: ID;
+          accountId: string;
           state: string;
           list: readonly Example[];
-          notFound: ReadonlyArray<ID>;
+          notFound: ReadonlyArray<string>;
         }>();
 
         // Awaited<T> pending also works
         expectTypeOf<Awaited<typeof pending>>().toMatchObjectType<{
-          accountId: ID;
+          accountId: string;
           state: string;
           list: readonly Example[];
-          notFound: ReadonlyArray<ID>;
+          notFound: ReadonlyArray<string>;
         }>();
       });
     });

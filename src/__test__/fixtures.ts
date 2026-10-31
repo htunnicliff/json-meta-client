@@ -1,8 +1,8 @@
-// oxlint-disable typescript/no-unsafe-type-assertion
-import type { Response as JmapResponse, Session } from "jmap-rfc-types";
 import nock from "nock";
 
 import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
+// oxlint-disable typescript/no-unsafe-type-assertion
+import type { Response as JmapResponse, Session } from "../standards-types/core/index.ts";
 
 export const host = "https://example.test";
 

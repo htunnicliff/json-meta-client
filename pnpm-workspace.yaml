@@ -1,10 +1,7 @@
 allowBuilds:
-  cpu-features: false
-  protobufjs: false
-  ssh2: false
-
-minimumReleaseAgeExclude:
-  - jmap-rfc-types
+  cpu-features: true
+  protobufjs: true
+  ssh2: true
 
 publicHoistPattern:
   - vue
