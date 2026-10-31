@@ -90,7 +90,7 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): nock.Scope {
 
 // ------ Mocks -------------------------------------------
 
-const warnSpy = vi.spyOn(console, "warn");
+const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
 describe(JsonMetaClient, () => {
   let sessionScope: nock.Scope;
