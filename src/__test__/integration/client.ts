@@ -5,7 +5,7 @@ import { JsonMetaClient } from "../../index.ts";
 import type { CapabilityOption, ClientApi } from "../../types.ts";
 
 export function createClient<const T extends ReadonlyArray<CapabilityOption>>(
-  capabilities: T,
+  ...capabilities: T
 ): JsonMetaClient<T, ClientApi<T> & ClientApi<DefaultCapabilities>> {
   const { sessionUrl, username, password } = inject("stalwart");
   const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
