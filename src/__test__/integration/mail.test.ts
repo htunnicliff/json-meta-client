@@ -27,15 +27,15 @@ describe("RFC 8621 — Submission and vacation response", () => {
   it.todo("gets and updates vacation response settings");
 });
 
-describe("RFC 9007 — MDN (types pending)", () => {
+describe("RFC 9007 — MDN", () => {
   it.todo("sends a disposition notification and checks success and per-item errors");
 });
 
-describe("RFC 9219 — S/MIME (types pending)", () => {
+describe("RFC 9219 — S/MIME", () => {
   it.todo("reads S/MIME signature and encryption metadata from imported messages");
 });
 
-describe("RFC 9661 — Sieve (types pending)", () => {
+describe("RFC 9661 — Sieve", () => {
   it.todo("creates, validates, activates, retrieves, queries, and destroys scripts");
   it.todo("tracks script changes and reports invalid scripts");
 });

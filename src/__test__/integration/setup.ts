@@ -1,5 +1,5 @@
 // oxlint-disable no-await-in-loop -- Provision the domain before its user.
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 import { GenericContainer, Wait } from "testcontainers";
 import type { TestProject } from "vitest/node";
@@ -20,7 +20,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const container = await new GenericContainer("stalwartlabs/mail-server:v0.11.8")
     .withCopyFilesToContainer([
       {
-        source: fileURLToPath(new URL("./fixtures/stalwart.toml", import.meta.url)),
+        source: resolve(import.meta.dirname, "fixtures/stalwart.toml"),
         target: "/opt/stalwart-mail/etc/config.toml",
       },
     ])
