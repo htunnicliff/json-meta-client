@@ -3,3 +3,6 @@ node = "26"
 
 [env.'_'.path]
 paths = ["./node_modules/.bin"]
+
+[settings]
+idiomatic_version_file_enable_tools = ["pnpm"]
