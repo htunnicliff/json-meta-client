@@ -1,6 +1,11 @@
 version: "0.2"
 language: en
 words:
+  - healthz
+  - rocksdb
+  - protobufjs
+  - pyzor
+  - stalwartlabs
   - Batchable
   - capnweb
   - closeafter
