@@ -1,4 +1,11 @@
-// oxlint-disable typescript/no-unnecessary-type-arguments
+/**
+ * Copyright (c) 2026 Hunter Tunnicliff
+ *
+ * This source code is subject to the terms of the Mozilla Public
+ * License, version 2.0. If a copy of the MPL was not distributed with this
+ * file, you can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 import type {
   Email,
   EmailAddress,
@@ -424,8 +431,8 @@ describe(JsonMetaClient, () => {
         expectTypeOf(pending).toExtend<Promise<unknown>>();
 
         // Supports refs with arbitrary pointers
-        expectTypeOf(pending.resultRef("/stuff")).toEqualTypeOf<Ref<unknown>>();
-        expectTypeOf(pending.resultRef("/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.resultRef("/stuff")).toEqualTypeOf<Ref>();
+        expectTypeOf(pending.resultRef("/foo/*/bar/*")).toEqualTypeOf<Ref>();
 
         // @ts-expect-error - "/${string}" is required
         assertType(pending.resultRef("invalid"));
