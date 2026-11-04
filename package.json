@@ -63,7 +63,7 @@
     "oxfmt": "0.75.0",
     "oxlint": "1.89.0",
     "oxlint-tsgolint": "7.0.2005",
-    "pkg-pr-new": "0.0.92",
+    "pkg-pr-new": "0.0.93",
     "publint": "0.3.25",
     "testcontainers": "12.2.1",
     "tsdown": "0.23.3",
