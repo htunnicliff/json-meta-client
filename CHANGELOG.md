@@ -1,5 +1,15 @@
 # json-meta-client
 
+## 0.14.0
+
+### Minor Changes
+
+- [#135](https://github.com/htunnicliff/json-meta-client/pull/135) [`df1e572`](https://github.com/htunnicliff/json-meta-client/commit/df1e572a242d2fe8ae609effdd7f11e2ca030ade) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Relicense from MIT to MPL-2.0
+
+### Patch Changes
+
+- [#135](https://github.com/htunnicliff/json-meta-client/pull/135) [`df1e572`](https://github.com/htunnicliff/json-meta-client/commit/df1e572a242d2fe8ae609effdd7f11e2ca030ade) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add description, keywords, funding, and homepage to package.json
+
 ## 0.13.0
 
 ### Minor Changes
