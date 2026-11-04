@@ -1,5 +1,27 @@
 # json-meta-client
 
+## 0.13.0
+
+### Minor Changes
+
+- [#115](https://github.com/htunnicliff/json-meta-client/pull/115) [`714890e`](https://github.com/htunnicliff/json-meta-client/commit/714890ee3dc2bdb0c073d894b1eee34351442c67) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add typed session and account details for configured capabilities.
+
+- [`d97c547`](https://github.com/htunnicliff/json-meta-client/commit/d97c547de69620298c5afa5e598721c4328ee944) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add `isolated()` for dedicated batches
+
+- [`aa54389`](https://github.com/htunnicliff/json-meta-client/commit/aa543890efc3a75fda3809f13c76d9f49738cd2c) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Rename `ref()` to `resultRef()`
+
+### Patch Changes
+
+- [`4dccd8d`](https://github.com/htunnicliff/json-meta-client/commit/4dccd8d2840f16ff31d9cde8dfb527ede70c9d90) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Extract built-ins and related types
+
+- [`e03d324`](https://github.com/htunnicliff/json-meta-client/commit/e03d324ee26e93a5d06e4fd3674ff347dd393e58) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add comments to library internals
+
+- [`1fc25e1`](https://github.com/htunnicliff/json-meta-client/commit/1fc25e1e4f1b71d693ec0d9f808dbc21ef579633) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Use a short string of random hexadecimal characters instead of full UUIDs for method call IDs
+
+- [#114](https://github.com/htunnicliff/json-meta-client/pull/114) [`02b9699`](https://github.com/htunnicliff/json-meta-client/commit/02b96993d9a1ad75508f3ef08102d526dbbbbdea) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add typed `createdRef()` creation ID references to pending `/set` results
+
+- [`4dccd8d`](https://github.com/htunnicliff/json-meta-client/commit/4dccd8d2840f16ff31d9cde8dfb527ede70c9d90) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Extract static validation from class
+
 ## 0.12.0
 
 ### Minor Changes
