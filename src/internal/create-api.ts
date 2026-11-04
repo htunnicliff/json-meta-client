@@ -6,6 +6,8 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+// oxlint-disable typescript/no-unnecessary-type-parameters
+
 import type { JsonObject, JsonValue } from "type-fest";
 
 import type { Flush } from "./batch.ts";

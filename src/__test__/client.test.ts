@@ -411,6 +411,7 @@ describe(JsonMetaClient, () => {
         const namedClient = new JsonMetaClient({
           bearerToken,
           sessionUrl,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
           capabilities: [name as keyof typeof BUILT_IN_CAPABILITIES],
         });
 

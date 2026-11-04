@@ -431,8 +431,8 @@ describe(JsonMetaClient, () => {
         expectTypeOf(pending).toExtend<Promise<unknown>>();
 
         // Supports refs with arbitrary pointers
-        expectTypeOf(pending.resultRef("/stuff")).toEqualTypeOf<Ref<unknown>>();
-        expectTypeOf(pending.resultRef("/foo/*/bar/*")).toEqualTypeOf<Ref<unknown>>();
+        expectTypeOf(pending.resultRef("/stuff")).toEqualTypeOf<Ref>();
+        expectTypeOf(pending.resultRef("/foo/*/bar/*")).toEqualTypeOf<Ref>();
 
         // @ts-expect-error - "/${string}" is required
         assertType(pending.resultRef("invalid"));

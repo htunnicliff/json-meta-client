@@ -6,6 +6,8 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+// oxlint-disable no-await-in-loop
+
 import { resolve } from "node:path";
 
 import { GenericContainer, Wait } from "testcontainers";

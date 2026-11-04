@@ -1,17 +1,15 @@
 version: "0.2"
 language: en
 words:
-  - healthz
-  - rocksdb
-  - protobufjs
-  - pyzor
-  - stalwartlabs
+  - badheaders
   - Batchable
   - capnweb
   - closeafter
   - Diátaxis
   - eventsource
   - frontmatter
+  - ganchev
+  - healthz
   - htunnicliff
   - importmap
   - JMAP
@@ -19,7 +17,11 @@ words:
   - microtasks
   - oxfmt
   - oxlint
+  - protobufjs
+  - pyzor
   - reqheaders
+  - rocksdb
+  - stalwartlabs
   - tsgolint
   - tunnicliff
   - unstub
