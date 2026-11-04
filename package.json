@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/htunnicliff/json-meta-client/issues"
   },
+  "license": "MPL-2.0",
   "author": {
     "name": "Hunter Tunnicliff",
     "email": "hunter@tunnicliff.co"
