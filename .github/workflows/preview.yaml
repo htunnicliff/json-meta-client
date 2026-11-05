@@ -5,6 +5,9 @@ on:
     branches-ignore:
       - "renovate/**"
 
+permissions:
+  contents: read
+
 jobs:
   preview:
     name: pkg-pr-new
