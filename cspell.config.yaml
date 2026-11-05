@@ -25,6 +25,8 @@ words:
   - tsgolint
   - tunnicliff
   - unstub
+  - zizmor
+  - zizmorcore
 ignorePaths:
   - pnpm-lock.yaml
   - dist/
