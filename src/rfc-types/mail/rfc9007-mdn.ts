@@ -6,6 +6,7 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-declare module "./index.ts" {
-  // TODO: Sieve
-}
+// oxlint-disable-next-line unicorn/require-module-specifiers
+export {
+  // TODO: MDN
+};

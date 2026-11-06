@@ -6,6 +6,10 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-declare module "./index.ts" {
-  // TODO: MDN
+declare module "../extensions.ts" {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:webpush-vapid": {
+      applicationServerKey: string;
+    };
+  }
 }

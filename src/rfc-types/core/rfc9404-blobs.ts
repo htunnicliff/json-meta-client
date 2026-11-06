@@ -8,17 +8,19 @@
 
 import type { FileUpload, SetError } from "./rfc8620-jmap.ts";
 
-export interface SessionCapabilities {
-  "urn:ietf:params:jmap:blob": {};
-}
+declare module "../extensions.ts" {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:blob": {};
+  }
 
-export interface AccountCapabilities {
-  "urn:ietf:params:jmap:blob": {
-    maxSizeBlobSet: number | null;
-    maxDataSources: number;
-    supportedTypeNames: string[];
-    supportedDigestAlgorithms: string[];
-  };
+  export interface AccountCapabilities {
+    "urn:ietf:params:jmap:blob": {
+      maxSizeBlobSet: number | null;
+      maxDataSources: number;
+      supportedTypeNames: string[];
+      supportedDigestAlgorithms: string[];
+    };
+  }
 }
 
 export type DataSourceObject =

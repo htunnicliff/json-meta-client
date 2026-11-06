@@ -15,18 +15,20 @@ import type {
   MethodQueryChanges,
 } from "./rfc8620-jmap.ts";
 
-export interface SessionCapabilities {
-  "urn:ietf:params:jmap:principals": {};
-}
+declare module "../extensions.ts" {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:principals": {};
+  }
 
-export interface AccountCapabilities {
-  "urn:ietf:params:jmap:principals": {
-    currentUserPrincipalId: string | null;
-  };
-  "urn:ietf:params:jmap:principals:owner": {
-    accountIdForPrincipal: string;
-    principalId: string;
-  };
+  export interface AccountCapabilities {
+    "urn:ietf:params:jmap:principals": {
+      currentUserPrincipalId: string | null;
+    };
+    "urn:ietf:params:jmap:principals:owner": {
+      accountIdForPrincipal: string;
+      principalId: string;
+    };
+  }
 }
 
 export type PrincipalType = "individual" | "group" | "resource" | "location" | "other";

@@ -6,8 +6,7 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-export interface SessionCapabilities {
-  "urn:ietf:params:jmap:webpush-vapid": {
-    applicationServerKey: string;
-  };
-}
+// oxlint-disable-next-line unicorn/require-module-specifiers
+export {
+  // TODO: Sieve
+};

@@ -6,5 +6,4 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// oxlint-disable-next-line unicorn/require-module-specifiers
-export {};
+export * from "./rfc9553-jscontact.ts";

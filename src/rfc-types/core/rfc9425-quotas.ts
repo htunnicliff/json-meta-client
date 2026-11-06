@@ -8,12 +8,14 @@
 
 import type { MethodGet, MethodChanges, MethodQuery, MethodQueryChanges } from "./rfc8620-jmap.ts";
 
-export interface SessionCapabilities {
-  "urn:ietf:params:jmap:quota": {};
-}
+declare module "../extensions.ts" {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:quota": {};
+  }
 
-export interface AccountCapabilities {
-  "urn:ietf:params:jmap:quota": {};
+  export interface AccountCapabilities {
+    "urn:ietf:params:jmap:quota": {};
+  }
 }
 
 export type QuotaScope = "account" | "domain" | "global";

@@ -6,21 +6,25 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-export interface SessionCapabilities {
-  "urn:ietf:params:jmap:core": {
-    maxSizeUpload: number;
-    maxConcurrentUpload: number;
-    maxSizeRequest: number;
-    maxConcurrentRequests: number;
-    maxCallsInRequest: number;
-    maxObjectsInGet: number;
-    maxObjectsInSet: number;
-    collationAlgorithms: string[];
-  };
-}
+import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
 
-export interface AccountCapabilities {
-  "urn:ietf:params:jmap:core": {};
+declare module "../extensions.ts" {
+  export interface SessionCapabilities {
+    "urn:ietf:params:jmap:core": {
+      maxSizeUpload: number;
+      maxConcurrentUpload: number;
+      maxSizeRequest: number;
+      maxConcurrentRequests: number;
+      maxCallsInRequest: number;
+      maxObjectsInGet: number;
+      maxObjectsInSet: number;
+      collationAlgorithms: string[];
+    };
+  }
+
+  export interface AccountCapabilities {
+    "urn:ietf:params:jmap:core": {};
+  }
 }
 
 export interface Session {
@@ -40,7 +44,7 @@ export interface Account {
   name: string;
   isPersonal: boolean;
   isReadOnly: boolean;
-  accountCapabilities: { [urn: string]: unknown };
+  accountCapabilities: AccountCapabilities;
 }
 
 export type Invocation<T = unknown> = [name: string, argsOrResponse: T, methodCallId: string];
