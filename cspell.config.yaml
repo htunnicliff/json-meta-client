@@ -15,6 +15,7 @@ words:
   - JMAP
   - microtask
   - microtasks
+  - notjunk
   - oxfmt
   - oxlint
   - protobufjs
@@ -25,6 +26,8 @@ words:
   - tsgolint
   - tunnicliff
   - unstub
+  - webpush
+  - vacationresponse
   - zizmor
   - zizmorcore
 ignorePaths:
