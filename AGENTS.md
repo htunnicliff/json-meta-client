@@ -25,3 +25,8 @@ Code examples in `docs/` and `README.md` show the happy path:
   directly, using a non-null assertion (`!`) where the type checker requires
   one. Show a check only when the check itself is the example's subject, such
   as the error-handling and capability pages.
+- Let batching group calls, since it is a core feature of the library. Create
+  the calls together and await only the results the example uses. A call that
+  only feeds a result reference needs no `await`; prefix a call statement
+  whose result goes unused with `void`. Reserve `Promise.all` for examples that
+  use several results, and create the calls inline inside it.
