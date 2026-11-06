@@ -27,7 +27,7 @@ const close = vi.fn<() => void>();
 function createClient() {
   return new JsonMetaClient({
     sessionUrl: `${host}/session`,
-    bearerToken: "token",
+    auth: { token: "token" },
     capabilities: [mail],
   });
 }

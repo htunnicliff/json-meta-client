@@ -105,14 +105,14 @@ describe(JsonMetaClient, () => {
   let sessionScope: nock.Scope;
   let client = new JsonMetaClient({
     sessionUrl,
-    bearerToken,
+    auth: { token: bearerToken },
     capabilities: [mail],
   });
 
   beforeEach(() => {
     client = new JsonMetaClient({
       sessionUrl,
-      bearerToken,
+      auth: { token: bearerToken },
       capabilities: [mail],
     });
     sessionScope = mockSession();
@@ -149,16 +149,21 @@ describe(JsonMetaClient, () => {
 
   describe("configuration errors", () => {
     it.each([
-      { bearerToken: "" },
-      { bearerToken: "  " },
-      { bearerToken: null },
+      { auth: { token: "" } },
+      { auth: { token: "  " } },
+      { auth: { token: null } },
       { sessionUrl: "invalid-url" },
       { capabilities: null },
       { capabilities: "mail" },
       { middleware: "invalid" },
       { middleware: [null] },
     ])("reports invalid options with their original values: %j", (invalidOptions) => {
-      const options = { bearerToken, sessionUrl, capabilities: [mail], ...invalidOptions };
+      const options = {
+        auth: { token: bearerToken },
+        sessionUrl,
+        capabilities: [mail],
+        ...invalidOptions,
+      };
       const createClient = () =>
         // @ts-expect-error - Exercise runtime validation of invalid configuration.
         new JsonMetaClient(options);
@@ -174,7 +179,7 @@ describe(JsonMetaClient, () => {
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
-          bearerToken,
+          auth: { token: bearerToken },
           sessionUrl,
           // @ts-expect-error - Exercise runtime validation of invalid capabilities.
           capabilities: [capability],
@@ -412,7 +417,7 @@ describe(JsonMetaClient, () => {
       "resolves %s to its built-in URN",
       async (name, capability) => {
         const namedClient = new JsonMetaClient({
-          bearerToken,
+          auth: { token: bearerToken },
           sessionUrl,
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion
           capabilities: [name as keyof typeof BUILT_IN_CAPABILITIES],
@@ -440,7 +445,7 @@ describe(JsonMetaClient, () => {
         expect(
           () =>
             new JsonMetaClient({
-              bearerToken,
+              auth: { token: bearerToken },
               sessionUrl,
               // @ts-expect-error - Invalid name string
               capabilities: [name],
@@ -451,7 +456,7 @@ describe(JsonMetaClient, () => {
 
     it("mixes names and objects in requests without duplicate URNs", async () => {
       const mixedClient = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: ["core", "mail", mail, example],
       });
@@ -495,7 +500,7 @@ describe(JsonMetaClient, () => {
         () =>
           new JsonMetaClient({
             sessionUrl: "invalid-url",
-            bearerToken,
+            auth: { token: bearerToken },
             capabilities: [mail],
           }),
       ).toThrow("`sessionUrl` must be a valid URL string or URL instance");
@@ -504,7 +509,7 @@ describe(JsonMetaClient, () => {
     it("accepts URL instances as session URLs", async () => {
       const client = new JsonMetaClient({
         sessionUrl: new URL(sessionUrl),
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [mail],
       });
       await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
@@ -829,7 +834,7 @@ describe(JsonMetaClient, () => {
       const client = new JsonMetaClient({
         capabilities: [example],
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
       });
 
       const get = client.api.Example.get({ value: "hello" });
@@ -862,7 +867,7 @@ describe(JsonMetaClient, () => {
       const customClient = new JsonMetaClient({
         capabilities: [example, archive, archive, unused],
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
       });
       const get = customClient.api.Example.get({ value: "hello" });
       const archived = customClient.api.Example.archive({ ids: ["one"] });
@@ -901,7 +906,7 @@ describe(JsonMetaClient, () => {
         const client = new JsonMetaClient({
           middleware: [() => output],
           sessionUrl,
-          bearerToken,
+          auth: { token: bearerToken },
           capabilities: [mail],
         });
         expect(() => client.api.Mailbox.query({})).toThrow(
@@ -917,7 +922,7 @@ describe(JsonMetaClient, () => {
       client = new JsonMetaClient({
         middleware: [mockMiddleware],
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [mail],
       });
       expect(mockMiddleware).not.toHaveBeenCalled();
@@ -1101,7 +1106,7 @@ describe(JsonMetaClient, () => {
       });
       client = new JsonMetaClient({
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [mail],
         hooks: {
           beforeRequest: [firstHook, secondHook],
@@ -1133,7 +1138,7 @@ describe(JsonMetaClient, () => {
       });
       client = new JsonMetaClient({
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [mail],
         hooks: {
           afterResponse: [firstHook, secondHook],

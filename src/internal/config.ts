@@ -16,13 +16,30 @@ import type { CapabilityOption, Config } from "../types.ts";
  * Constructor validation mechanism
  */
 export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption>>): void {
-  const { bearerToken, capabilities: givenCapabilities, sessionUrl, middleware } = options;
+  const { auth, capabilities: givenCapabilities, sessionUrl, middleware } = options;
 
-  // Bearer token
-  if (typeof bearerToken !== "string" || bearerToken.trim().length === 0) {
-    throw new ConfigurationError("`bearerToken` must be a non-empty string", {
-      cause: { bearerToken },
-    });
+  // Authentication
+  const validAuth =
+    typeof auth === "function" ||
+    (auth &&
+      typeof auth === "object" &&
+      (("token" in auth &&
+        typeof auth.token === "string" &&
+        auth.token.trim().length > 0 &&
+        !("username" in auth) &&
+        !("password" in auth)) ||
+        (!("token" in auth) &&
+          typeof auth.username === "string" &&
+          auth.username.trim().length > 0 &&
+          !auth.username.includes(":") &&
+          typeof auth.password === "string")));
+  if (!validAuth) {
+    throw new ConfigurationError(
+      "`auth` must contain a non-empty token or a username and password, or be a callback",
+      {
+        cause: { auth },
+      },
+    );
   }
 
   // Session URL

@@ -28,7 +28,7 @@ const bearerToken = "<opaque-token>";
 const sessionUrl = `${host}/.well-known/jmap`;
 
 const client = new JsonMetaClient({
-  bearerToken,
+  auth: { token: bearerToken },
   sessionUrl,
   capabilities: [core, mail],
 });
@@ -39,7 +39,7 @@ describe(JsonMetaClient, () => {
   it("exposes built-in capability details on the session", async () => {
     const session = await client.session;
     const contactsSession = await new JsonMetaClient({
-      bearerToken,
+      auth: { token: bearerToken },
       sessionUrl,
       capabilities: [contacts],
     }).session;
@@ -79,14 +79,14 @@ describe(JsonMetaClient, () => {
   describe("api", () => {
     it("infers the same methods from built-in names and objects", () => {
       const namedClient = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: ["core", "mail"],
       });
       expectTypeOf(namedClient.api).toEqualTypeOf(client.api);
 
       const allNamed = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: [
           "core",
@@ -100,7 +100,7 @@ describe(JsonMetaClient, () => {
         ],
       });
       const allObjects = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: Object.values(BUILT_IN_CAPABILITIES),
       });
@@ -110,11 +110,15 @@ describe(JsonMetaClient, () => {
 
     it("accepts readonly name arrays in separately declared options", async () => {
       const options: Config<readonly ["mail"]> = {
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: ["mail"],
       };
-      const objectClient = new JsonMetaClient({ bearerToken, sessionUrl, capabilities: [mail] });
+      const objectClient = new JsonMetaClient({
+        auth: { token: bearerToken },
+        sessionUrl,
+        capabilities: [mail],
+      });
       expectTypeOf(new JsonMetaClient(options).api).toEqualTypeOf(objectClient.api);
       expectTypeOf(
         (await new JsonMetaClient(options).session).accounts["example-account"]!
@@ -126,7 +130,7 @@ describe(JsonMetaClient, () => {
 
     it("rejects names that are not built-in exports", () => {
       const invalidClient = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         // @ts-expect-error - Only exported built-in names are allowed
         capabilities: ["unknown"],
@@ -136,7 +140,7 @@ describe(JsonMetaClient, () => {
 
     it("has default capability methods when capabilities is empty", async () => {
       const emptyClient = new JsonMetaClient({
-        bearerToken,
+        auth: { token: bearerToken },
         sessionUrl,
         capabilities: [],
       });
@@ -236,7 +240,7 @@ describe(JsonMetaClient, () => {
 
       const client = new JsonMetaClient({
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [example],
       });
 
@@ -272,12 +276,12 @@ describe(JsonMetaClient, () => {
       it("preserves built-in and custom contracts when mixing names and objects", () => {
         const namedClient = new JsonMetaClient({
           sessionUrl,
-          bearerToken,
+          auth: { token: bearerToken },
           capabilities: ["mail", example],
         });
         const objectClient = new JsonMetaClient({
           sessionUrl,
-          bearerToken,
+          auth: { token: bearerToken },
           capabilities: [mail, example],
         });
         expectTypeOf(namedClient.api).toEqualTypeOf(objectClient.api);
@@ -370,7 +374,7 @@ describe(JsonMetaClient, () => {
 
       const client = new JsonMetaClient({
         sessionUrl,
-        bearerToken,
+        auth: { token: bearerToken },
         capabilities: [untyped],
       });
 
@@ -472,7 +476,7 @@ describe(JsonMetaClient, () => {
 
       it("appropriately intersects entity method types", async () => {
         const client = new JsonMetaClient({
-          bearerToken,
+          auth: { token: bearerToken },
           sessionUrl,
           capabilities: [theater, picnic],
         });

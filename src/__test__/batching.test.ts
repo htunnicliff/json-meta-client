@@ -54,14 +54,14 @@ function reply(
 describe("client batching contract", () => {
   let client = new JsonMetaClient({
     sessionUrl: `${host}/session`,
-    bearerToken: "token",
+    auth: { token: "token" },
     capabilities: [mail],
   });
 
   beforeEach(async () => {
     client = new JsonMetaClient({
       sessionUrl: `${host}/session`,
-      bearerToken: "token",
+      auth: { token: "token" },
       capabilities: [mail],
     });
     nock(host).get("/session").reply(200, session);

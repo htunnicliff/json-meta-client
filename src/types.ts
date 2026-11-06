@@ -20,11 +20,20 @@ import type { StateChangeError } from "./errors.ts";
 import type { Augment, Middleware } from "./internal/types.ts";
 import type { Session as JmapSession } from "./rfc-types/core/index.ts";
 
+/** Mutate the outgoing request before request hooks; async callbacks are awaited. */
+export type AuthCallback = (args: { request: Request }) => void | Promise<void>;
+
+/** Bearer, Basic, or custom authentication for every transport. */
+export type Auth =
+  | AuthCallback
+  | { token: string; username?: never; password?: never }
+  | { username: string; password: string; token?: never };
+
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   /**
-   * A valid bearer token
+   * Authentication applied before request hooks, including event-stream reconnects
    */
-  bearerToken: string;
+  auth: Auth;
   /**
    * The URI for getting a JMAP session
    */
@@ -42,7 +51,8 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    */
   hooks?: {
     /**
-     * These hooks are called with every {@link Request} prior to fetching
+     * These hooks run in order after authentication, including event-stream reconnects.
+     * Each returned {@link Request} is passed to the next hook and then fetched.
      */
     beforeRequest?: ReadonlyArray<BeforeRequestHook>;
     /**
