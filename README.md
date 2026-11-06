@@ -3,124 +3,39 @@
 > [!WARNING]
 > This library is alpha software.
 
-## Overview
-
-A [JMAP][jmap] client compatible with Node.js and the browser.
-
-## Installation
+A TypeScript [JMAP](https://jmap.io/) client for Node.js and browsers, with typed
+method calls, automatic batching, result references, blob transfers, and events.
 
 ```sh
 pnpm add json-meta-client
 ```
 
-## Usage
-
-Create a client with the capabilities your JMAP server supports:
+Use your provider's JMAP session URL and an access token authorised to read mail.
+The account must support the mail capability.
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "<token>" },
-  sessionUrl: "<session-url>",
-  capabilities: ["mail", "submission", "contacts"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  capabilities: ["mail"],
 });
-```
 
-Authentication also accepts `auth: { username, password }` for
-Basic or an async callback that mutates the outgoing request.
-See [authentication](https://json-meta-client.dev/features/authentication)
-for examples.
-
-#### Issue a single JMAP request
-
-```ts
-const response = await client.api.Mailbox.query({
+const result = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
-
-const [inboxId] = response.ids;
+const inboxId = result.ids[0];
+console.log(inboxId ?? "No inbox found");
 ```
 
-<details>
-<summary>View JMAP request</summary>
+Start with the [installation and first-request tutorial](https://json-meta-client.dev/),
+then follow the [mail recipes](https://json-meta-client.dev/examples).
+See [authentication](https://json-meta-client.dev/features/authentication) for
+Basic credentials, custom authentication, and migration from `bearerToken`.
+The manual covers [method calls](https://json-meta-client.dev/features/method-calls),
+[batching](https://json-meta-client.dev/advanced/batching), and
+[errors](https://json-meta-client.dev/reference/errors).
 
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "accountId": "<primary-account-id>",
-        "filter": { "role": "inbox" },
-        "limit": 1
-      },
-      "<opaque id>"
-    ]
-  ]
-}
-```
-
-</details>
-
-#### Issue a batch of JMAP requests
-
-This takes advantage of result references[^1]
-
-```ts
-// Note the lack of `await` here:
-const emailsQuery = client.api.Email.query({
-  inMailbox: inboxId,
-  limit: 10,
-});
-
-const emails = await client.api.Email.get({
-  ids: emailsQuery.resultRef("/ids"),
-});
-```
-
-<details>
-<summary>View JMAP request</summary>
-
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "accountId": "<primary-account-id>",
-        "inMailbox": "<inbox-id>",
-        "limit": 10
-      },
-      "<opaque id #1>"
-    ],
-    [
-      "Email/get",
-      {
-        "accountId": "<primary-account-id>",
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "<opaque id #1>",
-          "path": "/ids"
-        }
-      },
-      "<opaque id #2>"
-    ]
-  ]
-}
-```
-
-</details>
-
-[^1]: [RFC 8620 § 3.7 - References to Previous Method Results](https://jmap.io/spec/rfc8620/#section-3.7)
-
-[jmap]: https://jmap.io/
+Licensed under [MPL-2.0](./LICENSE).

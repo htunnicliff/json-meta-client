@@ -47,7 +47,7 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    */
   capabilities: T;
   /**
-   * UNSTABLE: Functions for intercepting and modifying a JMAP request
+   * UNSTABLE: Synchronous transformations of individual JMAP method argument objects
    */
   middleware?: ReadonlyArray<Middleware>;
   /**
@@ -149,11 +149,11 @@ export type ClientSession<T extends ReadonlyArray<CapabilityOption>> = JmapSessi
 export interface StateChangePayload {
   /** The account that the change occurred in  */
   accountId: string;
-  /** Whether the account ID is that of the primary account */
+  /** Whether the account ID is that of the primary mail account */
   isPrimaryAccount: boolean;
   /** The type of entity that saw a change */
   entity: string;
-  /** An opaque string that can be passed to `{Entity}/queryChanges`  */
+  /** An opaque object-state cursor for the changed entity's `{Entity}/changes` method  */
   state: string;
 }
 

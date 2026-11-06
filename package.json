@@ -54,7 +54,8 @@
     "prepare": "husky",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "docs:check": "pnpm build && node scripts/check-docs.mjs && node docs/snippets/testing.ts"
   },
   "dependencies": {
     "eventsource-client": "^1.2.0",

@@ -46,7 +46,14 @@ export type InferMethodsFromCapability<C> =
  *
  * @example
  * ```ts
- * const Core = defineCapability({ })
+ * import { defineCapability } from "json-meta-client";
+ *
+ * const notes = defineCapability({
+ *   urn: "urn:example:notes",
+ *   entities: ["Note"],
+ * }).withMethods<{
+ *   Note: { get: { input: { ids: string[] }; output: { ids: string[] } } };
+ * }>();
  * ```
  */
 export function defineCapability<const Entity extends string, const Urn extends string = string>({
