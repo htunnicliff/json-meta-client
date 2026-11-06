@@ -1,41 +1,32 @@
-# Batching
+# Group calls into requests
 
-The client groups method calls queued on the same API instance before its next
-microtask flush. Each group becomes one JMAP HTTP request, in call order.
-Batching reduces round trips; it does not make calls transactional.
+The client queues method calls and flushes that queue in the next microtask.
+Calls created together on the same API instance therefore travel in one JMAP
+HTTP request, in the order you created them. This saves round trips, but does
+not make the calls a transaction.
 
-## Group independent calls
+## Group independent work
 
-Create independent calls before awaiting them:
+Create independent calls before awaiting either of them. JavaScript evaluates
+both method calls below before `Promise.all` waits, so they share a batch:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
 
 const [mailboxes, unread] = await Promise.all([
   client.api.Mailbox.get({
-    accountId,
+    accountId: "ACCOUNT_ID",
     ids: null,
     properties: ["id", "name"],
   }),
   client.api.Email.query({
-    accountId,
+    accountId: "ACCOUNT_ID",
     filter: { notKeyword: "$seen" },
     limit: 10,
   }),
@@ -43,125 +34,109 @@ const [mailboxes, unread] = await Promise.all([
 console.log(mailboxes.list, unread.ids);
 ```
 
-`Promise.all` does not itself schedule batching: JavaScript evaluates both calls
-synchronously before yielding. `await client.api.Mailbox.get(...)` followed by
-`await client.api.Email.query(...)` yields between creations, so these go into
-separate requests. An asynchronous boundary can allow the queue to flush even
-when the network request has not started yet. Calls from unrelated consumers of
-`client.api` may share a batch. A later flush may run while an earlier request
-is still in flight; the client does not serialise all requests.
+`Promise.all` is not what schedules the batch. Creating the calls synchronously
+keeps them together. Awaiting the first call before creating the second yields
+to the queue and produces separate requests. Other asynchronous boundaries can
+also allow a flush, even before any HTTP request has started.
 
-A method error rejects that call, while successful siblings can resolve.
-`Promise.all` rejects on its first failure and does not cancel the other calls;
-use `Promise.allSettled` to inspect all outcomes. A session, transport, HTTP, or
-request-processing failure rejects every unsettled call in that batch.
-Per-object `set` failures remain in the resolved result. See
-[Errors](../reference/errors.md).
+Unrelated users of `client.api` can contribute calls to the same batch. A later
+batch can also start while an earlier request is in flight; the client does not
+serialise all requests.
 
-## Keep dependencies together
+## Keep dependent calls together
 
-Use `resultRef()` or `createdRef()` when a consumer depends on a prior call in
-the same request. Queue producer and consumer synchronously, then await both.
+When one call needs another's result, use a
+[result or creation reference](../features/method-calls.md#reference-a-previous-result).
+Queue the producer before the consumer, without awaiting between them, and keep
+both on the same API queue.
+
+References do not connect different HTTP requests. The client does not track a
+dependency graph, move calls between queues, or substitute a completed result.
+If the producer has already run, use its returned IDs as ordinary values.
+
+## Give an operation its own queue
+
+Use `isolated()` when an operation should not share the main queue. Its callback
+receives a fresh `api` and a cancellation function. Use that `api` for every call
+you want in the isolated batch:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
 
-const query = client.api.Email.query({
-  accountId,
-  limit: 10,
+const mailboxes = await client.isolated(async (api) => {
+  const query = api.Mailbox.query({
+    accountId: "ACCOUNT_ID",
+    filter: { role: "inbox" },
+    limit: 1,
+  });
+  const get = api.Mailbox.get({
+    accountId: "ACCOUNT_ID",
+    ids: query.resultRef("/ids"),
+    properties: ["id", "name"],
+  });
+  const [, result] = await Promise.all([query, get]);
+  return result;
 });
-const get = client.api.Email.get({
-  accountId,
-  ids: query.resultRef("/ids"),
-  properties: ["id", "subject"],
-});
-const [, emails] = await Promise.all([query, get]);
-console.log(emails.list, emails.notFound);
+console.log(mailboxes.list);
 ```
 
-A result reference cannot reach into a previous HTTP request. The client does not
-track dependency graphs, move producers between queues, or substitute a completed
-result. Do not mix references between `client.api` and an isolated API. Once a
-producer has been awaited in another request, use its literal returned IDs instead.
-The server enforces reference validity under
-[RFC 8620 §3.7](https://jmap.io/spec/rfc8620/#section-3.7).
-See [Method Calls](../features/method-calls.md) for pointer paths and creation references.
+The isolated API shares the client's session, authentication, hooks, and
+middleware. `isolated()` invokes the callback synchronously and returns exactly
+what it returns, including a promise. Returning or throwing from the callback
+does not cancel queued work. Calls made through `client.api` inside the callback
+still use the main queue.
 
-## Respect server limits and split work
+## Split work to fit the server's limits
 
-The current client **does not split requests automatically**, enforce server
-limits, or retry rejected work. It sends the whole flushed queue. Read the core
-session capability for `maxCallsInRequest`, `maxSizeRequest`, `maxObjectsInGet`,
-and `maxObjectsInSet`. `maxConcurrentRequests` also matters if several queues run
-in parallel. Servers enforce these limits under
-[RFC 8620 §2](https://jmap.io/spec/rfc8620/#section-2).
+The client sends the whole flushed queue. It does not split oversized requests,
+enforce advertised limits, or retry rejected batches. Read these limits from
+`session.capabilities["urn:ietf:params:jmap:core"]` before planning a large
+operation:
 
-Split independent work into bounded groups yourself. Keep each dependency chain
-within one request and within `maxCallsInRequest`; if it cannot fit, await the
-producer in an earlier request and pass its concrete IDs. Also bound object
-counts and request bytes; limiting method count alone is insufficient.
+| Limit                                | What you need to bound             |
+| ------------------------------------ | ---------------------------------- |
+| `maxCallsInRequest`                  | Method calls in one request.       |
+| `maxSizeRequest`                     | Bytes in the encoded request.      |
+| `maxObjectsInGet`, `maxObjectsInSet` | Objects in each get or set call.   |
+| `maxConcurrentRequests`              | Requests running at the same time. |
 
-This reads literal IDs in sequential, isolated requests, each containing one
-`get`. Replace `EMAIL_ID_1` and `EMAIL_ID_2` with IDs from the selected account.
+This example reads a known list of IDs in sequential chunks. Each isolated
+request has one get, so it cannot combine with unrelated main-queue work:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
+const core = (await client.session).capabilities[
+  "urn:ietf:params:jmap:core"
+];
 if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
-
-const ids = ["EMAIL_ID_1", "EMAIL_ID_2"];
-const core =
-  session.capabilities["urn:ietf:params:jmap:core"];
-const size = core?.maxObjectsInGet;
-if (
-  !size ||
-  size < 1 ||
   !core ||
+  core.maxObjectsInGet < 1 ||
   core.maxCallsInRequest < 1
 ) {
   throw new Error(
-    "The server does not advertise usable request limits",
+    "The server did not advertise usable request limits",
   );
 }
+
+const ids = ["EMAIL_ID_1", "EMAIL_ID_2"];
+const size = core.maxObjectsInGet;
 for (let offset = 0; offset < ids.length; offset += size) {
-  const pageIds = ids.slice(offset, offset + size);
-  // Await each request to avoid exceeding the concurrency limit.
   const result = await client.isolated((api) =>
     api.Email.get({
-      accountId,
-      ids: pageIds,
+      accountId: "ACCOUNT_ID",
+      ids: ids.slice(offset, offset + size),
       properties: ["id", "subject"],
     }),
   );
@@ -169,95 +144,52 @@ for (let offset = 0; offset < ids.length; offset += size) {
 }
 ```
 
-The small example assumes these ID lists fit `maxSizeRequest`; production callers
-must also keep the encoded body below that limit. Neither a single oversized
-`get` nor a two-call reference chain is rewritten by the library.
+The example assumes these small ID lists fit `maxSizeRequest`; object counts
+alone do not bound request bytes. Keep reference chains within one request and
+within the call limit. If a chain cannot fit, run its producer first and pass
+concrete IDs to the next request instead of a reference.
 
-## Isolate a queue
+## Cancel calls that are still queued
 
-`client.isolated(fn)` supplies a fresh API proxy with its own queue and cancellation
-callback. It uses the client's session, authentication, hooks, and middleware.
-It returns exactly the callback's return value, including a promise. Every call
-on the supplied `api` shares that isolated queue; using `client.api` inside the
-callback instead uses the main queue.
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
-});
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
-
-const result = await client.isolated(async (api) => {
-  const query = api.Mailbox.query({
-    accountId,
-    filter: { role: "inbox" },
-    limit: 1,
-  });
-  const get = api.Mailbox.get({
-    accountId,
-    ids: query.resultRef("/ids"),
-    properties: ["id", "name"],
-  });
-  const [, mailboxes] = await Promise.all([query, get]);
-  return mailboxes;
-});
-console.log(result.list);
-```
-
-## Cancel queued work
-
-`client.cancelBatch()` clears **all calls still queued** on the main API.
-The cancellation callback supplied to `isolated` clears only that isolated queue.
-Every removed call rejects with `CancellationError`, including siblings that did
-not request cancellation. Attach rejection handlers to all siblings, for example
-with `Promise.allSettled`.
-
-Cancel synchronously before yielding, while the calls are still queued:
+Call `client.cancelBatch()` to reject every call still queued on the main API.
+Inside `isolated()`, use the supplied `cancel()` to affect only that queue.
+Cancellation must happen before the queue flushes:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: [],
 });
 
-const outcome = await client.isolated((api, cancel) => {
-  const first = api.Mailbox.query({ limit: 1 });
-  const sibling = api.Email.query({ limit: 1 });
-  const settled = Promise.allSettled([first, sibling]);
+const outcomes = await client.isolated((api, cancel) => {
+  const first = api.Core.echo({ message: "first" });
+  const second = api.Core.echo({ message: "second" });
+  const settled = Promise.allSettled([first, second]);
   cancel();
   return settled;
 });
-console.log(outcome); // Both rejected with CancellationError.
-
-const queued = client.api.Mailbox.query({ limit: 1 });
-const mainOutcome = Promise.allSettled([queued]);
-client.cancelBatch();
-console.log(await mainOutcome);
+console.log(outcomes); // Both calls rejected with CancellationError.
 ```
 
-Once the flush removes jobs from the queue, cancellation has no effect on them,
-even while they await session discovery or an HTTP response. It does not abort
-`fetch`, undo a server write, cancel blobs, or unsubscribe from events.
+Cancellation clears the whole pending queue, including siblings. Attach
+rejection handlers to every call, as `Promise.allSettled` does here. Once a
+flush removes calls from the queue, cancellation cannot affect them, even while
+they wait for the session or a response. It does not abort fetches, undo writes,
+cancel blob transfers, or close subscriptions.
 
-Each API's cancellation callback uses a one-shot abort controller. Only its first
-invocation clears the current queue; later invocations do nothing. Calls queued
-after cancellation can still run. Use a new `isolated()` scope for each independently
-cancellable operation (or a new client when the main queue needs a fresh cancellation
-lifecycle). The API does not support cancelling a single member of a shared batch.
+Each queue's cancellation function is one-shot. Its first invocation clears the
+pending queue; later invocations do nothing. Calls created after cancellation
+can still run. Use a fresh `isolated()` scope for each independently cancellable
+operation.
+
+## Observe all outcomes when necessary
+
+A method error rejects that method's promise while successful siblings can
+resolve. `Promise.all` rejects on the first failure without cancelling siblings;
+use `Promise.allSettled` when you need every outcome. A failure of the session,
+transport, HTTP request, or envelope processing rejects every unsettled call in
+the batch. Per-object set failures remain in fulfilled results. See the
+[error reference](../reference/errors.md).

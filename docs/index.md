@@ -1,309 +1,116 @@
-# Introduction
+# Your first JMAP request
 
-json-meta-client turns typed JavaScript calls into JMAP requests. This tutorial
-finds your inbox and reads its messages. You need a JMAP server that advertises
-`urn:ietf:params:jmap:mail`, an account with that capability, the provider's
-session endpoint, and a bearer token authorised to read that account.
+json-meta-client is a TypeScript [JMAP](https://jmap.io/) client. JMAP is the
+protocol used by mail servers to expose messages, mailboxes, and other account
+data. You call methods such as `Mailbox.get()` in JavaScript; the client sends
+the corresponding JMAP requests and gives you typed results.
 
-Replace `https://jmap.example.com/.well-known/jmap` with that endpoint and
-`YOUR_ACCESS_TOKEN` with your token in each example. The library fetches the URL
-you supply; it does not discover a provider from an email address.
+In this tutorial, you will connect to a mail account and print the name of its
+inbox. The example only reads data.
 
-## Installation
+## Before you begin
 
-Use a modern runtime with native `fetch`, `Request`, `Response`, `Blob`, and
-`Promise.withResolvers`. The project builds and tests with Node.js 26.13.0;
-its output targets modern JavaScript without runtime polyfills.
+You need your provider's JMAP session URL and a bearer token that can read your
+mail account. The provider must support the JMAP Mail capability. The client
+uses the session URL you supply; it cannot find a provider from an email address.
 
-::: code-group
+Use Node.js 26 for this walkthrough. The repository builds and tests with
+Node.js 26.13.0. The package is ESM and relies on modern web APIs, including
+`fetch`, `Request`, `Response`, `Blob`, and `Promise.withResolvers`, without
+providing polyfills. It also works in modern browsers; the
+[browser setup guide](./features/authentication.md#run-in-a-browser) covers
+imports and server access there.
 
-```sh [pnpm]
+## Install the package
+
+In your project directory, run:
+
+```sh
 pnpm add json-meta-client
 ```
 
-```sh [npm]
-npm install json-meta-client
-```
+## Connect and find your inbox
 
-```sh [yarn]
-yarn add json-meta-client
-```
+Create a file named `first-request.mts` with the code below. Replace
+`https://jmap.example.com/.well-known/jmap` with your provider's session URL and
+`YOUR_ACCESS_TOKEN` with your token. Keep the token out of source control.
 
-```sh [bun]
-bun add json-meta-client
-```
-
-```sh [Deno]
-deno add npm:json-meta-client
-```
-
-:::
-
-In Deno, use the generated package mapping or import from
-`"npm:json-meta-client"`. In Node.js, use an ESM project (`"type": "module"` in
-`package.json`) and your TypeScript runner or compiler. A browser bundler resolves
-the same `"json-meta-client"` import.
-
-## Find your inbox
-
-Save and run the following module. It checks the selected account before querying
-its inbox. The result of `query` contains IDs; `get` returns mailbox objects.
-
-```ts [first-request.ts]
+```ts [first-request.mts]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
+
 const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
+const mail = "urn:ietf:params:jmap:mail";
+const accountId = session.primaryAccounts[mail];
 if (
+  !session.capabilities[mail] ||
   !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
+  !session.accounts[accountId]?.accountCapabilities[mail]
 ) {
-  throw new Error("No primary mail account is available");
+  throw new Error("A primary mail account is required");
 }
 
-const inboxQuery = client.api.Mailbox.query({
+const matches = await client.api.Mailbox.query({
   accountId,
   filter: { role: "inbox" },
   limit: 1,
 });
-const inboxGet = client.api.Mailbox.get({
+const inboxId = matches.ids[0];
+if (!inboxId) throw new Error("No inbox was found");
+
+const mailboxes = await client.api.Mailbox.get({
   accountId,
-  ids: inboxQuery.resultRef("/ids"),
+  ids: [inboxId],
   properties: ["id", "name"],
 });
-const [, inboxes] = await Promise.all([
-  inboxQuery,
-  inboxGet,
-]);
-const inbox = inboxes.list[0];
+const inbox = mailboxes.list[0];
 if (!inbox)
-  throw new Error("This account has no readable inbox");
+  throw new Error("The inbox is no longer readable");
+
 console.log(inbox.id, inbox.name);
 ```
 
-You should see the inbox's ID and name. The query and get share one API request:
-the server resolves `resultRef("/ids")`. A missing inbox produces an explicit
-error; authentication, HTTP, and method failures reject the awaited call.
-See [Errors](./reference/errors.md) when a request fails.
+Run the file:
 
-## Run in a browser
-
-Serve your page over HTTP(S). The JMAP server must allow your origin through CORS,
-including `Authorization` and `Content-Type` request headers, for the session URL
-and every API, upload, download, or event URL you use. Check your Content Security
-Policy permits those connections. Browser code can access its token; use credentials
-intended for the current user and avoid committing them to source control.
-
-For a page without a bundler, the published ESM entry is `dist/index.js`.
-This complete page uses an import map with valid JSON. It pins the package version;
-update the version when upgrading. The event-source mapping resolves the optional
-dynamic import used by [Events](./features/events.md).
-
-<script setup>
-import {data as pkg} from './pkg.data.ts'
-</script>
-
-```html-vue [index.html]
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>JMAP inbox</title>
-    <script type="importmap">
-      {
-        "imports": {
-          "json-meta-client": "https://unpkg.com/json-meta-client@{{ pkg.version }}/dist/index.js",
-          "eventsource-client": "https://esm.sh/eventsource-client@1.2.0"
-        }
-      }
-    </script>
-  </head>
-  <body>
-    <pre id="output">Loading inbox…</pre>
-    <script type="module">
-      import { JsonMetaClient } from "json-meta-client";
-
-      const output = document.querySelector("#output");
-      try {
-        const client = new JsonMetaClient({
-          auth: { token: "YOUR_ACCESS_TOKEN" },
-          sessionUrl: "https://jmap.example.com/.well-known/jmap",
-          capabilities: ["mail"],
-        });
-        const session = await client.session;
-        const accountId = session.primaryAccounts["urn:ietf:params:jmap:mail"];
-        if (!accountId || !session.accounts[accountId]?.accountCapabilities["urn:ietf:params:jmap:mail"]) {
-          throw new Error("No primary mail account is available");
-        }
-        const result = await client.api.Mailbox.query({
-          accountId,
-          filter: { role: "inbox" },
-          limit: 1,
-        });
-        output.textContent = result.ids[0] ?? "No inbox found";
-      } catch (error) {
-        output.textContent = String(error);
-      }
-    </script>
-  </body>
-</html>
+```sh
+node first-request.mts
 ```
 
-For a direct module import, replace the import-map name in the script with
-`https://unpkg.com/json-meta-client@VERSION/dist/index.js`, substituting your
-installed version for `VERSION`. Keep the event-source mapping if using events.
-The build emits `.js`, rather than `.mjs`, files.
+You should see an inbox ID followed by its name. The name comes from the server
+and may be something other than “Inbox”. If the request fails, the
+[error reference](./reference/errors.md) explains how to distinguish a connection
+failure from a rejected JMAP method.
 
-## Session and configuration
+## What happened
 
-Construction does not fetch the session. `await client.session` fetches it on first
-use, then returns the cached promise. `refreshSession()` always fetches and caches
-a new session; call it after account or capability changes, or to retry a failed
-session fetch. It does not recreate the configured API.
+Reading `client.session` fetched the server's session document. That document
+covers the available accounts and the URLs used for later requests. The
+example chose the primary mail account and checked that both the server and
+that account advertise mail support.
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
+`Mailbox.query` then found a mailbox by its `inbox` role. A query returns IDs,
+so the example passed the first ID to `Mailbox.get` to read the mailbox's name.
+The `properties` array asked for just the fields the example uses; TypeScript
+reflects that selection in the result type.
 
-const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
-});
+These calls ran in separate requests because the example awaited the query
+before creating the get call. You can also let the server pass IDs between
+calls in one request, using a [result reference](./features/method-calls.md#reference-a-previous-result).
 
-const cached = await client.session;
-const fresh = await client.refreshSession();
-console.log(cached.state, fresh.state);
-```
+## Continue from here
 
-Core is always included. Add `"mail"` for mail methods and `"submission"` for
-identities and sending. Configuration controls the typed API and request `using`
-capabilities; it does not grant server permissions. See
-[Capabilities](./features/capabilities.md) for server/account checks and composition,
-and [Authentication](./features/authentication.md) for other credential schemes.
-Methods default to the primary **mail** account. Pass `accountId` explicitly for
-shared or non-mail accounts; see [Method Calls](./features/method-calls.md).
+To read messages rather than mailboxes, follow the
+[unread-mail recipe](./examples.md#list-unread-emails). The
+[method call guide](./features/method-calls.md) shows how to select fields,
+update objects, and link dependent calls.
 
-## Read the inbox in pages
-
-This standalone iterator reads messages in a stable order. The first query uses
-`position: 0`; subsequent queries anchor after the final **query ID**, even if
-some objects disappear before `get`. It stops on an empty query page. The final
-empty request also handles servers that return fewer items than the requested
-limit. A vanished anchor or another method failure rejects the iterator.
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
-});
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
-
-const inboxes = await client.api.Mailbox.query({
-  accountId,
-  filter: { role: "inbox" },
-  limit: 1,
-});
-const inboxId = inboxes.ids[0];
-if (!inboxId) throw new Error("No inbox found");
-
-async function* getEmails(limit = 10) {
-  if (!Number.isInteger(limit) || limit < 1)
-    throw new Error("Use a positive page size");
-  let anchor: string | undefined;
-  const seen = new Set<string>();
-  for (;;) {
-    const query = client.api.Email.query({
-      accountId,
-      filter: { inMailbox: inboxId },
-      sort: [
-        { property: "receivedAt", isAscending: false },
-      ],
-      ...(anchor
-        ? { anchor, anchorOffset: 1 }
-        : { position: 0 }),
-      limit,
-    });
-    const get = client.api.Email.get({
-      accountId,
-      ids: query.resultRef("/ids"),
-      properties: [
-        "id",
-        "from",
-        "to",
-        "subject",
-        "sentAt",
-        "keywords",
-      ],
-    });
-    const [page, emails] = await Promise.all([query, get]);
-    if (page.ids.length === 0) return;
-    for (const email of emails.list) {
-      if (!seen.has(email.id)) {
-        seen.add(email.id);
-        yield email;
-      }
-    }
-    if (emails.notFound?.length)
-      console.warn("Messages disappeared", emails.notFound);
-    const next = page.ids.at(-1);
-    if (next === anchor)
-      throw new Error("Pagination did not advance");
-    anchor = next;
-  }
-}
-
-for await (const email of getEmails()) {
-  console.log(
-    email.id,
-    email.from,
-    email.to,
-    email.subject,
-    email.sentAt,
-    email.keywords,
-  );
-}
-```
-
-The `receivedAt` comparator is required for mail servers. For equal timestamps,
-JMAP requires the server's tie order to remain stable between queries
-([RFC 8620 §5.5](https://jmap.io/spec/rfc8620/#section-5.5)).
-A live mailbox can change
-between pages: this is not a snapshot, and a new message ahead of the anchor may
-be missed. The set above suppresses duplicates; restart or use query-change
-synchronisation when you need to reconcile concurrent edits. Keep `limit` within
-`maxObjectsInGet` and your server's query limits, and allow two method calls per
-request; [Batching](./advanced/batching.md) explains manual limits.
-
-## Next steps
-
-| Task                                         | Guide                                                          |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| Search, send, reply, move, or attach files   | [Examples](./examples.md)                                      |
-| Select properties and reference another call | [Method Calls](./features/method-calls.md)                     |
-| Control grouping and cancellation            | [Batching](./advanced/batching.md)                             |
-| Transfer binary data                         | [Blobs](./features/blobs.md)                                   |
-| Listen for changes                           | [Events](./features/events.md)                                 |
-| Intercept transport requests                 | [Hooks](./advanced/hooks.md)                                   |
-| Look up signatures or failures               | [API](./reference/api.md), [Errors](./reference/errors.md)     |
-| Structure and test an application            | [Best Practices](./best-practices.md), [Testing](./testing.md) |
+When you are ready to build an application, read about
+[accounts and capabilities](./features/capabilities.md),
+[application design](./best-practices.md), and
+[testing without a server](./testing.md). Exact signatures and defaults are in
+the [API reference](./reference/api.md).

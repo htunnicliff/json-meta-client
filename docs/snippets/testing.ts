@@ -1,3 +1,4 @@
+// #region setup
 import assert from "node:assert/strict";
 
 import { JsonMetaClient, JmapError } from "json-meta-client";
@@ -9,42 +10,48 @@ const mail = "urn:ietf:params:jmap:mail";
 const originalFetch = globalThis.fetch;
 let batches = 0;
 let failNext = false;
+// #endregion setup
 
+// #region session
+const session = {
+  capabilities: {
+    [core]: {
+      maxSizeUpload: 50_000_000,
+      maxConcurrentUpload: 4,
+      maxSizeRequest: 1_000_000,
+      maxConcurrentRequests: 4,
+      maxCallsInRequest: 16,
+      maxObjectsInGet: 100,
+      maxObjectsInSet: 100,
+      collationAlgorithms: ["i;unicode-casemap"],
+    },
+    [mail]: {},
+  },
+  accounts: {
+    [accountId]: {
+      name: "Example account",
+      isPersonal: true,
+      isReadOnly: false,
+      accountCapabilities: { [mail]: {} },
+    },
+  },
+  primaryAccounts: { [mail]: accountId },
+  username: "user@example.com",
+  apiUrl: `${host}/api`,
+  downloadUrl: `${host}/download/{accountId}/{blobId}/{name}?type={type}`,
+  uploadUrl: `${host}/upload/{accountId}`,
+  eventSourceUrl: `${host}/events?types={types}&closeafter={closeafter}&ping={ping}`,
+  state: "SESSION_STATE",
+};
+// #endregion session
+
+// #region transport
 // Run this fixture in isolation; restore fetch before another test runs.
 globalThis.fetch = async (input) => {
   assert(input instanceof Request);
   assert.equal(input.headers.get("authorization"), "Bearer TEST_TOKEN");
   if (input.url === `${host}/.well-known/jmap`) {
-    return Response.json({
-      capabilities: {
-        [core]: {
-          maxSizeUpload: 50_000_000,
-          maxConcurrentUpload: 4,
-          maxSizeRequest: 1_000_000,
-          maxConcurrentRequests: 4,
-          maxCallsInRequest: 16,
-          maxObjectsInGet: 100,
-          maxObjectsInSet: 100,
-          collationAlgorithms: ["i;unicode-casemap"],
-        },
-        [mail]: {},
-      },
-      accounts: {
-        [accountId]: {
-          name: "Example account",
-          isPersonal: true,
-          isReadOnly: false,
-          accountCapabilities: { [mail]: {} },
-        },
-      },
-      primaryAccounts: { [mail]: accountId },
-      username: "user@example.com",
-      apiUrl: `${host}/api`,
-      downloadUrl: `${host}/download/{accountId}/{blobId}/{name}?type={type}`,
-      uploadUrl: `${host}/upload/{accountId}`,
-      eventSourceUrl: `${host}/events?types={types}&closeafter={closeafter}&ping={ping}`,
-      state: "SESSION_STATE",
-    });
+    return Response.json(session);
   }
   assert.equal(input.url, `${host}/api`);
   assert.equal(input.method, "POST");
@@ -104,7 +111,9 @@ globalThis.fetch = async (input) => {
     sessionState: "SESSION_STATE",
   });
 };
+// #endregion transport
 
+// #region exercise
 try {
   const client = new JsonMetaClient({
     sessionUrl: `${host}/.well-known/jmap`,
@@ -130,3 +139,4 @@ try {
 } finally {
   globalThis.fetch = originalFetch;
 }
+// #endregion exercise

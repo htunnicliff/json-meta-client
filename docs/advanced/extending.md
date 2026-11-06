@@ -1,18 +1,22 @@
-<!-- cspell:words serialises -->
+# Add a server extension
 
-# Extending
+Use `defineCapability()` when your server implements a JMAP extension that the
+client does not provide as a built-in. A descriptor names the capability URI
+and its entities. Adding method contracts gives those entities typed arguments
+and results, while the client handles the usual request batching and references.
 
-Use `defineCapability` to expose a server extension through the same batching, account injection, and reference helpers as built-in methods. The server must implement the extension; defining it only supplies client metadata and TypeScript contracts. See [Capabilities](/features/capabilities) for support checks and request requirements.
+The descriptor does not install an extension on the server or implement its
+methods. You need the server's protocol definition to describe them accurately.
 
-## Define typed methods
+## Define a typed capability
 
-This example assumes a server advertising `urn:example:notes` and an account supporting that capability. Its example protocol defines `Note/get` with an argument-dependent property selection. `MethodContract` uses `this["input"]` to evaluate the output against the actual call's arguments.
+Suppose a server advertises `urn:example:notes` and defines `Note/get`. This
+example describes that method, along with server-wide and per-account metadata:
 
 ```ts
 import {
   defineCapability,
   JsonMetaClient,
-  type MethodContract,
 } from "json-meta-client";
 
 interface Note {
@@ -21,7 +25,83 @@ interface Note {
   body: string;
 }
 
-type NoteSelection<Input> = Pick<
+const notes = defineCapability({
+  urn: "urn:example:notes",
+  entities: ["Note"],
+}).withMethods<
+  {
+    Note: {
+      get: {
+        input: {
+          accountId: string;
+          ids: readonly string[];
+        };
+        output: { list: readonly Note[] };
+      };
+    };
+  },
+  { maxNotes: number },
+  { version: string }
+>();
+
+const client = new JsonMetaClient({
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: [notes],
+});
+
+const session = await client.session;
+const accountId = session.primaryAccounts[notes.urn];
+const account = accountId
+  ? session.accounts[accountId]
+  : undefined;
+const accountDetails =
+  account?.accountCapabilities[notes.urn];
+const serverDetails = session.capabilities[notes.urn];
+if (!accountId || !accountDetails || !serverDetails) {
+  throw new Error(
+    "A notes server and account are required",
+  );
+}
+console.log(serverDetails.version, accountDetails.maxNotes);
+
+const result = await client.api.Note.get({
+  accountId,
+  ids: ["NOTE_ID"],
+});
+for (const note of result.list) console.log(note.title);
+```
+
+The three `.withMethods()` type arguments describe methods, account metadata,
+and session metadata, in that order. Both metadata types default to `unknown`.
+The builder accepts no runtime method implementations; it preserves the literal
+URI and entity names in a descriptor containing `urn` and `entities`.
+
+Check advertised support before reading metadata. A declared metadata type does
+not guarantee the server returned it. Pass `accountId` explicitly for extension
+methods: omitting it uses the primary mail account, even for a notes method.
+
+Built-in keys can appear alongside descriptors in `capabilities`. Use those keys
+rather than importing internal built-in descriptors or RFC modules; the public
+package does not expose those module paths.
+
+## Make a result type depend on the arguments
+
+Some methods return different fields depending on their input. Extend
+`MethodContract` and refer to `this["input"]` in the output to model that
+relationship. For a notes protocol with a `properties` selection, the contract
+could be:
+
+```ts
+import type { MethodContract } from "json-meta-client";
+
+interface Note {
+  id: string;
+  title: string;
+  body: string;
+}
+
+type SelectedNote<Input> = Pick<
   Note,
   Input extends {
     properties: readonly (infer Key extends keyof Note)[];
@@ -31,7 +111,7 @@ type NoteSelection<Input> = Pick<
 >;
 
 type NoteGetOutput<Input> = {
-  list: readonly NoteSelection<Input>[];
+  list: readonly SelectedNote<Input>[];
 };
 
 interface NoteGet extends MethodContract {
@@ -42,71 +122,31 @@ interface NoteGet extends MethodContract {
   };
   output: NoteGetOutput<this["input"]>;
 }
-
-const notes = defineCapability({
-  urn: "urn:example:notes",
-  entities: ["Note"],
-}).withMethods<
-  { Note: { get: NoteGet } },
-  { maxNotes: number }, // Per-account capability details.
-  { version: string } // Server-wide capability details.
->();
-
-const archive = defineCapability({
-  urn: "urn:example:notes",
-  entities: ["Note"],
-}).withMethods<{
-  Note: {
-    archive: {
-      input: { accountId: string; ids: readonly string[] };
-      output: { archived: string[] };
-    };
-  };
-}>();
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail", notes, archive],
-});
-
-const session = await client.session;
-const accountId = session.primaryAccounts[notes.urn];
-const account = accountId
-  ? session.accounts[accountId]
-  : undefined;
-const accountDetails =
-  account?.accountCapabilities[notes.urn];
-const sessionDetails = session.capabilities[notes.urn];
-if (!accountId || !accountDetails || !sessionDetails) {
-  throw new Error(
-    "A notes account and server capability are required",
-  );
-}
-console.log(
-  accountDetails.maxNotes,
-  sessionDetails.version,
-);
-
-const result = await client.api.Note.get({
-  accountId,
-  ids: ["NOTE_ID"],
-  properties: ["id", "title"] as const,
-});
-for (const note of result.list)
-  console.log(note.id, note.title);
-// The selected result has no `body` property in its type.
 ```
 
-`defineCapability` preserves literal entity and URI types. `.withMethods<Methods, AccountDetails, SessionDetails>()` accepts no runtime arguments and returns a descriptor containing `urn` and `entities`. The two metadata parameters default to `unknown`. Omit them when the protocol defines no details; their presence in a type does not establish server support.
+Use `NoteGet` in place of the `get` contract in the descriptor above. A call
+selecting `properties: ["id", "title"] as const` then exposes just those fields
+on each result. The client also evaluates contracts against the value types
+carried by [result references](../features/method-calls.md#reference-a-previous-result).
+This describes the protocol to TypeScript; it does not validate returned JSON.
 
-Descriptors can contribute different methods to the same entity, as `notes` and `archive` do above. Contributions sharing a URI also combine their declared metadata. For different URIs, every URI associated with a called entity enters `using`. Keep overlapping method contracts compatible: intersections of conflicting property types can become `never`, and there is no runtime conflict resolver.
+## Combine contributions to an entity
 
-Contracts with an `accountId` input permit its omission at the call site. The default is always the primary **mail** account, so extension calls should normally pass it explicitly. Argument-dependent outputs also work with typed result references; the client evaluates the contract against the value type carried by a reference. [Method Calls](/features/method-calls) covers references and selected built-in properties.
+Descriptors can add different methods to the same entity, including under the
+same capability URI. For example, a second notes descriptor could add
+`Note/archive` while the first provides `Note/get`. Contributions sharing a URI
+also combine their declared metadata types.
 
-## Call an untyped extension
+The client combines contracts through intersections. Keep overlapping method
+and metadata definitions compatible; conflicting property types can become
+`never`, and the runtime does not choose a winning definition. When different
+URIs contribute to one entity, every configured URI for that entity enters the
+request's `using` array. See [capability composition](../features/capabilities.md#understand-which-uris-a-request-uses).
 
-A descriptor without `.withMethods()` permits arbitrary method names on its declared entities and returns `unknown`. Validate or narrow the returned value before using it.
+## Call a method before you have a contract
+
+A descriptor without `.withMethods()` permits arbitrary method names on its
+entities and returns `unknown`. Narrow or validate the result before using it:
 
 ```ts
 import {
@@ -124,8 +164,7 @@ const client = new JsonMetaClient({
   capabilities: [vendor],
 });
 
-// Requires a server implementing this method and an account supporting it.
-const result: unknown = await client.api.Vendor.inspect!({
+const result = await client.api.Vendor.inspect!({
   accountId: "ACCOUNT_ID",
 });
 if (
@@ -137,10 +176,13 @@ if (
 }
 ```
 
-The non-null assertion accommodates indexed method lookup with `noUncheckedIndexedAccess`; it does not check server support. An untyped descriptor may share an entity with typed descriptors: known contracts retain their types and unknown methods retain `unknown` results.
+The non-null assertion accommodates indexed method lookup with
+`noUncheckedIndexedAccess`; it does not check whether the server supports
+`Vendor/inspect`. An untyped descriptor can share an entity with a typed one:
+known methods retain their contracts and other methods return `unknown`.
 
-## Runtime boundary
-
-The client validates descriptor shape during construction, adds URI requirements, serialises arguments, and routes method responses by invocation ID. It does not generate method implementations, install a server extension, validate response schemas, enforce declared permissions or limits, or validate the argument-dependent selection against returned JSON. JavaScript callers and type assertions can bypass contracts. A wrong contract can therefore compile and still produce a server error or an unexpected result.
-
-The supported authoring exports are [`defineCapability`, `Capability`, `MethodContract`, and `InferMethodsFromCapability`](/reference/types#capability-authoring). Built-in descriptors and internal RFC modules have no public package subpath; use built-in string keys alongside your descriptors.
+The client validates descriptor configuration, adds capability requirements,
+serialises arguments, and matches responses by invocation ID. Permissions,
+limits, response schemas, and the accuracy of your contracts still depend on
+the protocol and server. The [authoring type reference](../reference/types.md#capability-authoring)
+lists the supported public types.

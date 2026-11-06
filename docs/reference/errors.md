@@ -1,138 +1,199 @@
-<!-- cspell:words behaviour recognise -->
+# Error reference
 
-# Errors
+Failures can occur before a request is sent, across a whole request, within one
+method, or for individual objects in a successful method. The delivery path
+reflects that scope:
 
-All classes and guards below are exported from `"json-meta-client"`. Every library error extends `JsonMetaError`, which extends native `Error` and retains `message`, `name`, `stack`, and optional `cause`. `CapabilityConfigurationError` additionally extends `ConfigurationError`; the other classes directly extend `JsonMetaError`.
+| Failure                                         | Where it appears                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| Invalid client configuration                    | A synchronous constructor throw.                                               |
+| Session, transport, HTTP, or batch processing   | A rejected operation promise; a batch failure rejects all its unsettled calls. |
+| A JMAP method error                             | That method's rejected promise. Successful siblings may still resolve.         |
+| An individual set operation                     | `notCreated`, `notUpdated`, or `notDestroyed` in a fulfilled result.           |
+| A stream connection or message-processing error | The state-change handler's error argument, after subscription setup.           |
 
-Not every thrown value is a library error. Invalid successful JSON raises native `SyntaxError`; user middleware, Fetch response hooks and JMAP envelope hooks can throw their own values. Catch `unknown` and retain the original error for diagnostics.
+Every library error extends `JsonMetaError`, which extends native `Error`.
+`CapabilityConfigurationError` also extends `ConfigurationError`; the remaining
+classes extend `JsonMetaError` directly. All classes and guards below are public
+imports from `"json-meta-client"`.
+
+Not every rejection is a library error. Invalid JSON in a successful response
+can throw native `SyntaxError`. Middleware, Fetch response hooks, and JMAP
+hooks can propagate their own thrown values. Catch values as `unknown` and
+retain the original error when recording it or throwing it again.
 
 ## Transport and method errors
 
-| Class             | Structured fields                                                                                                                  | Typical trigger                                                                                                                                                                                                                                                            |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NetworkError`    | `request: Request \| undefined`, original `cause`                                                                                  | Request construction, authentication/request-hook failure, fetch failure, or failure reading a JSON response body. Existing `JsonMetaError` values in the request/fetch path pass through.                                                                                 |
-| `HttpError`       | `request: Request`, `response: Response`, `responseData: unknown`, getter `status: number`, optional parsing `cause`               | A non-OK HTTP response or invalid event-stream response, after Fetch response hooks. Stream validation does not read the body. JSON bodies are decoded when the content type contains `json`; other bodies are text. If body decoding fails, `cause` records that failure. |
-| `JmapError`       | `type: string`; optional `detail`, `instance`, `limit`, `methodCallId`, `status`, `methodCall`; original problem object as `cause` | A method response named `error` with a string `type`. The associated `methodCall` is included for failures received by the client.                                                                                                                                         |
-| `MethodCallError` | `methodCall`, `responseData: unknown`                                                                                              | No response for an invocation ID, an unexpected response method, or a method error payload without a string `type`.                                                                                                                                                        |
-| `UnknownError`    | Standard error fields and optional `cause`                                                                                         | Constructing `JmapError` with a cause that fails `JmapError.isProblemDetails`. It is not a universal wrapper for unknown failures.                                                                                                                                         |
+### `NetworkError`
 
-`methodCall`, where present, exposes `id`, `method`, `args`, and `toInvocation()`; its implementation class is not a public import. `JmapError.isProblemDetails(value)` only checks that `value` is a non-null object with a string `type`, rather than validating every optional field.
+Represents request construction, authentication, request-hook, fetch, or JSON
+body-reading failure. Exposes `request: Request | undefined` and the original
+`cause`. In the request/fetch path, an existing `JsonMetaError` passes through
+instead of being wrapped.
 
-[JMAP request errors](https://www.rfc-editor.org/rfc/rfc8620.html#section-3.6) such as an HTTP 400 problem response become `HttpError`, preserving its decoded body. [Method errors](https://www.rfc-editor.org/rfc/rfc8620.html#section-3.6.2) inside an HTTP-success response become `JmapError`. A failure of the whole batch transport rejects all its calls; an individual method error rejects that call. JMAP envelope hook failures reject every pending call in the batch, unchanged; Fetch request-hook failures instead follow the `NetworkError` boundary described above.
+### `HttpError`
+
+Represents a non-success HTTP response after Fetch response hooks, or an invalid
+event-stream response. Exposes `request: Request`, `response: Response`,
+`responseData: unknown`, and a `status` getter for `response.status`.
+
+For ordinary HTTP errors, a content type containing `json` causes the body to be
+decoded as JSON; other bodies are decoded as text. A decoding failure is stored
+as `cause`. Event-stream validation does not read the body.
+
+A JMAP request-wide problem returned with an HTTP error status is an `HttpError`,
+with its decoded problem in `responseData`. It is distinct from a method error
+inside an HTTP-success response.
+
+### `JmapError`
+
+Represents a method response named `error` whose data has a string `type`.
+Exposes `type`, optional `detail`, `instance`, `limit`, `methodCallId`, `status`,
+and `methodCall`. The original problem object is its `cause`.
+
+`JmapError.isProblemDetails(value)` checks only for a non-null object with a
+string `type`; it does not validate every optional field. Constructing a
+`JmapError` with a cause that fails this check throws `UnknownError`.
+
+### `MethodCallError`
+
+Represents a missing response for an invocation ID, an unexpected response
+method, or a method error without a string `type`. Exposes `methodCall` and
+`responseData: unknown`.
+
+A `methodCall` on either error exposes `id`, `method`, `args`, and
+`toInvocation()`. Its implementation class is not a public import.
+
+### Diagnostic example
+
+This wrapper distinguishes common request failures while preserving the
+original rejection for its caller:
 
 ```ts
 import {
   HttpError,
   JmapError,
-  JsonMetaClient,
   NetworkError,
 } from "json-meta-client";
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-
-try {
-  await client.api.Email.get({
-    accountId: "ACCOUNT_ID",
-    ids: ["EMAIL_ID"],
-  });
-} catch (error: unknown) {
-  if (error instanceof HttpError) {
-    console.error(
-      "HTTP failure",
-      error.status,
-      error.responseData,
-    );
-  } else if (error instanceof JmapError) {
-    console.error(
-      "Method failure",
-      error.type,
-      error.methodCall?.id,
-      error.detail,
-    );
-  } else if (error instanceof NetworkError) {
-    console.error(
-      "Transport failure",
-      error.request?.url,
-      error.cause,
-    );
+export async function withDiagnostics<T>(
+  operation: Promise<T>,
+): Promise<T> {
+  try {
+    return await operation;
+  } catch (error: unknown) {
+    if (error instanceof HttpError) {
+      console.error(
+        "HTTP failure",
+        error.status,
+        error.responseData,
+      );
+    } else if (error instanceof JmapError) {
+      console.error(
+        "Method failure",
+        error.type,
+        error.methodCall?.id,
+        error.cause,
+      );
+    } else if (error instanceof NetworkError) {
+      console.error(
+        "Transport failure",
+        error.request?.url,
+        error.cause,
+      );
+    }
+    throw error;
   }
-  throw error; // Preserve its identity, structured fields, and causal chain.
 }
 ```
 
-## Configuration errors
+Structured diagnostics may contain request or account data. Application logging
+policy determines which fields are appropriate to record.
 
-| Class                          | Fields and behaviour                                                                                                                                                                                                                                              |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ConfigurationError`           | Standard error fields and optional `cause`. Invalid authentication, session URL, capability array, or middleware throws synchronously during construction. Missing configured server capabilities instead produce a warning on the first successful session load. |
-| `CapabilityConfigurationError` | Adds `givenCapability: unknown` and `availableBuiltIns: readonly string[]`. Unknown built-in keys or malformed descriptors fail synchronously.                                                                                                                    |
-| `InvalidUriTemplateError`      | Adds `uriTemplate: string`, `givenParameters: Record<string, string>`, `availableParameters: readonly string[]`. Blob/event URL expansion rejects when supplied parameters are absent from the template.                                                          |
+## Configuration and template errors
 
-The capability warning does not prove account support or prevent a subsequent server error. See [Capabilities](/features/capabilities) for selection and validation details.
+| Class                          | Trigger and additional fields                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `ConfigurationError`           | Invalid authentication, session URL, capability array, or middleware. Standard error fields and optional `cause`.                       |
+| `CapabilityConfigurationError` | Unknown built-in key or invalid capability descriptor. Adds `givenCapability: unknown` and `availableBuiltIns: readonly string[]`.      |
+| `InvalidUriTemplateError`      | Supplied blob/event template parameters are absent from the template. Adds `uriTemplate`, `givenParameters`, and `availableParameters`. |
 
-## Cancellation and event callbacks
+The template fields are respectively `string`, `Record<string, string>`, and
+`readonly string[]`.
 
-| Class               | Delivery and trigger                                                                                                                                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CancellationError` | Rejects methods still queued when their API queue is cancelled. In-flight fetches are not aborted. See [Batching](/advanced/batching).                                                                          |
-| `StateChangeError`  | Passed to the state-change handler as `(error, undefined)`, with a stream connection or parsing/processing exception in `cause`. Includes errors thrown by the success handler. See [Events](/features/events). |
+A configured capability missing from the server produces a logged
+`ConfigurationError` warning on the first successful session load. It does not
+reject that load or establish account support. See
+[capability checks](../features/capabilities.md#read-capability-details-safely).
 
-Event subscription setup failures reject `onStateChange()` itself; callback error delivery is a separate path. Connection failures, including authentication, Fetch, connection-hook and stream-validation failures, reach the handler unless intentionally aborted. The transport retains its reconnect behaviour. Exceptions from the error handler are not recursively wrapped. Async handler promise rejections are not caught by the synchronous message processor.
+## Cancellation and subscriptions
 
-## Guards and constructors
+`CancellationError` rejects methods removed from a pending queue. It does not
+mean an in-flight request was aborted. The [batching guide](../advanced/batching.md#cancel-calls-that-are-still-queued)
+describes its pending-only, one-shot scope.
 
-Every error class has a matching exported guard: `isJsonMetaError`, `isCancellationError`, `isCapabilityConfigurationError`, `isConfigurationError`, `isHttpError`, `isInvalidUriTemplateError`, `isJmapError`, `isMethodCallError`, `isNetworkError`, `isStateChangeError`, and `isUnknownError`. Each has signature `(input: unknown) => input is CorrespondingClass` and uses `instanceof`; `isConfigurationError` also accepts capability configuration errors. Guards do not structurally recognise JSON or errors created by a different installed copy of the package.
+`StateChangeError` reaches the handler as `(error, undefined)`, with the
+underlying connection, parsing, or processing failure in `cause`. This includes
+errors thrown synchronously by the success handler. Connection failures retain
+the transport's reconnect behaviour unless the subscription is closed.
+Intentional aborts do not report a connection failure.
 
-These classes are normally received from client operations. Their public constructor contracts are:
+Initial session and subscription setup failures reject `onStateChange()`
+itself. Later callback errors use a separate path. Errors thrown by the error
+handler are not recursively wrapped, and asynchronous handler rejections are
+not caught. See [state subscriptions](../features/events.md).
 
-| Classes                                                                                        | Constructor                                                                                                                                       |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JsonMetaError`, `ConfigurationError`, `CancellationError`, `StateChangeError`, `UnknownError` | `(message?: string, options?: ErrorOptions)` inherited from `Error`.                                                                              |
-| `CapabilityConfigurationError`                                                                 | `(message: string, options: { capability: unknown })`.                                                                                            |
-| `HttpError`                                                                                    | `(message: string, options: { request: Request; response: Response; responseData?: unknown; cause?: unknown })`.                                  |
-| `InvalidUriTemplateError`                                                                      | `(message: string, options: { template: string; params: Record<string, string> })`.                                                               |
-| `JmapError`                                                                                    | `(message: string, cause: unknown, options?: { methodCall?: MethodCall })`; options defaults to `{}`. Invalid problem data throws `UnknownError`. |
-| `MethodCallError`                                                                              | `(message: string, options: { methodCall: MethodCall; responseData?: unknown })`.                                                                 |
-| `NetworkError`                                                                                 | `(message: string, options: { cause: unknown; request: Request \| undefined })`.                                                                  |
+`UnknownError` is used when constructing `JmapError` with invalid problem data.
+It is not a general wrapper for all unrecognised failures.
 
-`MethodCall` above describes the exposed call object; it is not a package export.
+## Per-object failures
 
-## Per-object set failures
+A successful set result can contain `notCreated`, `notUpdated`, or
+`notDestroyed`, keyed by creation ID or object ID. Each failure has a `type`,
+may have a `description`, and can include operation-specific details, such as
+invalid properties. These are protocol results rather than thrown errors.
 
-A successful `/set` response can contain `notCreated`, `notUpdated`, or `notDestroyed` entries. These are protocol data, not thrown errors. Each failure has a `type`, may have a `description`, and may carry operation-specific fields such as invalid properties. Inspect them even when `await` succeeds, as specified in [RFC 8620 §5.3](https://www.rfc-editor.org/rfc/rfc8620.html#section-5.3).
+Read results have a similar distinction: a fulfilled get can report requested
+IDs in `notFound`. A resolved promise therefore does not establish success for
+every object. The [method call guide](../features/method-calls.md#update-an-object-and-check-the-outcome)
+shows a checked update.
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
+## Type guards
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
+Each guard has the signature `(input: unknown) => input is Class` and uses
+`instanceof`. Guards do not recognise structurally similar JSON or errors from
+a different installed copy of the package.
 
-// Requires a writable mail account with permission to create mailboxes.
-const result = await client.api.Mailbox.set({
-  accountId: "ACCOUNT_ID",
-  create: { newMailbox: { name: "Archive" } },
-});
-for (const [creationId, failure] of Object.entries(
-  result.notCreated ?? {},
-)) {
-  console.error(
-    creationId,
-    failure.type,
-    failure.description,
-    failure,
-  );
-}
-console.log(
-  result.created?.newMailbox?.id ??
-    "Mailbox was not created",
-);
-```
+| Class                          | Guard                            |
+| ------------------------------ | -------------------------------- |
+| `JsonMetaError`                | `isJsonMetaError`                |
+| `ConfigurationError`           | `isConfigurationError`           |
+| `CapabilityConfigurationError` | `isCapabilityConfigurationError` |
+| `InvalidUriTemplateError`      | `isInvalidUriTemplateError`      |
+| `NetworkError`                 | `isNetworkError`                 |
+| `HttpError`                    | `isHttpError`                    |
+| `JmapError`                    | `isJmapError`                    |
+| `MethodCallError`              | `isMethodCallError`              |
+| `CancellationError`            | `isCancellationError`            |
+| `StateChangeError`             | `isStateChangeError`             |
+| `UnknownError`                 | `isUnknownError`                 |
 
-For reads, missing IDs can appear in `notFound` within a successful result. Do not equate a resolved promise with success for every requested object.
+`isConfigurationError` also accepts `CapabilityConfigurationError` instances.
+
+## Constructors
+
+Errors are normally received from client operations. Their public constructor
+signatures are listed here for code that creates its own instances.
+
+| Class                                                                                          | Constructor arguments                                                                                           |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `JsonMetaError`, `ConfigurationError`, `CancellationError`, `StateChangeError`, `UnknownError` | `(message?: string, options?: ErrorOptions)`                                                                    |
+| `CapabilityConfigurationError`                                                                 | `(message: string, options: { capability: unknown })`                                                           |
+| `InvalidUriTemplateError`                                                                      | `(message: string, options: { template: string; params: Record<string, string> })`                              |
+| `NetworkError`                                                                                 | `(message: string, options: { cause: unknown; request: Request \| undefined })`                                 |
+| `HttpError`                                                                                    | `(message: string, options: { request: Request; response: Response; responseData?: unknown; cause?: unknown })` |
+| `JmapError`                                                                                    | `(message: string, cause: unknown, options?: { methodCall?: MethodCall })`                                      |
+| `MethodCallError`                                                                              | `(message: string, options: { methodCall: MethodCall; responseData?: unknown })`                                |
+
+`JmapError` defaults its third argument to `{}`. `MethodCall` above describes
+the exposed call object, not an exported class name.

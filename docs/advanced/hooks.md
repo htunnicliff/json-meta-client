@@ -1,79 +1,44 @@
-# Hooks
+# Observe and transform requests
 
-Configure hooks through `Config.hooks`. Each array runs in
-order, and asynchronous hooks are awaited before continuing.
-Transformers must return the object to pass to the next hook;
-observers return nothing.
+Hooks let you inspect or change work at three boundaries: HTTP requests,
+complete JMAP batches, and event-stream connections. Choose the boundary that
+contains the information you need. For example, an HTTP hook sees headers and
+URLs, while a JMAP hook sees method invocations before they become JSON bytes.
 
-| Hook                       | Arguments                                          | Return                                    | Scope                                        |
-| -------------------------- | -------------------------------------------------- | ----------------------------------------- | -------------------------------------------- |
-| `beforeFetch`              | `{ request: Request }`                             | `Request` or `Promise<Request>`           | Every outgoing HTTP request                  |
-| `afterFetch`               | `{ request: Request, response: Response }`         | `Response` or `Promise<Response>`         | Every received HTTP response                 |
-| `beforeJmapRequest`        | `{ request: JmapRequest }`                         | `JmapRequest` or `Promise<JmapRequest>`   | One assembled JMAP batch                     |
-| `afterJmapResponse`        | `{ request: JmapRequest, response: JmapResponse }` | `JmapResponse` or `Promise<JmapResponse>` | One parsed JMAP response envelope            |
-| `beforeEventSourceConnect` | `{ request: Request }`                             | `Request` or `Promise<Request>`           | Every stream connection attempt or reconnect |
-| `afterEventSourceConnect`  | `{ request: Request, response: Response }`         | `void` or `Promise<void>`                 | Every validated stream connection            |
+Configure hooks as arrays under `hooks`. The client runs each array in order
+and awaits each callback. Transform hooks must return the object passed to the
+next hook. Only `afterEventSourceConnect` is an observer and returns nothing.
 
-`JmapRequest` and `JmapResponse` above refer to the RFC envelope
-types, rather than Fetch objects. Hook types are exported
-from `json-meta-client`.
+## Inspect HTTP requests and responses
 
-## Configure hooks
+Use `beforeFetch` to add headers and `afterFetch` to observe response metadata.
+Authentication has already run when `beforeFetch` receives the request:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
   auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
   hooks: {
     beforeFetch: [
       ({ request }) => {
-        request.headers.set("X-Client", "my-app");
+        request.headers.set(
+          "X-Client-Version",
+          "my-app/1.0",
+        );
         return request;
       },
     ],
     afterFetch: [
-      async ({ response }) => {
-        // Only inspect bounded JSON bodies; leave stream bodies untouched.
-        if (
-          response.headers
-            .get("content-type")
-            ?.includes("application/json")
-        ) {
-          console.log(await response.clone().json());
-        }
-        return response;
-      },
-    ],
-    beforeJmapRequest: [
-      ({ request }) => {
-        console.log(
-          request.methodCalls.map(([method]) => method),
-        );
-        return request;
-      },
-    ],
-    afterJmapResponse: [
-      ({ response }) => {
-        console.log(response.sessionState);
-        return response;
-      },
-    ],
-    beforeEventSourceConnect: [
-      ({ request }) => {
-        request.headers.set("X-Stream-Client", "my-app");
-        return request;
-      },
-    ],
-    afterEventSourceConnect: [
       ({ request, response }) => {
         console.log(
-          "Connected",
+          request.method,
           request.url,
           response.status,
         );
+        return response;
       },
     ],
   },
@@ -81,144 +46,150 @@ const client = new JsonMetaClient({
 await client.session;
 ```
 
-The session request exercises the Fetch hooks. A call such as
-`await client.api.Core.echo({ message: "hello" })` exercises the
-JMAP envelope hooks; [subscribing to events](../features/events.md)
-exercises the connection hooks. Log response bodies only when their
-contents are appropriate for your application logs. Cloning keeps
-the caller's body available but can increase memory use.
+These hooks cover session discovery and refresh, API requests, blob uploads
+and downloads, and every event-stream connection or reconnect. They do not run
+for individual stream messages.
 
-## Fetch ordering
+`afterFetch` runs before status validation, including for HTTP errors. It can
+return a replacement response, but it does not run if fetching fails without a
+response. It receives a clone of the final outgoing request and the response
+returned by the previous hook.
 
-Fetch hooks cover session discovery and refresh, API calls,
-blob uploads and downloads, and event-stream connections and
-reconnects. They do not run per event-stream message.
+For an ordinary JSON response, inspect `response.clone()` to keep the original
+body readable by the client. The same principle applies to request bodies.
+Avoid logging credentials or private mail contents, and account for the memory
+cost of copying bodies. Event streams need different treatment because they
+can remain open indefinitely; see [stream body handling](#event-stream-connections).
 
-For each HTTP operation:
+## Inspect a complete JMAP batch
 
-1. Create the Fetch request with its transport headers and
-   body.
-2. Apply and await [authentication](../features/authentication.md).
-3. Run `beforeFetch` hooks.
-4. For event streams, run `beforeEventSourceConnect` hooks.
-5. Send the resulting request.
-6. Run `afterFetch` hooks, with a clone of the final outgoing
-   request and the response returned by the preceding hook.
-7. Validate the resulting response. Ordinary HTTP operations
-   reject non-success statuses; JSON operations then parse
-   the body. Event streams follow the connection rules below.
+Use `beforeJmapRequest` for the assembled envelope and `afterJmapResponse` for
+the parsed response, including method-level error invocations:
 
-Request hooks may inspect or override authentication headers.
-To sign the final request, use the last `beforeFetch` hook,
-or the last `beforeEventSourceConnect` hook for stream
-requests. Returning a replacement request does not reapply
-authentication; preserve the headers and abort signal you
-need.
+```ts
+import { JsonMetaClient } from "json-meta-client";
 
-`afterFetch` runs before status validation, including on
-HTTP errors, and may replace a response to recover from an
-error. It does not run when fetching fails without a response.
-To inspect a JSON body, read `response.clone().json()` and
-return the original response. Blob bodies must remain
-available to the caller.
+const client = new JsonMetaClient({
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: [],
+  hooks: {
+    beforeJmapRequest: [
+      ({ request }) => {
+        console.log(
+          "Sending",
+          request.methodCalls.map(([method]) => method),
+        );
+        return request;
+      },
+    ],
+    afterJmapResponse: [
+      ({ response }) => {
+        console.log("Session state", response.sessionState);
+        return response;
+      },
+    ],
+  },
+});
+await client.api.Core.echo({ message: "hello" });
+```
 
-## JMAP envelopes and batching
+The request hook runs once per batch, after method-argument middleware and
+session resolution, and before JSON serialisation. The response hook runs after
+Fetch hooks, successful HTTP status checking, and JSON parsing. Each isolated
+batch runs these hooks separately. Session discovery, blob helpers, and events
+do not use JMAP envelope hooks.
 
-Built-in transformations and custom `middleware` run on each
-method's arguments before batching. `beforeJmapRequest` runs
-once on the assembled envelope, after session resolution and
-before serialization. Authentication and Fetch hooks see its
-serialized output. Separate batches, including batches from
-`client.isolated`, run their own envelope hooks.
+The response hook receives the request returned by the last envelope request
+hook. If a Fetch hook later changed the serialised body, that change is not
+reflected in the structured request object. After all response hooks finish,
+the client matches invocations by ID and settles individual call promises.
 
-`afterJmapResponse` receives the request envelope returned by
-the final `beforeJmapRequest` hook and the parsed response.
-The request is the structured envelope before any Fetch hook
-changes to the serialized body. It runs after Fetch hooks,
-HTTP success validation, and JSON parsing. It does not run
-for session discovery, blob operations, event streams, HTTP
-errors, or JSON parsing failures.
+You can transform `using`, `createdIds`, and method invocations, but keep names
+and invocation IDs aligned with the calls your application queued. Changing
+them does not rename or enqueue client calls. A method-level `error` remains
+visible in the response envelope before it becomes a rejected method promise.
+There is no separate per-method result hook.
 
-Envelope hooks can observe or transform the whole batch,
-including `using`, `createdIds`, and method invocations. Keep
-invocation IDs and method names aligned with queued calls;
-changing them does not rename or enqueue client calls.
-After response hooks finish, the client matches responses to
-queued calls by ID and resolves or rejects each method result.
-JMAP method errors remain part of the response envelope and
-are visible to `afterJmapResponse` before becoming individual
-promise rejections. A hook can deliberately transform those
-results, but it does not run separately for each result.
+## Follow the request lifecycle
+
+For a JMAP API request, processing follows this order:
+
+1. Transform each method's arguments with built-in and custom middleware.
+2. Assemble the batch and resolve the session.
+3. Run `beforeJmapRequest`, then serialise the envelope.
+4. Build the HTTP request and apply authentication.
+5. Run `beforeFetch`, then send the request.
+6. Run `afterFetch`, check HTTP status, and parse JSON.
+7. Run `afterJmapResponse`, then resolve or reject each method call.
+
+Other HTTP operations use steps 4–6 without envelope hooks or method results.
+Event streams add connection hooks as described below. All hook arrays default
+to empty.
+
+A request hook can override authentication headers. A replacement `Request`
+does not receive authentication again, so preserve the headers and abort signal
+you need. To sign a final request, use the last `beforeFetch` hook, or the last
+`beforeEventSourceConnect` hook for streams.
 
 ## Event-stream connections
 
-`beforeEventSourceConnect` runs after authentication and all
-Fetch request hooks on each attempt, including reconnects.
-The request includes transport headers such as
-`Last-Event-ID` when reconnecting after a named event.
+`beforeEventSourceConnect` runs after authentication and all `beforeFetch`
+hooks on each connection attempt. It receives stream headers, including any
+`Last-Event-ID` used on a reconnect, and returns the next `Request`.
 
-`afterFetch` runs on the incoming response before validation.
-`afterEventSourceConnect` then runs only for status `200`, a
-`text/event-stream` content type (optional parameters are
-allowed), and an available, unread, unlocked body. Its async
-work completes before the client reads any messages. It
-observes establishment, rather than stream closure or
-individual messages. It cannot return a replacement response.
+After `afterFetch`, the client validates the stream response: status `200`, a
+`text/event-stream` content type with optional parameters, and an available,
+unread, unlocked body. It then awaits `afterEventSourceConnect` observers before
+reading messages. These observers receive `{ request, response }` and return
+`void` or `Promise<void>`. They observe establishment, not messages or closure.
 
-HTTP `204` tells the event-source client to stop reconnecting;
-it runs Fetch response hooks but no connection after hooks.
-Other invalid stream responses raise `HttpError` without
-reading the body. Their available bodies are cancelled.
+HTTP `204` runs Fetch response hooks and tells the transport to stop
+reconnecting, without running after-connection hooks. Other invalid responses
+raise `HttpError` before the body is read; available bodies are cancelled.
 
-All stream response hooks must preserve the streaming body.
-Inspect headers rather than reading, cloning for buffering,
-locking, or cancelling the body. To replace a response in
-`afterFetch`, forward its body with `new Response(response.body,
-{ status: response.status, headers })`. Reading a stream to
-completion can block forever. Connection hooks do not add
-message, disconnect, or error hook arrays; use the
-`onStateChange` handler for changes and reported failures.
+Keep stream bodies available in every response hook. Inspect headers instead
+of reading, buffering a clone, locking, or cancelling the body. Reading to
+completion can wait forever. If `afterFetch` replaces a stream response,
+forward its body into the replacement rather than consuming it. Use the
+[state-change handler](../features/events.md) for notifications and reported
+connection failures.
 
-## Errors
+## Handle hook failures at the right boundary
 
-A thrown error or rejected promise stops the remaining hooks
-in that phase.
+A throw or rejection stops the remaining hooks in that phase. Its effect
+depends on where it occurred:
 
-- Authentication, request construction, request hooks, and
-  Fetch failures propagate `JsonMetaError` instances. Other
-  failures become `NetworkError` with the original error as
-  `cause`.
-- Fetch response hooks and JMAP envelope hooks propagate
-  their original errors. An envelope or transport failure
-  rejects every pending method call in that batch.
-- Event-stream connection failures, including hook and
-  validation errors, reach the state-change handler as
-  `StateChangeError`, with the underlying error as `cause`.
-  The event-source client retains its reconnect behavior.
-  Abort or dispose the subscription to stop it. Intentional
-  aborts do not report a connection failure. Session discovery
-  failures still reject the `onStateChange` setup promise.
+| Phase                                                         | Error delivery                                                                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Authentication, request construction, `beforeFetch`, or fetch | Existing `JsonMetaError` instances pass through; other errors become `NetworkError` with the original `cause`.      |
+| `afterFetch` or either JMAP envelope hook                     | The original thrown value propagates. A batch failure rejects all its pending calls.                                |
+| Event-stream connection processing                            | The handler receives `StateChangeError` with the underlying `cause`; the transport retains its reconnect behaviour. |
 
-## Migration and method middleware
+Session failures still reject the subscription setup promise. Intentional
+stream aborts do not report connection failures. Abort or dispose a subscription
+to stop further connection attempts. See the [error reference](../reference/errors.md)
+for the available diagnostics.
 
-Rename `hooks.beforeRequest` to `hooks.beforeFetch` and
-`hooks.afterResponse` to `hooks.afterFetch`; the old names and
-`BeforeRequestHook`/`AfterResponseHook` types have been removed.
-Use `BeforeFetchHook` and `AfterFetchHook` for transport callbacks.
-These hooks still return Fetch objects and support asynchronous
-callbacks. Use envelope hooks for complete JMAP batches and
-connection hooks for event-stream establishment.
+## Update older hook names
 
-`Config.middleware` still transforms individual method arguments
-and is **unstable**; no public `Middleware` type is exported.
-Built-in result-reference rewriting and lazy mail-account injection
-run before custom middleware. Copying argument objects before the
-session loads can access the lazy `accountId` getter. Envelope
-hooks run after those transformations; they do not replace this
-per-method middleware contract.
+Replace `hooks.beforeRequest` with `hooks.beforeFetch` and `hooks.afterResponse`
+with `hooks.afterFetch`. Their exported types are now `BeforeFetchHook` and
+`AfterFetchHook`; the old names have been removed. These callbacks still work
+with Fetch objects and can be asynchronous.
 
-[Proposal #112](https://github.com/htunnicliff/json-meta-client/issues/112)
-remains separate work: `beforeMethodCall` and `afterMethodResponse`
-are not implemented. When that proposal ships, reconcile this
-section's ordering, migration and failure scope with its final API,
-and update [API](../reference/api.md) and [Types](../reference/types.md).
+Use JMAP envelope hooks for complete batches and connection hooks for stream
+establishment. This version does not export `beforeMethodCall` or
+`afterMethodResponse` hooks.
+
+## Method-argument middleware
+
+`Config.middleware` is an unstable, synchronous transformation API for individual
+method arguments. It is separate from hooks, and no public `Middleware` type is
+exported. Built-in result-reference rewriting and lazy mail-account injection
+run before custom middleware; envelope hooks run afterwards.
+
+An argument's injected `accountId` is lazy. Copying or enumerating that object
+before the session loads can read the getter and throw. Keep this timing in mind
+if you already use middleware. For observing a completed batch, the envelope
+hooks avoid that earlier argument-transformation boundary.

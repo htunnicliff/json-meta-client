@@ -1,154 +1,180 @@
-# Authentication
+# Authenticate requests
 
-Configure `auth` with Bearer credentials, Basic credentials,
-or a callback. Authentication applies to session discovery,
-API calls, blob uploads and downloads, and every event-stream
-connection, including reconnects.
+Set `auth` when you create the client. The client applies those credentials to
+session requests, JMAP calls, blob transfers, and event-stream connections,
+including reconnects.
 
-## Bearer
+Choose the form your provider accepts: a bearer token, a username and password,
+or a callback that prepares each request. The client sends credentials you
+provide; your application is responsible for obtaining and refreshing them.
+
+## Use a bearer token
+
+Pass the token in `auth.token`:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
   auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
 ```
 
-The client sends `Authorization: Bearer YOUR_ACCESS_TOKEN`. The
-`token` must be a non-empty string.
+Every request carries `Authorization: Bearer YOUR_ACCESS_TOKEN`. The token must
+be a non-empty string. Use your provider's token acquisition flow and keep the
+token out of committed files.
 
-## Basic
+## Use a username and password
+
+For a provider that accepts HTTP Basic authentication, pass both fields. Use
+HTTPS: Base64 encoding does not protect the password in transit.
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
   auth: {
     username: "user@example.com",
-    password: "app-password",
+    password: "YOUR_APP_PASSWORD",
   },
+  capabilities: ["mail"],
 });
 ```
 
-The client encodes the username and password as UTF-8, then
-Base64, and sends `Authorization: Basic ...`. Both fields
-must be strings; the username must be non-empty and cannot
-contain a colon. An empty password is allowed, and passwords
-may contain colons. Use HTTPS and prefer an individual app
-password when your server supports one.
+The client encodes the pair as UTF-8 and Base64 for the `Authorization: Basic`
+header. The username must be non-empty and cannot contain a colon. The password
+can be empty or contain colons. If your provider offers individual app
+passwords, use one intended for this application.
 
-The object shape chooses the scheme. Mixing `token` with
-`username` or `password`, or supplying incomplete credentials,
-throws `ConfigurationError` during construction. Public types
-also reject mixed or incomplete credential objects.
+Use one credential form at a time. Mixing a token with username/password fields,
+or omitting a required field, throws `ConfigurationError` during construction.
 
-## Custom authentication
+## Use current credentials for each request
+
+Use an authentication callback when a token can change during the client's
+lifetime, when different URLs need different credentials, or when you need to
+sign requests. This factory accepts your application's token function:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
-  auth: async ({ request }) => {
-    // Replace this with your application's token acquisition/refresh.
-    const token = "YOUR_ACCESS_TOKEN";
-    request.headers.set("Authorization", `Bearer ${token}`);
-    request.headers.set(
-      "X-Proxy-Authorization",
-      "proxy-value",
-    );
-  },
-});
+export function createClient(
+  getToken: () => Promise<string>,
+) {
+  return new JsonMetaClient({
+    sessionUrl: "https://jmap.example.com/.well-known/jmap",
+    capabilities: ["mail"],
+    auth: async ({ request }) => {
+      const token = await getToken();
+      request.headers.set(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    },
+  });
+}
 ```
 
-The exported `AuthCallback` type is
-`(args: { request: Request }) => void | Promise<void>`. `Auth`
-is the union of the callback and both credential object forms.
+The client awaits the callback before sending each request. Mutate the supplied
+`Request` in place and return nothing. You can inspect its URL, method, headers,
+body, and signal; read `request.clone()` if you need to inspect the body without
+consuming it. If the callback fails, that request is not sent.
 
-The callback receives the outgoing `Request`, including its
-URL, method, headers, body, and signal. Mutate it in place;
-there is no return value. To inspect a body without consuming
-it, read `request.clone()`.
+Event-stream reconnects call the callback again with a fresh request, including
+stream headers and any `Last-Event-ID`. Reading an already cached session sends
+no request, so it does not call the callback. `refreshSession()` fetches again.
 
-The client invokes and awaits the callback for each request
-before sending it. Event-stream reconnects receive a fresh
-request with the stream headers, abort signal, and any
-`Last-Event-ID`. Changes to that request are sent to the
-server. Cached session reads do not send a request; use
-`refreshSession()` to fetch again.
+The callback does not implement OAuth sign-in or challenge-response negotiation.
+Your application owns that policy, including coordinating token refreshes when
+several requests need credentials at once. Redirects follow native `fetch`
+behaviour and do not call the callback for every redirect hop. For URL-dependent
+credentials or signatures, use final endpoint URLs in your configuration and
+server session metadata.
 
-Redirects follow the platform's native `fetch` behavior and do
-not invoke the callback again for each redirect hop. For
-URL-dependent credentials or signatures, use final endpoint
-URLs in the client configuration and server session metadata.
+## Coordinate authentication with hooks
 
-Callers own credential acquisition and refresh policy. The
-callback supports current tokens, URL-dependent credentials,
-request signing, and multiple authentication headers. It does
-not implement OAuth sign-in or challenge-response negotiation.
-If it throws or rejects, that request is not sent; ordinary
-requests reject with the client's request error handling, and
-event streams use the transport's reconnect behavior.
+Authentication runs before `beforeFetch`. For event streams,
+`beforeEventSourceConnect` runs after `beforeFetch`. Those hooks can change the
+request, including its authentication headers, and a replacement request does
+not receive authentication again.
 
-## Hook ordering
+If a signature must include hook changes, sign in the last `beforeFetch` hook,
+or the last `beforeEventSourceConnect` hook for a stream. The
+[hook guide](../advanced/hooks.md) describes the full request lifecycle and
+how callback failures are reported.
 
-For every transport, including each event-stream reconnect:
+## Run in a browser
 
-1. Create the request with its transport headers and body.
-2. Apply and await `auth`.
-3. Run `hooks.beforeFetch` in order, awaiting each hook and
-   using its returned request.
-4. For streams, run `hooks.beforeEventSourceConnect`.
-5. Send the resulting request.
-6. Run `hooks.afterFetch`.
-7. Validate the response; for valid stream connections, await
-   `hooks.afterEventSourceConnect` before reading messages.
+Serve the application over HTTP or HTTPS. The JMAP server must allow your
+application's origin through CORS, including its `Authorization` and
+`Content-Type` headers. This applies to the session endpoint and each API,
+upload, download, or event-stream origin you use. Your Content Security Policy
+must also permit those connections.
 
-Request hooks can inspect or override authentication headers.
-For signing that must include changes made by request hooks,
-perform the final signing in the last `beforeFetch` hook, or
-`beforeEventSourceConnect` for streams. JMAP request envelope
-hooks run before serialization and authentication. See
-[Hooks](../advanced/hooks.md) for the complete ordering and
-error behavior.
+With a bundler, install the package and import from `"json-meta-client"` as in
+Node.js. For a page without a bundler, use an import map. This page sends a Core
+echo request and displays its result; replace the session URL and token before
+serving it. The package version comes from this documentation's build.
 
-## Migrating from bearerToken
+<script setup>
+import { data as pkg } from '../pkg.data.ts'
+</script>
 
-This is a breaking configuration change. Replace:
+```html-vue [index.html]
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>JMAP connection</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "json-meta-client": "https://unpkg.com/json-meta-client@{{ pkg.version }}/dist/index.js",
+          "eventsource-client": "https://esm.sh/eventsource-client@1.2.0"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="output">Connecting…</pre>
+    <script type="module">
+      import { JsonMetaClient } from "json-meta-client";
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
-  // @ts-expect-error Removed configuration: use auth instead.
-  bearerToken: "YOUR_ACCESS_TOKEN",
-});
+      const output = document.querySelector("#output");
+      try {
+        const client = new JsonMetaClient({
+          sessionUrl: "https://jmap.example.com/.well-known/jmap",
+          auth: { token: "YOUR_ACCESS_TOKEN" },
+          capabilities: [],
+        });
+        const result = await client.api.Core.echo({ message: "Connected" });
+        output.textContent = JSON.stringify(result);
+      } catch (error) {
+        output.textContent = String(error);
+      }
+    </script>
+  </body>
+</html>
 ```
 
-with:
+The entry point is `dist/index.js`. The `eventsource-client` mapping resolves the
+dynamic import used by [state-change subscriptions](./events.md); keep it if you
+use events. A direct CDN import can replace the package's import-map entry,
+but the event-source dependency still needs to resolve.
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
+Browser code can read its own credentials. Supply a token for the current
+user's authorised access rather than a shared server secret.
 
-new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail"],
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-});
-```
+## Update an older configuration
 
-There is no deprecated alias or compatibility path. If you
-previously supplied a dummy token and a request hook for Basic
-authentication, replace both with
-`auth: { username, password }`. Event-stream connections now
-run the same authentication and request/response hooks as
-other requests, so hooks should account for stream requests
-and responses too.
+Replace `bearerToken: token` with `auth: { token }`. The old property has no
+compatibility alias. If you previously used a dummy bearer token and a request
+hook to add Basic credentials, replace that setup with
+`auth: { username, password }`.
+
+Event streams now use the same authentication and Fetch hooks as other
+requests. Existing hooks therefore need to handle stream requests and preserve
+their response bodies. See the [hook migration notes](../advanced/hooks.md#update-older-hook-names).

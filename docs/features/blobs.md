@@ -1,74 +1,19 @@
-# Blobs
+# Upload and download files
 
-The `client.blob` helpers transfer raw binary data over HTTP using
-the session's upload/download URL templates. They work without
-the optional `blob` capability. That capability enables JMAP
-`Blob/*` method calls through `client.api.Blob`; it does not
-configure these HTTP helpers. See
-[RFC 8620 §6](https://www.rfc-editor.org/rfc/rfc8620.html#section-6).
+Use `client.blob.upload()` and `client.blob.download()` to transfer binary data,
+such as attachments. The helpers use the upload and download URL templates in
+the server's session, and apply the same authentication and Fetch hooks as other
+requests.
 
-Use [shared setup](../index.md) with a server account that permits
-the transfer. Both helpers apply configured authentication and
-[HTTP hooks](../advanced/hooks.md). They expand and encode the
-server's URL templates; do not build attachment URLs yourself.
+These HTTP helpers work without the `"blob"` capability. That key enables
+additional JSON-based `Blob` methods through `client.api.Blob`; it does not
+configure file transfers.
 
-## Upload bytes with a media type
+## Upload bytes, then read them back
 
-`upload(body, params?)` accepts the platform's `BodyInit`, including
-`Blob`, `File`, strings, byte buffers, `URLSearchParams`, and
-`FormData`. It sends the body directly, without JSON or Base64
-encoding. For raw files, use a typed `Blob` or `File` so `fetch`
-sets the intended `Content-Type`. `FormData` sends multipart data,
-which is usually not the intended attachment bytes. Stream body
-support depends on the platform; the helper has no option for
-Node's streaming `duplex` setting.
-
-This Node.js example uses web primitives also available in modern
-browsers. Replace the byte array with the bytes from your input.
-
-```ts
-import {
-  HttpError,
-  JsonMetaClient,
-} from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-const accountId = (await client.session).primaryAccounts[
-  "urn:ietf:params:jmap:mail"
-];
-if (!accountId) throw new Error("No primary mail account");
-const bytes = new Uint8Array([0, 128, 255, 10]);
-try {
-  const uploaded = await client.blob.upload(
-    new Blob([bytes], { type: "application/octet-stream" }),
-    { accountId },
-  );
-  console.log(
-    uploaded.accountId,
-    uploaded.blobId,
-    uploaded.type,
-    uploaded.size,
-  );
-} catch (error) {
-  if (error instanceof HttpError)
-    console.error(
-      error.response.status,
-      error.responseData,
-    );
-  throw error;
-}
-```
-
-The result contains `accountId`, `blobId`, `type`, and byte `size`.
-Keep the blob ID with its account. Uploading does not create an
-Email or make the blob permanent: reference it in a subsequent
-object creation. See [send an attachment](../examples.md#send-an-attachment).
-
-In a browser, a file input supplies a `File` (a `Blob` subclass):
+Choose an account that allows the transfer. Pass a typed `Blob` or `File` so
+`fetch` can set the intended media type. This example uploads a short text file,
+then downloads it using the returned blob ID:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -78,85 +23,82 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
-const input = document.createElement("input");
-input.type = "file";
-input.addEventListener("change", () => {
-  const file = input.files?.[0];
-  if (!file) return;
-  void client.blob.upload(file).then(
-    (uploaded) =>
-      console.log(
-        uploaded.blobId,
-        uploaded.type,
-        uploaded.size,
-      ),
-    (error: unknown) =>
-      console.error("Upload failed", error),
-  );
+const accountId = "ACCOUNT_ID";
+const file = new Blob(["Report contents\n"], {
+  type: "text/plain",
 });
-document.body.append(input);
+
+const uploaded = await client.blob.upload(file, {
+  accountId,
+});
+console.log(uploaded.blobId, uploaded.type, uploaded.size);
+
+const response = await client.blob.download({
+  accountId,
+  blobId: uploaded.blobId,
+  name: "report.txt",
+  type: uploaded.type,
+});
+console.log(await response.text());
 ```
 
-The browser must be allowed to access the session and transfer
-origins through CORS. A file's `type` may be empty; use a new
-`Blob([file], { type: "application/octet-stream" })` when an explicit
-fallback media type is required.
+The final line prints `Report contents`. Upload returns the owning `accountId`,
+`blobId`, media `type`, and byte `size`. Keep the blob ID with its account: a
+blob ID alone does not tell the client which account to use.
 
-## Download and consume the response
+Uploading does not create an email or make the blob permanent. Reference the
+blob in a subsequent object creation, as shown in the
+[attachment recipe](../examples.md#send-an-attachment).
 
-`download({ blobId, name, type, accountId? })` requires the blob ID,
-desired filename and media type for the URL template. The returned
-web `Response` has passed HTTP status checking, but its body has
-not been read. Choose one body reader; use `response.clone()` if
-you need to inspect a copy.
+## Choose the upload body
 
-```ts
-import {
-  HttpError,
-  JsonMetaClient,
-} from "json-meta-client";
+`upload` accepts the platform's `BodyInit` and sends it directly, without JSON
+or Base64 encoding. A browser file input supplies a `File`, which is already a
+`Blob`. Pass that file directly when its media type is suitable. If its `type`
+is empty, wrap it in `new Blob([file], { type: "application/octet-stream" })`
+to supply a fallback.
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-try {
-  const response = await client.blob.download({
-    blobId: "BLOB_ID",
-    name: "attachment.bin",
-    type: "application/octet-stream",
-  });
-  const bytes = new Uint8Array(
-    await response.arrayBuffer(),
-  );
-  console.log(bytes.byteLength);
-  // Alternatives: await response.blob() or await response.text().
-} catch (error) {
-  if (error instanceof HttpError)
-    console.error(
-      error.response.status,
-      error.responseData,
-    );
-  throw error;
-}
-```
+Strings, byte buffers, `URLSearchParams`, and `FormData` are also accepted body
+types, but they produce different HTTP bodies. In particular, `FormData` sends
+multipart data rather than just the file's bytes. For an ordinary attachment,
+a `Blob` or `File` expresses the intended body and media type.
 
-Use `blob()` for browser object URLs and revoke each object URL
-when its preview/download UI is removed. Use `text()` only for
-textual data. Reading as an `ArrayBuffer` preserves arbitrary
-binary bytes in Node.js and browsers. Body-reading errors happen
-after `download()` resolves and are platform errors; keep reads
-inside your error boundary.
+Streaming request bodies depend on the runtime. The helper has no option for
+Node's streaming `duplex` setting. Keep uploads within the size and concurrency
+limits advertised by your server.
 
-For both helpers, omitted `accountId` uses the primary **mail**
-account, even if the blob belongs to another capability. Pass it
-explicitly for shared/secondary/non-mail accounts and check the
-session before relying on the default. The library does not select
-an account based on the blob ID or validate account permissions.
+## Consume a download response
 
-Non-success HTTP statuses reject with `HttpError`; fetch failures
-reject with `NetworkError`. Upload JSON parsing can also reject
-with a native `SyntaxError`. See [Errors](../reference/errors.md)
-for diagnostic fields and [get attachments](../examples.md#get-email-attachments)
-for finding blob IDs in Email objects.
+`download` needs a blob ID, filename, and media type. The helper expands and
+encodes the server's URL template; you do not need to construct the URL yourself.
+It resolves to a web `Response` after HTTP status checking, with its body unread.
+
+Choose the reader that matches the data:
+
+| Reader                   | Suitable use                                              |
+| ------------------------ | --------------------------------------------------------- |
+| `response.arrayBuffer()` | Preserve arbitrary binary bytes for saving or processing. |
+| `response.blob()`        | Create a browser preview or download with an object URL.  |
+| `response.text()`        | Read known textual data.                                  |
+
+A response body can be consumed once. Clone an ordinary response before reading
+it twice. Revoke browser object URLs when their previews are removed, and choose
+safe local filenames rather than treating an attachment name as a filesystem
+path. A supplied filename or media type is metadata, not proof of file contents.
+
+## Handle account and transfer failures
+
+Both helpers default to the primary mail account when `accountId` is omitted.
+Pass it explicitly for shared, secondary, or non-mail accounts. The client does
+not infer the account from a blob ID or check transfer permissions for you.
+
+A non-success HTTP status rejects with `HttpError`; fetch failures reject with
+`NetworkError`. Upload also parses a JSON response, which can fail with a native
+`SyntaxError`. A download's body reader can fail after `download()` has resolved,
+so keep the body read inside your application's error boundary too. Neither
+helper accepts a per-call abort signal or request options.
+
+For browser transfers, allow the session and transfer origins through
+[CORS and your Content Security Policy](./authentication.md#run-in-a-browser).
+To find attachment blob IDs on an email, use the
+[attachment download recipe](../examples.md#get-email-attachments).

@@ -1,135 +1,149 @@
 <!-- cspell:words Fastmail -->
 
-# Capabilities
+# Capability catalogue
 
-The tables below are generated from the built-in descriptors. Configuration keys are case-sensitive; community keys include their prefix. All listed methods have TypeScript contracts, including Blob, Contacts, and Sieve. Only Core is included automatically. See [Capabilities](/features/capabilities) for server/account checks and composition, and [Extending](/advanced/extending) for custom descriptors.
+Built-in capability keys select the method contracts listed below. Keys are
+case-sensitive, including the `community:` prefix. Only Core is automatic;
+other capabilities must be configured explicitly.
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
+The tables of URIs and entities are generated from the built-in descriptors.
+The [capability guide](../features/capabilities.md) explains how configuration
+relates to server support, account permissions, and request requirements.
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail", "community:maskedEmail"],
-});
+## Method contracts
 
-// Requires Fastmail Masked Email support on the chosen account.
-const result = await client.api.MaskedEmail.get({
-  accountId: "ACCOUNT_ID",
-  ids: null,
-});
-console.log(result.list);
-```
+Every method listed here has a TypeScript contract. A protocol specification
+provides the method's fields, permissions, limits, and error definitions;
+selecting a key exposes the listed methods, rather than every possible extension
+to that protocol.
 
-## Contracts and protocol sources
+### `core`
 
-The method names in this table are relative to the named entity. Protocol documents define fields, permissions, limits, and errors; selecting a key supplies contracts for the methods listed here, rather than every extension described by those documents.
+Included in every client. Provides typed server limits and these methods from
+[RFC 8620](https://www.rfc-editor.org/rfc/rfc8620.html):
 
-| Key                     | Typed methods                                                                                                                                                                             | Specification and scope                                                                                                                                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core`                  | `Core.echo`; `Blob.copy`; `PushSubscription.get`, `set`                                                                                                                                   | [RFC 8620](https://www.rfc-editor.org/rfc/rfc8620.html): echo, blob copying, push subscriptions, and typed server limits. Always available in the client API.                                                 |
-| `mail`                  | `Mailbox.get`, `set`, `changes`, `query`, `queryChanges`; `Thread.get`, `changes`; `Email.get`, `changes`, `query`, `queryChanges`, `set`, `copy`, `import`, `parse`; `SearchSnippet.get` | [RFC 8621](https://www.rfc-editor.org/rfc/rfc8621.html): mail storage, search, import, parsing, and typed account limits.                                                                                     |
-| `submission`            | `Identity.get`, `set`, `changes`; `EmailSubmission.get`, `set`, `changes`, `query`, `queryChanges`                                                                                        | [RFC 8621 §7](https://www.rfc-editor.org/rfc/rfc8621.html#section-7): sender identities and message submission, with typed account limits and SMTP extensions. Select `mail` separately for Email operations. |
-| `vacationResponse`      | `VacationResponse.get`, `set`                                                                                                                                                             | [RFC 8621 §8](https://www.rfc-editor.org/rfc/rfc8621.html#section-8): automatic vacation replies.                                                                                                             |
-| `blob`                  | `Blob.upload`, `get`, `lookup`                                                                                                                                                            | [RFC 9404](https://www.rfc-editor.org/rfc/rfc9404.html): JSON blob management and typed account limits. HTTP `client.blob` helpers do not require this key; `Blob.copy` comes from Core.                      |
-| `contacts`              | `AddressBook.get`, `changes`, `set`; `ContactCard.get`, `changes`, `query`, `queryChanges`, `set`, `copy`                                                                                 | [RFC 9610](https://www.rfc-editor.org/rfc/rfc9610.html): address books and JSContact cards, with typed account permissions and limits.                                                                        |
-| `sieve`                 | `SieveScript.get`, `query`, `set`, `validate`                                                                                                                                             | [RFC 9661](https://www.rfc-editor.org/rfc/rfc9661.html): Sieve scripts, with typed server implementation and account limits/extensions.                                                                       |
-| `community:maskedEmail` | `MaskedEmail.get`, `set`                                                                                                                                                                  | [Fastmail Masked Email](https://www.fastmail.com/dev/maskedemail): provider-specific masked addresses. Requires provider support.                                                                             |
+- `Core.echo`
+- `Blob.copy`
+- `PushSubscription.get`, `set`
 
-Metadata without a declared detail contract remains `unknown`. The catalogue does not export the internal descriptor or RFC type modules as package imports; configure built-ins through the keys above.
+### `mail`
+
+Mail storage, search, import, and parsing, with typed account limits from
+[RFC 8621](https://www.rfc-editor.org/rfc/rfc8621.html):
+
+- `Mailbox.get`, `set`, `changes`, `query`, `queryChanges`
+- `Thread.get`, `changes`
+- `Email.get`, `changes`, `query`, `queryChanges`, `set`, `copy`, `import`, `parse`
+- `SearchSnippet.get`
+
+### `submission`
+
+Sender identities and message submission from
+[RFC 8621 §7](https://www.rfc-editor.org/rfc/rfc8621.html#section-7), with typed
+account limits and SMTP extensions:
+
+- `Identity.get`, `set`, `changes`
+- `EmailSubmission.get`, `set`, `changes`, `query`, `queryChanges`
+
+Does not include `mail`. Email creation and submission workflows need both keys.
+
+### `vacationResponse`
+
+Automatic vacation replies from
+[RFC 8621 §8](https://www.rfc-editor.org/rfc/rfc8621.html#section-8):
+
+- `VacationResponse.get`, `set`
+
+### `blob`
+
+JSON-based blob management and typed account limits from
+[RFC 9404](https://www.rfc-editor.org/rfc/rfc9404.html):
+
+- `Blob.upload`, `get`, `lookup`
+
+The HTTP `client.blob` helpers do not require this key. `Blob.copy` comes from Core.
+
+### `contacts`
+
+Address books and JSContact cards from
+[RFC 9610](https://www.rfc-editor.org/rfc/rfc9610.html), with typed account
+permissions and limits:
+
+- `AddressBook.get`, `changes`, `set`
+- `ContactCard.get`, `changes`, `query`, `queryChanges`, `set`, `copy`
+
+### `sieve`
+
+Sieve scripts from [RFC 9661](https://www.rfc-editor.org/rfc/rfc9661.html), with
+typed server implementation details and account limits/extensions:
+
+- `SieveScript.get`, `query`, `set`, `validate`
+
+### `community:maskedEmail`
+
+Provider-specific masked addresses from the
+[Fastmail Masked Email API](https://www.fastmail.com/dev/maskedemail):
+
+- `MaskedEmail.get`, `set`
+
+Requires provider support. Metadata without a declared detail contract remains
+`unknown`, including for other capabilities above.
 
 <script setup>
-  import {data as builtIns } from './capabilities.data.ts';
+import { data as builtIns } from './capabilities.data.ts'
 
-  const community = Object.entries(builtIns).filter(
-    ([name]) => name.startsWith('community:')
-  );
-
-  const ready = Object.entries(builtIns).filter(
-    ([name]) => !name.startsWith('community:')
-  );
-
-  const allEntities = new Set(
-    Object.values(builtIns).flatMap(c => c.entities)
-  );
-
-  const capabilitiesByEntity = new Map(
-    [...allEntities].sort().map(
-      (entity) => [
-        entity,
-        Object.entries(builtIns).filter(
-          ([, { entities }]) => entities.includes(entity)
-        ).map(([name]) => name)
-      ]
-    )
-  )
-
+const capabilities = Object.entries(builtIns);
+const allEntities = new Set(
+  Object.values(builtIns).flatMap(capability => capability.entities)
+);
+const capabilitiesByEntity = [...allEntities].sort().map(entity => [
+  entity,
+  capabilities.filter(([, capability]) => capability.entities.includes(entity))
+    .map(([name]) => name)
+]);
 </script>
 
-## Built-In
-
-<section v-for="[name, { urn, entities }] in ready" :key="name">
-  <h3><code>{{name}}</code></h3>
-  <table>
-    <tbody>
-      <tr>
-        <td>URN</td>
-        <td>{{urn}}</td>
-      </tr>
-      <tr>
-        <td>Entities</td>
-        <td>
-          <template v-for="(entity, index) in entities.sort()">
-            <code>{{entity}}</code>
-            <span v-if="index != entities.length - 1">, </span>
-          </template>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</section>
-
-## Community
-
-<section v-for="[name, { urn, entities }] in community" :key="name">
-  <h3><code>{{name}}</code></h3>
-  <table>
-    <tbody>
-      <tr>
-        <td>URN</td>
-        <td>{{urn}}</td>
-      </tr>
-      <tr>
-        <td>Entities</td>
-        <td>
-          <template v-for="(entity, index) in entities.sort()">
-            <code>{{entity}}</code>
-            <span v-if="index != entities.length - 1">, </span>
-          </template>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</section>
-
-## By Entity
+## Capability URIs and entities
 
 <table>
   <thead>
-    <tr>
-      <th>Entity</th>
-      <th>Capabilities</th>
-    </tr>
+    <tr><th>Configuration key</th><th>URI</th><th>Entities</th></tr>
   </thead>
   <tbody>
-    <tr v-for="[entity, capabilities] in capabilitiesByEntity">
-      <td>{{entity}}</td>
+    <tr v-for="[name, { urn, entities }] in capabilities" :key="name">
+      <td><code>{{ name }}</code></td>
+      <td><code>{{ urn }}</code></td>
       <td>
-        <template v-for="(capability, index) in capabilities">
-          <code>{{capability}}</code>
-          <span v-if="index != capabilities.length - 1">, </span>
+        <template v-for="(entity, index) in [...entities].sort()" :key="entity">
+          <code>{{ entity }}</code><span v-if="index < entities.length - 1">, </span>
         </template>
       </td>
     </tr>
   </tbody>
 </table>
+
+## Capabilities by entity
+
+An entity can appear in several descriptors. A request calling that entity uses
+all its configured capability URIs, even when the called method comes from only
+one descriptor.
+
+<table>
+  <thead>
+    <tr><th>Entity</th><th>Configuration keys</th></tr>
+  </thead>
+  <tbody>
+    <tr v-for="[entity, names] in capabilitiesByEntity" :key="entity">
+      <td><code>{{ entity }}</code></td>
+      <td>
+        <template v-for="(name, index) in names" :key="name">
+          <code>{{ name }}</code><span v-if="index < names.length - 1">, </span>
+        </template>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Built-ins are configured by key. Their internal descriptors and RFC type
+modules are not public package entry points. Custom server features can be described
+with [capability-authoring APIs](../advanced/extending.md).

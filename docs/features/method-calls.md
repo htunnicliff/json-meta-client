@@ -1,274 +1,166 @@
-# Method Calls
+# Read and change objects
 
-Use `client.api.Entity.method(args)` to invoke `Entity/method`: for example,
-`client.api.Email.query(...)` invokes `Email/query`. Configured
-[capabilities](./capabilities.md) determine the entities and methods available to
-TypeScript. Core is automatic; mail and submission are opt-in.
+Call a JMAP method through `client.api.Entity.method(arguments)`. For example,
+`client.api.Email.get(...)` sends `Email/get`. The capabilities you configure
+determine the methods TypeScript exposes; [choose those capabilities](./capabilities.md)
+before following the examples below.
 
-## Query, get, and set
+Most object operations follow the same pattern: `query` finds IDs, `get` reads
+objects, and `set` creates, updates, or destroys them. The examples use an
+explicit `ACCOUNT_ID`; replace it with an account selected from your session.
 
-`query` returns matching **IDs**, `get` returns **objects**, and `set` creates,
-updates, or destroys objects. This example finds an inbox, selects mailbox
-properties, and updates one preference. The account must allow mailbox updates.
+## Read the fields you need
+
+Pass IDs to `get` and name the fields your code will use in `properties`:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
+
+const result = await client.api.Email.get({
+  accountId: "ACCOUNT_ID",
+  ids: ["EMAIL_ID"],
+  properties: ["id", "subject", "from"],
+});
+for (const email of result.list) {
+  console.log(email.id, email.subject, email.from);
 }
-
-const query = await client.api.Mailbox.query({
-  accountId,
-  filter: { role: "inbox" },
-  limit: 1,
-});
-const inboxId = query.ids[0];
-if (!inboxId) throw new Error("No inbox found");
-const mailboxes = await client.api.Mailbox.get({
-  accountId,
-  ids: [inboxId],
-  properties: ["id", "name", "isSubscribed"],
-});
-const inbox = mailboxes.list[0];
-if (!inbox)
-  throw new Error("The inbox is no longer readable");
-console.log(inbox.name, inbox.isSubscribed);
-
-const changed = await client.api.Mailbox.set({
-  accountId,
-  update: { [inbox.id]: { isSubscribed: true } },
-});
-if (changed.notUpdated?.[inbox.id]) {
-  throw new Error(
-    JSON.stringify(changed.notUpdated[inbox.id]),
+if (result.notFound?.length) {
+  console.warn(
+    "Messages are no longer readable",
+    result.notFound,
   );
-}
-if (
-  !changed.updated ||
-  !Object.hasOwn(changed.updated, inbox.id)
-) {
-  throw new Error("The server did not confirm the update");
 }
 ```
 
-`properties` limits the returned fields and narrows their TypeScript types.
-Include each field you consume; IDs are always returned. An omitted or `null`
-`ids` in a standard `get` requests all accessible objects; `ids: []` requests none.
-Check `list` for empty results and `notFound` for requested IDs that disappeared.
-For `set`, a resolved promise can still contain `notCreated`, `notUpdated`, or
-`notDestroyed`; inspect these per-object errors before treating a write as successful.
-See the [error contract](../reference/errors.md).
+`list` contains the readable objects. Requested IDs that cannot be found appear
+in `notFound`; a successful call can therefore return fewer objects than you
+requested. An empty list is also a valid result.
 
-These standard operations follow [RFC 8620 §5](https://jmap.io/spec/rfc8620/#section-5).
-Mail-specific fields and operations follow
-[RFC 8621](https://jmap.io/spec/rfc8621/).
-
-## Pending calls and awaited results
-
-Calling a method immediately queues it and returns a promise augmented with
-`resultRef()`, `$id`, `$method`, and `$args`. A pending `set` also has
-`createdRef()`. Awaiting the promise returns the response arguments object,
-without those pending-call helpers. Save the pending call when building references.
-
-Calls created synchronously before the next queue flush can share a request.
-Sequential awaits create separate requests. See [Batching](../advanced/batching.md)
-for the microtask boundary, isolation, limits, and cancellation.
-
-## Select an account
-
-If the arguments omit `accountId`, the client injects
-`session.primaryAccounts["urn:ietf:params:jmap:mail"]`. It uses this mail default
-even for another capability's methods. It does not search for a suitable account
-or verify its permissions. For shared, secondary, contacts-only, or submission
-accounts, select the appropriate session account and pass its ID explicitly.
-Passing `accountId: undefined` prevents default injection; omit the property
-when you intend to use the default.
-
-Inspect `session.accounts[accountId].accountCapabilities` for every required
-capability. For a mail/submission workflow, choose one account supporting both;
-its primary mail and primary submission IDs need not be the same. See
-[Capabilities](./capabilities.md) and [Examples](../examples.md#send-an-email).
+The result type follows `properties`, so accessing an unselected field is a type
+error. Standard get responses always include the object's ID. For standard get
+methods, omitting `ids` or passing `null` requests all accessible objects;
+`ids: []` requests none. Use bounded queries for large collections rather than
+requesting everything at once.
 
 ## Reference a previous result
 
-`resultRef(path)` creates a JMAP result-reference object. The producer must precede
-the consumer **in the same request**. Do not await between creating these calls.
-The library transforms a reference passed as `ids` into a `#ids` argument; the
-server resolves it, rather than fetching the producer's result in JavaScript.
+When a query supplies the IDs for a get, use a result reference to run both in
+one request. Create the query first, pass its reference to the get, and then
+await both calls together:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
 
-const query = client.api.Email.query(
-  {
-    accountId,
-    filter: { notKeyword: "$seen" },
-    limit: 10,
-  },
-  { id: "unread-query" },
-);
-const get = client.api.Email.get(
-  {
-    accountId,
-    ids: query.resultRef("/ids"),
-    properties: ["id", "subject"],
-  },
-  { id: "unread-get" },
-);
-const [matches, emails] = await Promise.all([query, get]);
-console.log(matches.ids, emails.list, emails.notFound);
+const query = client.api.Email.query({
+  accountId: "ACCOUNT_ID",
+  filter: { notKeyword: "$seen" },
+  limit: 10,
+});
+const get = client.api.Email.get({
+  accountId: "ACCOUNT_ID",
+  ids: query.resultRef("/ids"),
+  properties: ["id", "subject"],
+});
+const [, emails] = await Promise.all([query, get]);
+console.log(emails.list);
 ```
 
-The matching request is shown below with `ACCOUNT_ID` substituted for the selected
-account. Explicit invocation IDs in the example make the reference reproducible.
-Use unique invocation IDs within each request.
+`query` is a pending call: a promise with reference helpers attached.
+`query.resultRef("/ids")` describes where to find the IDs in that call's result.
+The client sends it as a `#ids` argument, and the server resolves it before
+running the get. No query result has to travel back to your application first.
 
-```json
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "accountId": "ACCOUNT_ID",
-        "filter": { "notKeyword": "$seen" },
-        "limit": 10
-      },
-      "unread-query"
-    ],
-    [
-      "Email/get",
-      {
-        "accountId": "ACCOUNT_ID",
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "unread-query",
-          "path": "/ids"
-        },
-        "properties": ["id", "subject"]
-      },
-      "unread-get"
-    ]
-  ]
-}
-```
+Keep both calls in the same queue and create them without an intervening await.
+A reference cannot reach into an earlier HTTP request or another isolated queue.
+If you have already awaited the query, pass its returned `ids` array instead.
+The [batching guide](../advanced/batching.md) explains when queues flush.
 
-Paths are JSON Pointers into response **arguments**: `/ids` reads a query's IDs,
-`/list/0/id` reads the first returned object's ID, and `/list/*/id` collects every
-object's ID. JMAP adds `*` array traversal to JSON Pointer; escape property-name
-`~` and `/` as `~0` and `~1` at the protocol level. The typed helper validates paths
-against known output fields and infers the referenced value's type; it does not
-fetch or check the actual response. Some escaped property-name paths are not
-expressible by its current type-level path generator. A missing path, failed
-producer, or type-incompatible value can produce `invalidResultReference`.
-The protocol rules are in
-[RFC 8620 §3.7](https://jmap.io/spec/rfc8620/#section-3.7).
+A reference path is a JSON Pointer into the method's response arguments:
 
-For example, collect IDs from a `get` response:
+| Path         | Value selected                             |
+| ------------ | ------------------------------------------ |
+| `/ids`       | The IDs from a query.                      |
+| `/list/0/id` | The first object's ID from a get.          |
+| `/list/*/id` | An array of IDs from all objects in a get. |
+
+The `*` traversal is a JMAP extension to JSON Pointer. The helper checks paths
+against the known result type and carries the selected value's type into the
+next call. It cannot check the actual response: a failed producer, a missing
+path, or an incompatible value can still cause `invalidResultReference` on the
+server. JSON Pointer escapes `~` and `/` in property names as `~0` and `~1`;
+some escaped property-name paths cannot be expressed by the current typed helper.
+
+Awaiting a call gives you just its response arguments. Save the pending call if
+you need its helpers later. Its `$id`, `$method`, and `$args` fields are described
+in the [API reference](../reference/api.md#pending-call-members).
+
+## Update an object and check the outcome
+
+A set call's `update` map uses existing object IDs as keys. This example changes
+a mailbox preference; replace `MAILBOX_ID` with a mailbox you can update:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
+const mailboxId = "MAILBOX_ID";
+const result = await client.api.Mailbox.set({
+  accountId: "ACCOUNT_ID",
+  update: { [mailboxId]: { isSubscribed: true } },
+});
 
-const mailboxes = client.api.Mailbox.get({
-  accountId,
-  ids: null,
-  properties: ["id", "name"],
-});
-const refresh = client.api.Mailbox.get({
-  accountId,
-  ids: mailboxes.resultRef("/list/*/id"),
-  properties: ["id", "name", "totalEmails"],
-});
-const [, result] = await Promise.all([mailboxes, refresh]);
-console.log(result.list);
+const failure = result.notUpdated?.[mailboxId];
+if (failure) throw new Error(JSON.stringify(failure));
+if (
+  !result.updated ||
+  !Object.hasOwn(result.updated, mailboxId)
+) {
+  throw new Error("The server did not confirm the update");
+}
+console.log("Subscribed to", mailboxId);
 ```
+
+A fulfilled promise does not mean every object changed. Inspect `notCreated`,
+`notUpdated`, and `notDestroyed` for the operations you requested. Method-wide
+failures reject instead; the [error reference](../reference/errors.md)
+distinguishes these cases.
 
 ## Reference a newly created object
 
-A creation ID is a request-local key in a `set` call's `create` map.
-`createdRef("key")` returns `"#key"` and checks the key exists in that call's
-`create` map. It does not confirm that creation succeeds. Keep creation IDs unique
-across the request and use references only where the protocol accepts them.
-
-This creates a parent mailbox and then its child in the same request:
+The keys in a set call's `create` map are temporary creation IDs. Use
+`createdRef()` to refer to a new object before the server has assigned its real
+ID. This creates a parent mailbox and a child in one request:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "YOUR_ACCESS_TOKEN" },
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail"],
 });
-const session = await client.session;
-const accountId =
-  session.primaryAccounts["urn:ietf:params:jmap:mail"];
-if (
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[
-    "urn:ietf:params:jmap:mail"
-  ]
-) {
-  throw new Error("No primary mail account is available");
-}
-
 const parent = client.api.Mailbox.set({
-  accountId,
+  accountId: "ACCOUNT_ID",
   create: { project: { name: "Project" } },
 });
 const child = client.api.Mailbox.set({
-  accountId,
+  accountId: "ACCOUNT_ID",
   create: {
     tasks: {
       name: "Tasks",
@@ -291,8 +183,10 @@ if (!parents.created?.project || !children.created?.tasks) {
 console.log(children.created.tasks.id);
 ```
 
-Creation references follow
-[RFC 8620 §5.3](https://jmap.io/spec/rfc8620/#section-5.3). If you await creation
-first, pass its returned `created.key.id` as a literal ID in the later request.
-For mail creation followed by submission, see the complete
-[send recipe](../examples.md#send-an-email).
+`parent.createdRef("project")` returns `"#project"`. It checks that `project`
+is a key in that call's create map, not that the server will create the object.
+Keep creation IDs unique throughout the request, put the producer before its
+consumer, and use these references only where the protocol accepts them.
+
+If you await creation first, use the real ID from `created.project.id` in later
+requests. For a draft followed by a submission, see [sending mail](../examples.md#send-an-email).

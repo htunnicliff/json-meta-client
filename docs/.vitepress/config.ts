@@ -35,10 +35,10 @@ export default defineConfig({
       {
         text: "Getting Started",
         items: [
-          { text: "Introduction", link: "/" },
-          { text: "Best Practices", link: "/best-practices" },
+          { text: "Your First Request", link: "/" },
+          { text: "Application Design", link: "/best-practices" },
           { text: "Testing", link: "/testing" },
-          { text: "Examples", link: "/examples" },
+          { text: "Mail Recipes", link: "/examples" },
         ],
       },
       {

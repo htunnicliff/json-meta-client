@@ -1,12 +1,19 @@
-<!-- cspell:words behaviour -->
+# Choose capabilities and an account
 
-# Capabilities
+Configure the protocol features your application needs, then choose an account
+that supports them. These are separate decisions: adding `"mail"` gives your
+client typed mail methods, but it does not enable mail on a server or grant
+access to an account.
 
-A JMAP capability identifies a set of protocol features with a URI, often a URN such as `urn:ietf:params:jmap:mail`. Entities name the objects or services those features operate on; methods combine an entity and operation, such as `Email/get`. The [catalogue](/reference/capabilities) lists the exact configuration keys, capability URIs, entities, and typed methods.
+JMAP names each feature set with a capability URI, such as
+`urn:ietf:params:jmap:mail`. json-meta-client provides shorter configuration keys
+for built-in capabilities. The [capability catalogue](../reference/capabilities.md)
+lists the keys, URIs, and methods.
 
-## Select capabilities
+## Select the methods you need
 
-The client always includes JMAP Core: `Core/echo`, `Blob/copy`, and `PushSubscription/get` and `/set`. Select every other capability explicitly using its exact key. Community keys include the `community:` prefix.
+List each capability explicitly. For mail storage and sending, select both
+`"mail"` and `"submission"`:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -14,29 +21,28 @@ import { JsonMetaClient } from "json-meta-client";
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail", "submission", "vacationResponse"],
+  capabilities: ["mail", "submission"],
 });
-
-console.log(
-  await client.api.Core.echo({ message: "Connected" }),
-);
 ```
 
-`capabilities: []` is valid and retains Core. Configuring `submission` does not configure `mail`; select both to use both APIs. Custom descriptors created with [`defineCapability`](/advanced/extending) can appear alongside string keys.
+Core is always included, even with `capabilities: []`. It supplies `Core.echo`,
+`Blob.copy`, and `PushSubscription.get` and `set`. Other capabilities do not
+implicitly include each other: selecting `"submission"` alone does not expose
+`Email` or `Mailbox` methods. Community keys include their `community:` prefix.
 
-Three distinct things determine whether an operation can succeed:
-
-| Layer                             | Meaning                                                                                                             |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Contracts and metadata types      | Describe arguments, inferred results, and capability details at compile time. They do not inspect server responses. |
-| Client configuration              | Supplies typed methods and maps each entity to the capability URIs included in requests.                            |
-| Session and account advertisement | Describes the features the server and each account actually support. Configuration does not enable server features. |
-
-The constructor rejects unknown built-in keys and malformed descriptors with a [`CapabilityConfigurationError`](/reference/errors#configuration-errors). On the first successful session load, configured capability URIs absent from `session.capabilities` produce a `console.warn(ConfigurationError)`. This warning does not reject the session or prevent requests. Later refreshes do not repeat this validation. Account support and method arguments are not validated against the server's advertised capabilities or limits.
+You can also include [custom descriptors](../advanced/extending.md) alongside
+built-in keys. Unknown keys and malformed descriptors fail during construction
+with `CapabilityConfigurationError`.
 
 ## Check support and choose an account
 
-[JMAP sessions](https://www.rfc-editor.org/rfc/rfc8620.html#section-2) contain server-wide `capabilities`, per-account `accountCapabilities`, and `primaryAccounts`, a mapping from capability URI to its primary account ID. A shared account can support contacts without supporting mail. Check presence before accessing typed metadata; configured details remain optional in [`ClientSession`](/reference/types#client-types).
+Read the session before relying on a feature. `session.capabilities` describes
+server-wide support. Each entry in `session.accounts` has its own
+`accountCapabilities`, because accounts can offer different features.
+`primaryAccounts` maps a capability URI to its primary account ID.
+
+This example selects the primary contacts account and checks its advertised
+permissions before listing address books:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -47,20 +53,22 @@ const client = new JsonMetaClient({
   capabilities: ["contacts"],
 });
 
-const urn = "urn:ietf:params:jmap:contacts";
 const session = await client.session;
-if (!session.capabilities[urn])
-  throw new Error("Server does not advertise contacts");
+const contacts = "urn:ietf:params:jmap:contacts";
+if (!session.capabilities[contacts]) {
+  throw new Error("The server does not advertise contacts");
+}
 
-const accountId = session.primaryAccounts[urn];
+const accountId = session.primaryAccounts[contacts];
 const account = accountId
   ? session.accounts[accountId]
   : undefined;
-const details = account?.accountCapabilities[urn];
-if (!accountId || !details)
+const details = account?.accountCapabilities[contacts];
+if (!accountId || !details) {
   throw new Error(
     "No primary contacts account is available",
   );
+}
 
 console.log(
   "May create an address book:",
@@ -70,17 +78,48 @@ const result = await client.api.AddressBook.get({
   accountId,
   ids: null,
 });
-console.log(result.list); // An empty list is valid.
+console.log(result.list);
 ```
 
-For a shared account, choose an ID from `session.accounts` and check its `accountCapabilities` instead of relying on `primaryAccounts`. Check `isReadOnly` and operation-specific permissions before writes; the server still decides whether a request is permitted.
+For a shared or secondary account, choose its ID from `session.accounts` and
+check that entry instead of using `primaryAccounts`. Before writing, also check
+`isReadOnly` and the permissions relevant to the operation. The server remains
+the authority on whether a request is allowed.
 
-When method arguments omit `accountId`, the client injects **the primary mail account ID**, regardless of the called entity. Blob HTTP helpers use the same default. It does not find the primary account for the method's capability. Pass `accountId` explicitly for contacts, Sieve, custom capabilities, shared accounts, or any deployment without a primary mail account.
+When you omit a method's `accountId`, the client uses the primary **mail**
+account, regardless of the method. Blob HTTP helpers use the same default.
+Pass the account explicitly for contacts, Sieve, custom capabilities, and shared
+accounts. For a workflow that combines capabilities, such as creating and
+submitting an email, choose one account that supports both.
 
-## Composition and request requirements
+## Read capability details safely
 
-Multiple descriptors can contribute methods to one entity, including descriptors with the same URI. Their TypeScript contracts are intersected; declarations must be compatible. No provider is selected and conflicting contracts are not diagnosed at runtime.
+Configured capabilities give the session's metadata TypeScript types. Their
+presence is still optional: the server or account may not advertise them. Check
+for a capability before reading its limits or permissions, as the example does
+with `details`.
 
-For each request, `using` contains Core plus every configured capability URI associated with any called entity, with duplicates removed. Selection is by entity, rather than by method. For example, configuring `blob` makes a call to `Blob/copy` include both Core and the Blob capability because both describe `Blob`. An extension contributing to `Email` makes every Email call include its URI. Configure only the extensions the server supports: an unsupported URI can cause the server to reject the request with `unknownCapability` under [RFC 8620 §3.6](https://www.rfc-editor.org/rfc/rfc8620.html#section-3.6).
+The first successful session load warns about configured capabilities absent
+from the server. That warning does not reject the session or block later calls,
+and subsequent refreshes do not repeat it. The client does not validate response
+schemas, account permissions, or arguments against advertised limits. A typed
+call still needs a suitable account and a supporting server.
 
-See [Extending](/advanced/extending) for custom contracts and [Method Calls](/features/method-calls) for request and reference behaviour.
+## Understand which URIs a request uses
+
+A JMAP request has a `using` array declaring the capabilities it requires. The
+client includes Core, then adds every configured URI associated with an entity
+called in that request. Selection is by entity, rather than by individual
+method, and duplicate URIs are removed.
+
+For example, Core supplies `Blob.copy`. If you also configure `"blob"`, a call
+to `Blob.copy` includes both Core and the Blob capability because both contribute
+to `Blob`. An extension of `Email` likewise adds its URI to every Email call.
+Configure extensions supported by your server; an unsupported required URI can
+cause an `unknownCapability` request error.
+
+Several descriptors can contribute to the same entity or share a URI. Their
+method and metadata contracts combine through TypeScript intersections, so
+those contracts must be compatible. The client does not choose between
+conflicting definitions at runtime. The [extension guide](../advanced/extending.md)
+shows how to author and combine descriptors.

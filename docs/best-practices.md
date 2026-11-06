@@ -1,68 +1,87 @@
-# Best Practices
+# Designing an application
 
-Start with [installation and shared setup](./index.md), then use
-these choices to keep an application predictable.
+A JMAP client sits between your application's view of an account and the
+server's current data. json-meta-client handles requests, response types, and
+batching. Your application still decides which account to use, what to cache,
+and how to recover when an operation has an uncertain outcome.
 
-## Choose capabilities and accounts deliberately
+Those decisions are easier to make when each application operation has a clear
+boundary: load one screen, move one message, or submit one draft.
 
-Configure only the capabilities you use; core is automatic.
-Configuration gives TypeScript knowledge and controls outgoing
-`using` URNs, while session and account metadata describe server
-support. Check both. Explicitly pass `accountId` for shared and
-non-mail accounts: the implicit default is the primary mail
-account. See [Capabilities](./features/capabilities.md).
+## Make the account part of the operation
 
-## Group work at the right boundary
+A user can have several accounts, and those accounts can support different
+features. A shared address book, for example, need not support mail. Passing
+`accountId` into application operations keeps that choice visible and prevents
+a method from using the wrong account by default.
 
-Create independent calls before awaiting them, then use
-`Promise.all`. Sequential awaits mean separate requests. Use
-`resultRef()` or `createdRef()` for server-side dependencies within
-one request rather than inventing IDs or reading pending results.
-Use `isolated()` for work with a separate cancellation/queue scope.
-The client does not split work to satisfy server limits: chunk
-large workloads yourself. See [Method Calls](./features/method-calls.md)
-and [Batching](./advanced/batching.md).
+The client's implicit default is always the primary mail account. It does not
+choose an account based on the method's capability. Configuration supplies
+TypeScript contracts, while the session describes what the server and its
+accounts support. Both matter: a method can be available in your editor and
+still be unsupported by the selected account. The
+[capability guide](./features/capabilities.md) shows how to check support.
 
-## Fetch only the data you consume
+## Let dependencies determine request boundaries
 
-Select properties explicitly and include every field the code
-reads. Use a stable sort and bounded pages, and stop on an empty
-page. Account for records moving or disappearing between pages.
-Keep an ID distinct from the object fetched with that ID. See the
-[pagination recipe](./index.md#read-the-inbox-in-pages).
+Independent reads can share a request. Create them together, then await them
+with `Promise.all`. If one call needs IDs from another, a result reference lets
+the server resolve that dependency within the same request.
 
-## Handle both kinds of failure
+A shared request is not a transaction. One method can succeed while another
+fails, and `Promise.all` does not cancel its siblings when it rejects. When
+operations need separate queues or cancellation scopes, use `isolated()`.
+The [batching guide](./advanced/batching.md) covers these boundaries and the
+server limits you must respect when dividing larger workloads.
 
-Catch request/method failures at the application's operation
-boundary, preserve `cause` and structured diagnostics, and show a
-message appropriate to the user. Also inspect `notCreated`,
-`notUpdated`, and `notDestroyed`: a fulfilled `set` call can contain
-per-object failures. A retry of a write can duplicate work when the
-first response was lost, so reconcile server state before retrying
-non-idempotent actions. See [Errors](./reference/errors.md) and the
-[mail recipes](./examples.md).
+## Treat a cache as a view that can become stale
 
-## Own subscription and credential lifetimes
+Fetch the fields a view needs, with a bounded page size and an explicit sort.
+Even then, records can move or disappear between a query and a get, or between
+pages. An ID in a query result does not guarantee that its object remains
+readable. Check `notFound`, and decide how the view should respond to missing
+objects.
 
-Close state subscriptions on route/component teardown or worker
-shutdown. Notifications invalidate local data; they do not update
-your cache automatically. Resume from a stored data-type state or
-fetch a fresh snapshot after an interruption. See
-[Events](./features/events.md).
+State notifications tell you that data changed; they do not update your cache.
+Use the state from your last successful read or changes response to reconcile
+it, and fetch a fresh snapshot when the server can no longer calculate
+changes. After a disconnection, reconcile rather than assuming that every
+notification arrived. See [events and synchronisation](./features/events.md).
 
-Obtain credentials through the application's authentication flow,
-not committed source. A browser token is visible to its user and
-must be limited to that user's authorised access; never ship a
-shared server secret in frontend bundles. Use HTTPS and configure
-CORS for each session/API/transfer/event origin. Server applications
-can supply rotating credentials through `auth` callbacks. Avoid
-logging authentication headers or private mail bodies. See
-[Authentication](./features/authentication.md) and
-[Hooks](./advanced/hooks.md).
+## Distinguish rejection from an incomplete write
 
-## Make the integration reproducible
+An awaited method can reject because the request failed or the server rejected
+the method. A fulfilled `set` can still contain per-object failures in
+`notCreated`, `notUpdated`, or `notDestroyed`. Check those maps before reporting
+success to the user.
 
-Keep a small mocked HTTP test for success, method failures and
-per-object failures, and exercise real server behaviour separately.
-Use the [Testing](./testing.md) walkthrough for a runnable fixture;
-keep server prerequisites outside unit tests.
+A lost response creates a different problem: the server may have completed
+the write even though your application saw a connection error. Retrying a
+non-idempotent operation, such as creating a submission, can duplicate it.
+Retain enough context to inspect server state before retrying. The
+[error reference](./reference/errors.md) describes the failure shapes, and the
+[sending recipe](./examples.md#send-an-email) shows the checks around a draft
+and its submission.
+
+## Give credentials and subscriptions an owner
+
+Obtain credentials through your application's authentication flow. A browser
+token is accessible to the person using that browser, so it should represent
+that user's access. Keep shared server secrets out of frontend bundles and
+avoid recording authentication headers or private message bodies in logs.
+Server applications can use an [authentication callback](./features/authentication.md#use-current-credentials-for-each-request)
+to supply current credentials.
+
+An event subscription also needs an owner: a screen, component, worker, or
+service. Close it when that owner stops using it, including during error
+recovery. Batch cancellation does not close event streams. The
+[event guide](./features/events.md#subscribe-and-release-the-connection) shows
+how to tie a subscription to an abort signal and dispose it explicitly.
+
+## Test the decisions your application makes
+
+Mocked HTTP responses let you test empty results, partial writes, and recovery
+without a live account. Keep provider-specific checks in a separate suite
+against a test server. This makes the routine tests reproducible while still
+checking the assumptions that depend on your provider. Start with the
+[mocked-request walkthrough](./testing.md).

@@ -1,72 +1,116 @@
-# Testing
+# Test an application without a server
 
-Test application behaviour against realistic JMAP responses,
-then exercise provider-specific behaviour against a real test
-account. Unit tests should run without credentials or a server.
+A mocked HTTP exchange lets you test your application's JMAP calls without
+credentials or a running provider. In this walkthrough, you will run a fixture
+that serves a session, accepts a batched query and get, and then returns a
+method failure. All requests stay inside the process.
 
-## Run a complete mocked request
+Use Node.js 26 and install `json-meta-client` in your project as shown in the
+[first-request tutorial](./index.md). The fixture uses Node's built-in assertion
+module and needs no test runner.
 
-Install `json-meta-client` using [shared setup](./index.md), save
-the following as `testing.ts`, and run `node testing.ts` with Node.js
-26 (native TypeScript support). The example replaces `fetch` only
-within its own process and restores it in `finally`.
+## 1. Set up a standalone test
 
-<<< ./snippets/testing.ts
+Create `testing.mts` and add the four code blocks below in order. Together they
+form one runnable file. The test replaces `globalThis.fetch`, so run it in its
+own process rather than alongside other code using global fetch.
 
-The fixture checks authentication, advertised capabilities,
-implicit account selection, invocation IDs, selected properties,
-and the serialised result reference. Its response supplies each
-pending call's own invocation ID. It verifies two dependent calls
-share one batch and that a JMAP method error rejects as `JmapError`.
-No real endpoint is contacted: unexpected URLs fail the fixture.
+Start with the client, assertions, and values shared by the mock:
 
-In a test runner, install the mock before constructing the client,
-restore it after each test, and avoid running global-fetch mocks
-concurrently in the same process. A network interceptor is another
-option if it supports your runtime's native `fetch`.
+<<< ./snippets/testing.ts#setup
 
-## Choose useful fixtures
+`batches` counts API requests, while `failNext` switches the mock from successful
+responses to method errors. `originalFetch` lets the test restore the process
+when it finishes.
 
-Include empty `ids`/`list`, missing IDs in `notFound`, method-level
-`error` invocations, HTTP failures and `set` responses with
-`notCreated`/`notUpdated`/`notDestroyed`. A successful HTTP request
-is not evidence that every write succeeded. Copy the shape of
-actual protocol responses, but replace credentials, mail contents,
-account IDs and other private data before committing them.
+## 2. Describe the mock account
 
-When testing batching, assert the whole request's `using` URNs and
-`methodCalls`, then produce a response using the IDs actually sent.
-Do not depend on generated random invocation IDs. Check result
-reference paths against the selected fields and distinguish
-references resolved by the server from values your mock returns.
-See [Method Calls](./features/method-calls.md),
-[Batching](./advanced/batching.md), and [Errors](./reference/errors.md).
+The client needs a session before it can send API calls. Add a session document
+with one primary mail account and URLs served by the mock:
 
-## Manual checks and contributor workflows
+<<< ./snippets/testing.ts#session
 
-The repository uses `pnpm test` for runtime and public type tests,
-`pnpm types` for the source, and `pnpm build` for the package. The
+Core limits describe what the mock server accepts. The account advertises mail,
+and its ID is the primary mail account ID. This lets the test check the client's
+default account selection without passing `accountId` in each call.
+
+## 3. Inspect requests and return responses
+
+Replace fetch with a function that serves the session URL and the API URL.
+Unexpected URLs fail an assertion rather than reaching a real endpoint:
+
+<<< ./snippets/testing.ts#transport
+
+The API route checks the request's capability requirements, account, and
+selected properties. It also checks that the get's `#ids` points to the query
+invocation. Responses use the invocation IDs actually sent by the client,
+so the test does not depend on generated random strings.
+
+This mock checks the reference on the wire; it does not implement server-side
+reference resolution. It returns a chosen query result and a matching email
+so the application can read a predictable subject.
+
+## 4. Exercise success and failure
+
+Add the calls and assertions. The first pair should share one API request and
+return the subject `Hello`. The second pair receives method errors instead:
+
+<<< ./snippets/testing.ts#exercise
+
+The combined rejection must be a `JmapError`. `Promise.all` attaches handlers
+to both calls, so the dependent get's rejection is handled too. The `finally`
+block restores fetch whether the assertions pass or fail.
+
+Run the file from your project directory:
+
+```sh
+node testing.mts
+```
+
+A successful run prints:
+
+```text
+Mocked batch, result reference, and method failure passed.
+```
+
+## Adapt the fixture to your application
+
+In a test runner, install the mock before constructing the client and restore
+it after each test. Do not run tests that replace global fetch concurrently in
+the same process. A network interceptor is another option if it supports your
+runtime's native `fetch`.
+
+Keep the fixtures focused on decisions your application makes. Empty query
+results, missing get IDs, rejected methods, HTTP failures, and per-object set
+failures exercise different paths. In particular, test a fulfilled set with
+`notCreated` or `notUpdated`: successful HTTP transport does not mean every
+write succeeded.
+
+For batching assertions, inspect the request's `using` and `methodCalls`, then
+use its actual invocation IDs in the response. Generated IDs are intentionally
+variable. A mock does not resolve result references unless you implement that
+behaviour; this fixture checks the reference sent by the client and returns a
+chosen server result. The [method guide](./features/method-calls.md) and
+[error reference](./reference/errors.md) describe the protocol shapes.
+
+## Check provider-specific behaviour separately
+
+Keep a separate suite against a test account for permissions, provider
+extensions, and other server behaviour. Do not require live credentials for
+routine unit tests. When capturing real responses as fixtures, remove tokens,
+message contents, account identifiers, and other private data before committing.
+
+For contributors to this repository, `pnpm test` runs runtime and public type
+tests, `pnpm types` checks source types, and `pnpm build` builds the package.
+`pnpm test:integration` provisions Stalwart through Testcontainers and needs a
+working Docker-compatible runtime plus access to its image. The
 [unit fixtures](https://github.com/htunnicliff/json-meta-client/tree/main/src/__test__)
-and
-[Stalwart integration setup](https://github.com/htunnicliff/json-meta-client/blob/main/src/__test__/integration/setup.ts)
-show contributor patterns. `pnpm test:integration` provisions
-Stalwart using Testcontainers and needs Docker plus access to its
-container image; it is separate from this credential-free mock.
+and [integration setup](https://github.com/htunnicliff/json-meta-client/blob/main/src/__test__/integration/setup.ts)
+show those approaches.
 
-`pnpm docs:check` builds the public package, type-checks every
-TypeScript fence in README and the manual as an independent module,
-checks included TypeScript files, and runs the exact mocked example
-above. Public imports resolve through the built package exports,
-not source aliases. `pnpm docs:build` builds VitePress and rejects
-broken page links. CI runs both checks.
-
-Shell, JSON, HTML import maps, Deno JavaScript imports, displayed
-HTTP payloads and declaration-style signatures outside TypeScript
-fences are illustrative, not executable TypeScript inputs. They
-still need source/output and rendered-site review. Negative
-migration examples use `@ts-expect-error`, so the checker requires
-the old configuration to remain rejected. To verify the checker,
-temporarily add `const value: string = 123;` to a TypeScript fence;
-`pnpm docs:check` must fail with its Markdown source location, then
-pass again after you remove it. Keep each fence complete with
-imports and setup; do not silently exclude broken examples.
+The documentation has its own checks. `pnpm docs:check` builds the public package,
+type-checks each TypeScript fence in README and the manual as an independent
+module, checks included TypeScript files, and runs the exact fixture above.
+`pnpm docs:build` builds the site and checks page links. CI runs both commands.
+Shell commands, JSON, HTML, and other non-TypeScript examples still need review
+against their runtime or rendered output.
