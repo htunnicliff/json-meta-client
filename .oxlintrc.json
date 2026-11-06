@@ -8,9 +8,10 @@
   },
   "rules": {
     "no-shadow": "off",
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
     "typescript/consistent-type-definitions": ["error", "interface"],
     "typescript/consistent-type-imports": "error",
-    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+    "typescript/no-unsafe-enum-assignment": "off",
     "vitest/prefer-describe-function-title": "error",
     "vitest/valid-title": ["error", { "ignoreTypeOfDescribeName": true }]
   },
