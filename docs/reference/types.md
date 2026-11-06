@@ -66,14 +66,18 @@ A session includes `capabilities`, `accounts`, `primaryAccounts`, `username`, `a
 
 ## Authentication and hooks
 
-| Export              | Signature                                                                                                                         |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthCallback`      | `(args: { request: Request }) => void \| Promise<void>`; mutates the outgoing request before hooks.                               |
-| `Auth`              | `AuthCallback \| { token: string; username?: never; password?: never } \| { username: string; password: string; token?: never }`. |
-| `BeforeRequestHook` | `(params: { request: Request }) => Request \| Promise<Request>`.                                                                  |
-| `AfterResponseHook` | `(params: { request: Request; response: Response }) => Response \| Promise<Response>`.                                            |
+| Export                         | Signature                                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AuthCallback`                 | `(args: { request: Request }) => void \| Promise<void>`; mutates the outgoing request before hooks.                                        |
+| `Auth`                         | `AuthCallback \| { token: string; username?: never; password?: never } \| { username: string; password: string; token?: never }`.          |
+| `BeforeFetchHook`              | `(params: { request: Request }) => Request \| Promise<Request>`.                                                                           |
+| `AfterFetchHook`               | `(params: { request: Request; response: Response }) => Response \| Promise<Response>`.                                                     |
+| `BeforeJmapRequestHook`        | `(params: { request: JmapRequest }) => JmapRequest \| Promise<JmapRequest>`.                                                               |
+| `AfterJmapResponseHook`        | `(params: { request: JmapRequest; response: JmapResponse }) => JmapResponse \| Promise<JmapResponse>`.                                     |
+| `BeforeEventSourceConnectHook` | Alias of `BeforeFetchHook`; transforms each stream connection request after Fetch hooks.                                                   |
+| `AfterEventSourceConnectHook`  | `(params: { request: Request; response: Response }) => void \| Promise<void>`; observes a validated connection without consuming its body. |
 
-Hooks return the object passed to the next hook. They run sequentially in array order; defaults are empty arrays. No method-result hook is exported by this version. See [Authentication](/features/authentication) and [Hooks](/advanced/hooks) for complete transport lifecycle guidance.
+Transform hooks return the object passed to the next hook; `afterEventSourceConnect` observers return nothing. All arrays run sequentially and await asynchronous callbacks; defaults are empty arrays. `JmapRequest` and `JmapResponse` here name the RFC envelopes for explanation; these aliases are not public exports. Use `Parameters<BeforeJmapRequestHook>[0]["request"]` or the corresponding response hook to extract their types. No per-method result hook is exported by this version. See [Authentication](/features/authentication) and [Hooks](/advanced/hooks) for complete transport lifecycle guidance.
 
 ## State-change types
 

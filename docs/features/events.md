@@ -9,7 +9,7 @@ See [shared setup](../index.md) and
 
 ## Subscribe and release the connection
 
-This example listens for one minute, handles malformed-message
+This example listens for one minute, handles connection and malformed-message
 errors, and closes the connection even if application work
 fails. It uses `Symbol.dispose`, supported by Node.js 26; browser
 applications need that symbol or a resource-management polyfill.
@@ -28,7 +28,7 @@ const subscription = await client.onStateChange(
   (error, change) => {
     if (error) {
       console.error(
-        "Invalid state notification",
+        "State subscription failure",
         error,
         error.cause,
       );
@@ -74,7 +74,7 @@ client-side timeout or heartbeat monitor.
 
 The callback receives `(null, change)` for each account/entity
 pair in a `StateChange` message, or `(StateChangeError, undefined)`
-when parsing or synchronous callback processing throws. Keep
+when a stream connection fails, or parsing or synchronous callback processing throws. Keep
 callbacks synchronous; start async refresh work with its own
 rejection handler. Exceptions from that error-handling callback
 are not caught again.
@@ -108,9 +108,12 @@ The bundled `eventsource-client` transport reconnects on stream
 completion and fetch failures, initially after two seconds; SSE
 `retry` fields can change that delay. Received SSE IDs are sent
 as `Last-Event-ID` on reconnect. HTTP 204 closes the connection.
-Authentication and [HTTP hooks](../advanced/hooks.md) run again
-for each connection. Transport failures use this reconnect path;
-they are not delivered as `StateChangeError` callbacks.
+Authentication, Fetch hooks and [connection hooks](../advanced/hooks.md#event-stream-connections) run again
+for each connection. Connection failures also reach the handler as
+`StateChangeError`, with the underlying error as `cause`, before
+the transport retries. Intentional aborts do not report a connection
+failure. Invalid responses are rejected before stream consumption;
+HTTP 204 stops reconnecting without an after-connection hook.
 
 The client provides no durable cursor storage, replay guarantee,
 automatic data refresh, or deduplication. Resume/resynchronisation
