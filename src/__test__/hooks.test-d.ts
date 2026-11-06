@@ -10,15 +10,14 @@
 
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
+import type * as PublicTypes from "../index.ts";
 import type {
   AfterEventSourceConnectHook,
   AfterFetchHook,
   AfterJmapResponseHook,
-  AfterResponseHook,
   BeforeEventSourceConnectHook,
   BeforeFetchHook,
   BeforeJmapRequestHook,
-  BeforeRequestHook,
   Config,
 } from "../index.ts";
 import type { Request as JmapRequest, Response as JmapResponse } from "../rfc-types/core/index.ts";
@@ -78,9 +77,19 @@ describe("hook types", () => {
         ],
       },
     });
-    expectTypeOf<BeforeRequestHook>().toEqualTypeOf<BeforeFetchHook>();
-    expectTypeOf<AfterResponseHook>().toEqualTypeOf<AfterFetchHook>();
     assertType<BeforeEventSourceConnectHook>(({ request }) => request);
+  });
+
+  it("rejects removed hook properties and type exports", () => {
+    type Hooks = NonNullable<Config<[]>["hooks"]>;
+    // @ts-expect-error - The old request hook property has been removed.
+    assertType<Hooks>({ beforeRequest: [] });
+    // @ts-expect-error - The old response hook property has been removed.
+    assertType<Hooks>({ afterResponse: [] });
+    // @ts-expect-error - The old request hook type is no longer exported.
+    expectTypeOf<PublicTypes.BeforeRequestHook>();
+    // @ts-expect-error - The old response hook type is no longer exported.
+    expectTypeOf<PublicTypes.AfterResponseHook>();
   });
 
   it("rejects cross-layer arguments, wrong replacements, and missing returns", () => {

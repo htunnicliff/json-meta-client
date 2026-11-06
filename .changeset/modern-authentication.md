@@ -10,7 +10,7 @@ by the client. Custom callbacks use
 `auth: ({ request }) => void | Promise<void>` and can mutate the
 outgoing request before it is sent.
 
-Authentication runs before `beforeRequest` hooks on every
+Authentication runs before `beforeFetch` hooks on every
 transport, including session discovery, API calls, blob transfers,
 and event-stream reconnects. Event streams now also run the
 request and response hooks; callbacks are awaited for each

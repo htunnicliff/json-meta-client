@@ -117,7 +117,7 @@ describe("authentication", () => {
         }
       },
       hooks: {
-        beforeRequest: [
+        beforeFetch: [
           ({ request }) => {
             expect(request.headers.get("authorization")).toBe("Custom signed");
             observed.push(request);
@@ -188,7 +188,7 @@ describe("authentication", () => {
         request.headers.set("x-proxy-auth", "stream-proxy");
       },
       hooks: {
-        beforeRequest: [
+        beforeFetch: [
           ({ request }) => {
             if (new URL(request.url).pathname === "/events") {
               hookCredentials.push(request.headers.get("authorization"));

@@ -60,13 +60,11 @@ For each HTTP operation:
 1. Create the Fetch request with its transport headers and
    body.
 2. Apply and await [authentication](../features/authentication.md).
-3. Run deprecated `beforeRequest` hooks, then `beforeFetch`
-   hooks.
+3. Run `beforeFetch` hooks.
 4. For event streams, run `beforeEventSourceConnect` hooks.
 5. Send the resulting request.
-6. Run deprecated `afterResponse` hooks, then `afterFetch`
-   hooks, with a clone of the final outgoing request and the
-   response returned by the preceding hook.
+6. Run `afterFetch` hooks, with a clone of the final outgoing
+   request and the response returned by the preceding hook.
 7. Validate the resulting response. Ordinary HTTP operations
    reject non-success statuses; JSON operations then parse
    the body. Event streams follow the connection rules below.
@@ -148,9 +146,9 @@ A thrown error or rejected promise stops the remaining hooks
 in that phase.
 
 - Authentication, request construction, request hooks, and
-  Fetch failures preserve existing behavior: `JsonMetaError`
-  instances propagate, and other failures become
-  `NetworkError` with the original error as `cause`.
+  Fetch failures propagate `JsonMetaError` instances. Other
+  failures become `NetworkError` with the original error as
+  `cause`.
 - Fetch response hooks and JMAP envelope hooks propagate
   their original errors. An envelope or transport failure
   rejects every pending method call in that batch.
@@ -161,16 +159,3 @@ in that phase.
   Abort or dispose the subscription to stop it. Intentional
   aborts do not report a connection failure. Session discovery
   failures still reject the `onStateChange` setup promise.
-
-## Migrating existing hooks
-
-`beforeRequest` and `afterResponse` remain supported with
-their existing arguments, returns, and error behavior, but
-are deprecated. Rename them to `beforeFetch` and `afterFetch`;
-rename imported `BeforeRequestHook` and `AfterResponseHook`
-types to `BeforeFetchHook` and `AfterFetchHook`.
-
-When both names are configured, the legacy array runs first,
-followed by the new array. All entries run, even if the same
-function appears in both arrays. Configure a function once
-when migrating. No removal is scheduled by this change.

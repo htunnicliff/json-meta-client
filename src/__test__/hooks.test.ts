@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("Fetch hooks", () => {
-  it("chains async hooks after authentication and legacy hooks on every HTTP path", async () => {
+  it("chains async hooks after authentication on every HTTP path", async () => {
     const seen: string[] = [];
     const scope = nock(host, { reqheaders: { authorization: "Bearer token", "x-hook": "second" } })
       .get(new URL(sessionUrl).pathname)
@@ -38,16 +38,9 @@ describe("Fetch hooks", () => {
       capabilities: [],
       auth: { token: "token" },
       hooks: {
-        beforeRequest: [
-          ({ request }) => {
-            expect(request.headers.get("authorization")).toBe("Bearer token");
-            request.headers.set("x-hook", "legacy");
-            return request;
-          },
-        ],
         beforeFetch: [
           async ({ request }) => {
-            expect(request.headers.get("x-hook")).toBe("legacy");
+            expect(request.headers.get("authorization")).toBe("Bearer token");
             await Promise.resolve();
             const headers = new Headers(request.headers);
             headers.set("x-hook", "first");
@@ -59,14 +52,10 @@ describe("Fetch hooks", () => {
             return request;
           },
         ],
-        afterResponse: [
-          ({ response }) => new Response(response.body, { headers: { "x-response": "legacy" } }),
-        ],
         afterFetch: [
           async ({ request, response }) => {
             seen.push(new URL(request.url).pathname);
             expect(request.headers.get("x-hook")).toBe("second");
-            expect(response.headers.get("x-response")).toBe("legacy");
             await Promise.resolve();
             return new Response(response.body, { headers: { "x-response": "first" } });
           },

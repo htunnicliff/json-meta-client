@@ -414,7 +414,6 @@ export class JsonMetaClient<
         request.headers.set("authorization", `Basic ${encoded}`);
       }
       for (const hook of [
-        ...(this.#config.hooks?.beforeRequest ?? []),
         ...(this.#config.hooks?.beforeFetch ?? []),
         ...(eventSource ? (this.#config.hooks?.beforeEventSourceConnect ?? []) : []),
       ]) {
@@ -434,10 +433,7 @@ export class JsonMetaClient<
       });
     }
     try {
-      for (const hook of [
-        ...(this.#config.hooks?.afterResponse ?? []),
-        ...(this.#config.hooks?.afterFetch ?? []),
-      ]) {
+      for (const hook of this.#config.hooks?.afterFetch ?? []) {
         // oxlint-disable-next-line no-await-in-loop
         response = await hook({ request: requestClone, response });
       }

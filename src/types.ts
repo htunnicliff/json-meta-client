@@ -66,14 +66,6 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
     beforeEventSourceConnect?: ReadonlyArray<BeforeEventSourceConnectHook>;
     /** Observe each validated stream connection before reading any messages. */
     afterEventSourceConnect?: ReadonlyArray<AfterEventSourceConnectHook>;
-    /**
-     * @deprecated Use beforeFetch. Runs before beforeFetch when both are configured.
-     */
-    beforeRequest?: ReadonlyArray<BeforeRequestHook>;
-    /**
-     * @deprecated Use afterFetch. Runs before afterFetch when both are configured.
-     */
-    afterResponse?: ReadonlyArray<AfterResponseHook>;
   };
 }
 
@@ -100,12 +92,6 @@ export type AfterEventSourceConnectHook = (params: {
   request: Request;
   response: Response;
 }) => void | Promise<void>;
-
-/** @deprecated Use BeforeFetchHook. */
-export type BeforeRequestHook = BeforeFetchHook;
-
-/** @deprecated Use AfterFetchHook. */
-export type AfterResponseHook = AfterFetchHook;
 
 export type CapabilityOption = Capability | BuiltInCapabilityName;
 
