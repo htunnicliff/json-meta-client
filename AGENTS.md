@@ -13,3 +13,15 @@
   [.agents/docs/contributing.md](.agents/docs/contributing.md).
 - Agent attribution: before attributing work to an agent, read
   [.agents/docs/agent-attribution.md](.agents/docs/agent-attribution.md).
+
+## Documentation examples
+
+Code examples in `docs/` and `README.md` show the happy path:
+
+- Let the client fill in `accountId` from the primary account. Pass it only in
+  examples about working with multiple accounts.
+- Assume the server provides everything the example needs: capabilities,
+  accounts, mailboxes, identities, and created objects. Read those values
+  directly, using a non-null assertion (`!`) where the type checker requires
+  one. Show a check only when the check itself is the example's subject, such
+  as the error-handling and capability pages.
