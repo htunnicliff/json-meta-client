@@ -8,6 +8,8 @@ export default defineConfig({
   lastUpdated: true,
   lang: "en-US",
   cleanUrls: true,
+  // Snippets are included by other pages, not published on their own.
+  srcExclude: ["snippets/**"],
   sitemap: {
     hostname: "https://json-meta-client.dev",
   },
