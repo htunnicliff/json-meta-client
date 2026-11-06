@@ -11,3 +11,5 @@
   design changes, read [.agents/docs/domain.md](.agents/docs/domain.md).
 - Contributing: before changing code, configuration, or documentation, read
   [.agents/docs/contributing.md](.agents/docs/contributing.md).
+- Agent attribution: before attributing work to an agent, read
+  [.agents/docs/agent-attribution.md](.agents/docs/agent-attribution.md).
