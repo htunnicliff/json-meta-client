@@ -6,7 +6,7 @@
  * file, you can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { assertType, describe, it } from "vitest";
+import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import type {
   Address,
@@ -14,6 +14,8 @@ import type {
   Author,
   Calendar,
   Card,
+  CardV1,
+  CardV2,
   Directory,
   Media,
   Name,
@@ -26,15 +28,55 @@ import type {
 
 // cspell:words dʒeɪn xmpp Ingénieure
 
-describe("RFC 9553 JSContact types", () => {
+describe("RFC 9553 and RFC 9982 JSContact types", () => {
   it("requires Card metadata and permits omitted optional properties", () => {
     assertType<Card>({ "@type": "Card", version: "1.0", uid: "contact" });
     // @ts-expect-error The topmost Card must explicitly identify its type.
     assertType<Card>({ version: "1.0", uid: "contact" });
     // @ts-expect-error The JSContact version is mandatory.
     assertType<Card>({ "@type": "Card", uid: "contact" });
-    // @ts-expect-error A Card must have a uid.
+    // @ts-expect-error A version 1.0 Card must have a uid.
     assertType<Card>({ "@type": "Card", version: "1.0" });
+  });
+
+  it("accepts version 2.0 Cards with or without a uid", () => {
+    assertType<Card>({ "@type": "Card", version: "2.0" });
+    assertType<Card>({ "@type": "Card", version: "2.0", uid: "contact" });
+    // @ts-expect-error An optional uid must still be a string when present.
+    assertType<Card>({ "@type": "Card", version: "2.0", uid: null });
+    // @ts-expect-error Only the registered versions 1.0 and 2.0 are supported.
+    assertType<Card>({ "@type": "Card", version: "3.0", uid: "contact" });
+  });
+
+  it("shares all contact properties between the explicit Card versions", () => {
+    const legacy: CardV1 = {
+      "@type": "Card",
+      version: "1.0",
+      uid: "contact",
+      name: { full: "Jane Doe" },
+      "example.com:custom": { enabled: true },
+    };
+    assertType<Card>(legacy);
+    assertType<CardV2>({ ...legacy, version: "2.0" });
+    assertType<CardV2>({ "@type": "Card", version: "2.0" });
+    // @ts-expect-error Explicit version 1.0 Cards still require a uid.
+    assertType<CardV1>({ "@type": "Card", version: "1.0" });
+    // @ts-expect-error A version 1.0 Card is not a version 2.0 Card.
+    assertType<CardV2>(legacy);
+  });
+
+  it.each<Card>([
+    { "@type": "Card", version: "1.0", uid: "contact" },
+    { "@type": "Card", version: "2.0" },
+  ])("narrows the uid type using Card version $version", (card) => {
+    expectTypeOf(card.uid).toEqualTypeOf<string | undefined>();
+    if (card.version === "1.0") {
+      expectTypeOf(card).toEqualTypeOf<CardV1>();
+      expectTypeOf(card.uid).toEqualTypeOf<string>();
+    } else {
+      expectTypeOf(card).toEqualTypeOf<CardV2>();
+      expectTypeOf(card.uid).toEqualTypeOf<string | undefined>();
+    }
   });
 
   it("supports structured contact information and localization patches", () => {

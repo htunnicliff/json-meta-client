@@ -54,11 +54,8 @@ export type CardKind =
   | "application"
   | VendorExtension;
 
-/** @see https://www.rfc-editor.org/info/rfc9553/#section-2 */
-export interface Card extends JSContactObject {
+interface CardProperties extends JSContactObject {
   "@type": "Card";
-  version: "1.0";
-  uid: string;
   created?: string;
   kind?: CardKind;
   language?: string;
@@ -90,6 +87,35 @@ export interface Card extends JSContactObject {
   notes?: { [id: string]: Note };
   personalInfo?: { [id: string]: PersonalInfo };
 }
+
+/**
+ * JSContact 1.0 requires a uid. Prefer version 2.0 when creating new Cards.
+ * @see https://www.rfc-editor.org/info/rfc9553/#section-2
+ */
+export interface CardV1 extends CardProperties {
+  version: "1.0";
+  uid: string;
+}
+
+/**
+ * JSContact 2.0 retains the 1.0 model and makes uid optional.
+ * @see https://www.rfc-editor.org/info/rfc9982/#section-3
+ */
+export interface CardV2 extends CardProperties {
+  version: "2.0";
+  /**
+   * A Card without a uid cannot be referenced by members or relatedTo in another Card.
+   * @see https://www.rfc-editor.org/info/rfc9982/#section-4
+   */
+  uid?: string;
+}
+
+/**
+ * The version determines whether uid is required (1.0) or optional (2.0).
+ * @see https://www.rfc-editor.org/info/rfc9553/#section-2
+ * @see https://www.rfc-editor.org/info/rfc9982/#section-3
+ */
+export type Card = CardV1 | CardV2;
 
 /** @see https://www.rfc-editor.org/info/rfc9553/#section-2.1.8 */
 export type RelationType =
