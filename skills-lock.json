@@ -175,6 +175,12 @@
       "skillPath": "skills/in-progress/writing-beats/SKILL.md",
       "computedHash": "220b163698de9c1e551b801795cc8ca38132b69018f82188875b3675226fc888"
     },
+    "writing-documentation-with-diataxis": {
+      "source": "sammcj/agentic-coding",
+      "sourceType": "github",
+      "skillPath": "Skills_disabled/diataxis-documentation/SKILL.md",
+      "computedHash": "80b05e3bf8a65e2d22b2861e6d39d7d47b643a17f27a7c6c91aa76b99a84cd8c"
+    },
     "writing-for-agents": {
       "source": "mattpocock/skills",
       "sourceType": "github",

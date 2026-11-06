@@ -26,6 +26,7 @@ words:
   - pyzor
   - reqheaders
   - rocksdb
+  - sammcj
   - stalwartlabs
   - triaging
   - tsgolint
