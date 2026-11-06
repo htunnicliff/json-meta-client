@@ -36,7 +36,7 @@ import type {
   ProblemDetails,
   Session,
 } from "../rfc-types/core/index.ts";
-import type { AfterResponseHook, BeforeRequestHook } from "../types.ts";
+import type { AfterFetchHook, BeforeFetchHook } from "../types.ts";
 import { coreSessionCapabilities } from "./fixtures.ts";
 
 // ------ Fixtures ----------------------------------------
@@ -1082,7 +1082,7 @@ describe(JsonMetaClient, () => {
     });
   });
 
-  describe("hooks.beforeRequest", () => {
+  describe("hooks.beforeFetch", () => {
     it("runs hooks in order and uses each returned request", async () => {
       nock.cleanAll();
       const scope = nock(host, {
@@ -1093,13 +1093,13 @@ describe(JsonMetaClient, () => {
       })
         .get(sessionUrlPath)
         .reply(200, DEFAULT_SESSION);
-      const firstHook = vi.fn<BeforeRequestHook>(async ({ request }) => {
+      const firstHook = vi.fn<BeforeFetchHook>(async ({ request }) => {
         const headers = new Headers(request.headers);
         headers.set("x-first-hook", "first");
         await Promise.resolve();
         return new Request(request, { headers });
       });
-      const secondHook = vi.fn<BeforeRequestHook>(({ request }) => {
+      const secondHook = vi.fn<BeforeFetchHook>(({ request }) => {
         const headers = new Headers(request.headers);
         headers.set("x-second-hook", "second");
         return new Request(request, { headers });
@@ -1109,7 +1109,7 @@ describe(JsonMetaClient, () => {
         auth: { token },
         capabilities: [mail],
         hooks: {
-          beforeRequest: [firstHook, secondHook],
+          beforeFetch: [firstHook, secondHook],
         },
       });
 
@@ -1120,17 +1120,17 @@ describe(JsonMetaClient, () => {
     });
   });
 
-  describe("hooks.afterResponse", () => {
+  describe("hooks.afterFetch", () => {
     it("runs hooks in order and uses each returned response", async () => {
       nock.cleanAll();
       const scope = mockSession();
-      const firstHook = vi.fn<AfterResponseHook>(async ({ response }) => {
+      const firstHook = vi.fn<AfterFetchHook>(async ({ response }) => {
         const headers = new Headers(response.headers);
         headers.set("x-first-hook", "first");
         await Promise.resolve();
         return new Response(response.body, { status: response.status, headers });
       });
-      const secondHook = vi.fn<AfterResponseHook>(({ response }) => {
+      const secondHook = vi.fn<AfterFetchHook>(({ response }) => {
         expect(response.headers.get("x-first-hook")).toBe("first");
         const headers = new Headers(response.headers);
         headers.set("x-second-hook", "second");
@@ -1141,7 +1141,7 @@ describe(JsonMetaClient, () => {
         auth: { token },
         capabilities: [mail],
         hooks: {
-          afterResponse: [firstHook, secondHook],
+          afterFetch: [firstHook, secondHook],
         },
       });
 

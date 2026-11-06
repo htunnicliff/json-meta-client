@@ -176,7 +176,17 @@ export class JsonMetaClient<
 
     const eventSource = createEventSource({
       url,
-      fetch: async (url, options) => (await this.#fetch(url, options)).response,
+      fetch: async (url, options) => {
+        const requestOptions: RequestInit = options ?? {};
+        try {
+          return (await this.#fetch(url, requestOptions, true)).response;
+        } catch (cause) {
+          if (!requestOptions.signal?.aborted) {
+            handler(new StateChangeError("Event-stream connection failed", { cause }), undefined);
+          }
+          throw cause;
+        }
+      },
       onMessage: (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -305,16 +315,26 @@ export class JsonMetaClient<
         }
       }
 
-      const request: JMAPRequest = {
+      let request: JMAPRequest = {
         using: [...urnsToUse],
         methodCalls: methodCalls.map((c) => c.toInvocation()),
       };
 
-      const response = await this.#fetchJson<JMAPResponse>((await this.session).apiUrl, {
+      const session = await this.session;
+      for (const hook of this.#config.hooks?.beforeJmapRequest ?? []) {
+        // oxlint-disable-next-line no-await-in-loop
+        request = await hook({ request });
+      }
+      let response = await this.#fetchJson<JMAPResponse>(session.apiUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
+
+      for (const hook of this.#config.hooks?.afterJmapResponse ?? []) {
+        // oxlint-disable-next-line no-await-in-loop
+        response = await hook({ request, response });
+      }
 
       const resultsById = new Map<string, MethodCallResult<object>[]>();
       for (const invocation of response.methodResponses) {
@@ -376,7 +396,7 @@ export class JsonMetaClient<
   /**
    * Primary fetch function
    */
-  #fetch = async (url: string | URL, options: RequestInit = {}) => {
+  #fetch = async (url: string | URL, options: RequestInit = {}, eventSource = false) => {
     let request: Request | undefined;
     let requestClone: Request | undefined;
     let response: Response;
@@ -393,7 +413,10 @@ export class JsonMetaClient<
         const encoded = btoa(binString);
         request.headers.set("authorization", `Basic ${encoded}`);
       }
-      for (const hook of this.#config.hooks?.beforeRequest ?? []) {
+      for (const hook of [
+        ...(this.#config.hooks?.beforeFetch ?? []),
+        ...(eventSource ? (this.#config.hooks?.beforeEventSourceConnect ?? []) : []),
+      ]) {
         // oxlint-disable-next-line no-await-in-loop
         request = await hook({ request });
       }
@@ -409,28 +432,51 @@ export class JsonMetaClient<
         request,
       });
     }
-    for (const hook of this.#config.hooks?.afterResponse ?? []) {
-      // oxlint-disable-next-line no-await-in-loop
-      response = await hook({ request: requestClone, response });
-    }
-    if (!response.ok) {
-      let responseData: unknown;
-      let cause: unknown;
-      try {
-        const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
-        responseData = isJsonResponse
-          ? await response.clone().json()
-          : await response.clone().text();
-      } catch (error) {
-        cause = error;
+    try {
+      for (const hook of this.#config.hooks?.afterFetch ?? []) {
+        // oxlint-disable-next-line no-await-in-loop
+        response = await hook({ request: requestClone, response });
+      }
+      if (eventSource && response.status !== 204) {
+        const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
+        if (
+          response.status !== 200 ||
+          contentType?.toLowerCase() !== "text/event-stream" ||
+          !response.body ||
+          response.bodyUsed ||
+          response.body.locked
+        ) {
+          throw new HttpError("Invalid event-stream response", { request, response });
+        }
+        for (const hook of this.#config.hooks?.afterEventSourceConnect ?? []) {
+          // oxlint-disable-next-line no-await-in-loop
+          await hook({ request: requestClone, response });
+        }
+      }
+      if (!response.ok) {
+        let responseData: unknown;
+        let cause: unknown;
+        try {
+          const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
+          responseData = isJsonResponse
+            ? await response.clone().json()
+            : await response.clone().text();
+        } catch (error) {
+          cause = error;
+        }
+
+        const message =
+          (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
+        throw new HttpError(message, { request, response, responseData, cause });
       }
 
-      const message =
-        (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
-      throw new HttpError(message, { request, response, responseData, cause });
+      return { request, response };
+    } catch (error) {
+      if (eventSource && response.body && !response.body.locked) {
+        void response.body.cancel().catch(() => {});
+      }
+      throw error;
     }
-
-    return { request, response };
   };
 
   /**

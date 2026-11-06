@@ -29,9 +29,8 @@ const client = new JsonMetaClient({
 
 Authentication also accepts `auth: { username, password }` for
 Basic or an async callback that mutates the outgoing request.
-See [authentication and migration](https://json-meta-client.dev/features/authentication)
-for examples. Existing callers must replace `bearerToken: token`
-with `auth: { token }`.
+See [authentication](https://json-meta-client.dev/features/authentication)
+for examples.
 
 #### Issue a single JMAP request
 

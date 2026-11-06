@@ -97,42 +97,18 @@ For every transport, including each event-stream reconnect:
 
 1. Create the request with its transport headers and body.
 2. Apply and await `auth`.
-3. Run `hooks.beforeRequest` in order, awaiting each hook and
+3. Run `hooks.beforeFetch` in order, awaiting each hook and
    using its returned request.
-4. Send the resulting request.
-5. Run `hooks.afterResponse` in order on the received response.
+4. For streams, run `hooks.beforeEventSourceConnect`.
+5. Send the resulting request.
+6. Run `hooks.afterFetch`.
+7. Validate the response; for valid stream connections, await
+   `hooks.afterEventSourceConnect` before reading messages.
 
 Request hooks can inspect or override authentication headers.
 For signing that must include changes made by request hooks,
-perform the final signing in the last `beforeRequest` hook.
-See [Hooks](../advanced/hooks.md).
-
-## Migrating from bearerToken
-
-This is a breaking configuration change. Replace:
-
-```ts
-new JsonMetaClient({
-  sessionUrl,
-  capabilities,
-  bearerToken: token,
-});
-```
-
-with:
-
-```ts
-new JsonMetaClient({
-  sessionUrl,
-  capabilities,
-  auth: { token },
-});
-```
-
-There is no deprecated alias or compatibility path. If you
-previously supplied a dummy token and a request hook for Basic
-authentication, replace both with
-`auth: { username, password }`. Event-stream connections now
-run the same authentication and request/response hooks as
-other requests, so hooks should account for stream requests
-and responses too.
+perform the final signing in the last `beforeFetch` hook, or
+`beforeEventSourceConnect` for streams. JMAP request envelope
+hooks run before serialization and authentication. See
+[Hooks](../advanced/hooks.md) for the complete ordering and
+error behavior.

@@ -18,7 +18,11 @@ import type {
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
 import type { Augment, Middleware } from "./internal/types.ts";
-import type { Session as JmapSession } from "./rfc-types/core/index.ts";
+import type {
+  Request as JmapRequest,
+  Response as JmapResponse,
+  Session as JmapSession,
+} from "./rfc-types/core/index.ts";
 
 /** Mutate the outgoing request before request hooks; async callbacks are awaited. */
 export type AuthCallback = (args: { request: Request }) => void | Promise<void>;
@@ -50,24 +54,44 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    * Hooks into different client behaviors
    */
   hooks?: {
-    /**
-     * These hooks run in order after authentication, including event-stream reconnects.
-     * Each returned {@link Request} is passed to the next hook and then fetched.
-     */
-    beforeRequest?: ReadonlyArray<BeforeRequestHook>;
-    /**
-     * These hooks are called with every {@link Response} received after fetching
-     */
-    afterResponse?: ReadonlyArray<AfterResponseHook>;
+    /** Transform each authenticated HTTP request, including stream reconnects. */
+    beforeFetch?: ReadonlyArray<BeforeFetchHook>;
+    /** Transform each HTTP response before status validation or body parsing. */
+    afterFetch?: ReadonlyArray<AfterFetchHook>;
+    /** Transform the complete batch after middleware and before serialization. */
+    beforeJmapRequest?: ReadonlyArray<BeforeJmapRequestHook>;
+    /** Transform the parsed envelope before resolving individual method calls. */
+    afterJmapResponse?: ReadonlyArray<AfterJmapResponseHook>;
+    /** Transform each stream connection request after beforeFetch. */
+    beforeEventSourceConnect?: ReadonlyArray<BeforeEventSourceConnectHook>;
+    /** Observe each validated stream connection before reading any messages. */
+    afterEventSourceConnect?: ReadonlyArray<AfterEventSourceConnectHook>;
   };
 }
 
-export type BeforeRequestHook = (params: { request: Request }) => Request | Promise<Request>;
+export type BeforeFetchHook = (params: { request: Request }) => Request | Promise<Request>;
 
-export type AfterResponseHook = (params: {
+export type AfterFetchHook = (params: {
   request: Request;
   response: Response;
 }) => Response | Promise<Response>;
+
+export type BeforeJmapRequestHook = (params: {
+  request: JmapRequest;
+}) => JmapRequest | Promise<JmapRequest>;
+
+export type AfterJmapResponseHook = (params: {
+  request: JmapRequest;
+  response: JmapResponse;
+}) => JmapResponse | Promise<JmapResponse>;
+
+export type BeforeEventSourceConnectHook = BeforeFetchHook;
+
+/** Observe headers only; leave the response body available for streaming. */
+export type AfterEventSourceConnectHook = (params: {
+  request: Request;
+  response: Response;
+}) => void | Promise<void>;
 
 export type CapabilityOption = Capability | BuiltInCapabilityName;
 

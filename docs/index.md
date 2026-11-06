@@ -82,7 +82,7 @@ const client = new JsonMetaClient({
 
 The `auth` option also supports Basic credentials and custom
 callbacks. See [Authentication](./features/authentication.md)
-for examples and migration from `bearerToken`.
+for examples.
 
 ## Usage
 
