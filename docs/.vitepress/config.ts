@@ -40,7 +40,7 @@ export default defineConfig({
           { text: "Your First Request", link: "/getting-started" },
           { text: "Application Design", link: "/best-practices" },
           { text: "Testing", link: "/testing" },
-          { text: "Mail Recipes", link: "/examples" },
+          { text: "Examples", link: "/examples" },
         ],
       },
       {

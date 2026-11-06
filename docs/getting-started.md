@@ -105,7 +105,7 @@ calls in one request, using a [result reference](./features/method-calls.md#refe
 ## Continue from here
 
 To read messages rather than mailboxes, follow the
-[unread-mail recipe](./examples.md#list-unread-emails). The
+[unread-mail example](./examples.md#list-unread-emails). The
 [method call guide](./features/method-calls.md) shows how to select fields,
 update objects, and link dependent calls.
 

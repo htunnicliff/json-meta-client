@@ -32,7 +32,7 @@ console.log(result.ids[0] ?? "No inbox found");
 
 Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
 requirements and a complete walkthrough. The manual also includes
-[mail recipes](https://json-meta-client.dev/examples),
+[examples](https://json-meta-client.dev/examples),
 [authentication options](https://json-meta-client.dev/features/authentication),
 and an [API reference](https://json-meta-client.dev/reference/api).
 

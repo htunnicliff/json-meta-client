@@ -48,7 +48,7 @@ blob ID alone does not tell the client which account to use.
 
 Uploading does not create an email or make the blob permanent. Reference the
 blob in a subsequent object creation, as shown in the
-[attachment recipe](../examples.md#send-an-attachment).
+[attachment example](../examples.md#send-an-attachment).
 
 ## Choose the upload body
 
@@ -101,4 +101,4 @@ helper accepts a per-call abort signal or request options.
 For browser transfers, allow the session and transfer origins through
 [CORS and your Content Security Policy](./authentication.md#run-in-a-browser).
 To find attachment blob IDs on an email, use the
-[attachment download recipe](../examples.md#get-email-attachments).
+[attachment download example](../examples.md#get-email-attachments).

@@ -1,23 +1,26 @@
-# Mail recipes
+# Examples
 
-Use these recipes when you know the mail operation you want to perform. If you
-are connecting for the first time, start with the [first-request tutorial](./getting-started.md).
-Each TypeScript block is a complete module. Replace the session URL, token,
-and uppercase ID placeholders with values from your provider and account.
+:::warning IN PROGRESS
+These docs are not yet complete.
+:::
 
-Keep related objects in the same account. Reads require access to the objects;
-writes also require the appropriate permissions. The
-[account guide](./features/capabilities.md) shows how to check advertised support.
-Catch request failures at your application's operation boundary, and inspect
-per-object errors before reporting a write as successful.
+Each example shows the TypeScript you write alongside the JMAP request the
+client sends for it. Each TypeScript example starts by creating a client;
+replace the session URL and token with values from your provider, and see the
+[first-request tutorial](./getting-started.md) for other ways to authenticate.
+Uppercase placeholders such as `INBOX_ID` stand in for values an earlier
+example finds. Account IDs are redacted in the request bodies.
 
 ## Get the session
 
-Read `client.session` to get account information and service URLs. The first
-read fetches it; later reads share the cached promise. Use `refreshSession()`
-when you need new metadata, or to retry a failed cached session request:
+The session describes the accounts you can use and the capabilities the server
+supports. Reading `client.session` fetches it on first use and then returns the
+cached copy. Call `refreshSession()` when you need current data from the server,
+such as after account access changes.
 
-```ts
+::: code-group
+
+```ts [example.ts]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -25,22 +28,25 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
-const session = await client.session;
-console.log(session.accounts);
 
-const fresh = await client.refreshSession();
-console.log(fresh.state);
+// Get the current session (cached)
+await client.session;
+
+// Get a fresh session
+await client.refreshSession();
 ```
 
-Refreshing does not change the capabilities configured on the client.
+:::
 
 ## Find the inbox
 
-Query the mailbox's role rather than its name, which can vary by provider or
-language. A result reference lets the server pass the query's IDs to the get
-in the same request:
+Mailbox names vary between providers and languages, so find the inbox by its
+`inbox` role instead. The get uses a result reference to read the query's IDs,
+which lets the client send both calls in a single request:
 
-```ts
+::: code-group
+
+```ts [example.ts]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -48,31 +54,68 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
-const query = client.api.Mailbox.query({
-  accountId: "ACCOUNT_ID",
+
+const queryMailboxes = client.api.Mailbox.query({
   filter: { role: "inbox" },
-  limit: 1,
 });
-const get = client.api.Mailbox.get({
-  accountId: "ACCOUNT_ID",
-  ids: query.resultRef("/ids"),
+
+const getMailboxes = await client.api.Mailbox.get({
+  ids: queryMailboxes.resultRef("/ids"),
   properties: ["id", "name"],
 });
-const [, result] = await Promise.all([query, get]);
-const inbox = result.list[0];
-if (!inbox) throw new Error("No readable inbox was found");
-console.log(inbox.id, inbox.name);
+
+const inboxId = getMailboxes.list[0]?.id;
+
+for (const mailbox of getMailboxes.list) {
+  console.log(mailbox.id, mailbox.name);
+}
 ```
 
-Keep `inbox.id` for message queries. The query's `ids` are strings; the get's
-`list` contains mailbox objects.
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
+  "methodCalls": [
+    [
+      "Mailbox/query",
+      {
+        "filter": {
+          "role": "inbox"
+        },
+        "accountId": "*********"
+      },
+      "Mailbox/query::33f05dca"
+    ],
+    [
+      "Mailbox/get",
+      {
+        "#ids": {
+          "name": "Mailbox/query",
+          "resultOf": "Mailbox/query::33f05dca",
+          "path": "/ids"
+        },
+        "properties": ["id", "name"],
+        "accountId": "*********"
+      },
+      "Mailbox/get::8094dff8"
+    ]
+  ]
+}
+```
+
+:::
 
 ## List unread emails
 
-Filter messages by the inbox ID and absence of `$seen`. This recipe also
-excludes drafts, orders messages by arrival time, and reads the first ten:
+JMAP marks a message as read with the `$seen` keyword. This query matches
+messages in the inbox that have neither `$seen` nor `$draft`, then a result
+reference passes the matching IDs to the get:
 
-```ts
+::: code-group
+
+```ts [example.ts]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -80,123 +123,93 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
-const query = client.api.Email.query({
-  accountId: "ACCOUNT_ID",
+
+// The inbox ID from the previous example
+const inboxId = "INBOX_ID";
+
+const queryEmails = client.api.Email.query({
   filter: {
     operator: "AND",
     conditions: [
-      { inMailbox: "INBOX_ID" },
+      { inMailbox: inboxId },
       { notKeyword: "$seen" },
       { notKeyword: "$draft" },
     ],
   },
-  sort: [{ property: "receivedAt", isAscending: false }],
-  limit: 10,
 });
-const get = client.api.Email.get({
-  accountId: "ACCOUNT_ID",
-  ids: query.resultRef("/ids"),
-  properties: ["id", "from", "subject", "sentAt"],
+
+const getEmails = await client.api.Email.get({
+  ids: queryEmails.resultRef("/ids"),
+  properties: ["from", "subject", "sentAt"],
 });
-const [, emails] = await Promise.all([query, get]);
-for (const email of emails.list) {
-  console.log(
-    email.id,
-    email.from,
-    email.subject,
-    email.sentAt,
-  );
-}
-if (emails.notFound?.length)
-  console.warn("Messages disappeared", emails.notFound);
-```
 
-An empty list is normal when no messages match. For more than one page, use
-an iterator like the one below and retain the unread filter if you need it.
-
-## Read the inbox in pages
-
-Anchor each page after the last ID from the previous **query**, even when some
-objects disappear before the get. Stop on an empty query page, rather than on
-a short page: the server may return fewer objects than the requested limit.
-
-This helper accepts `client.api`, the account ID, and the inbox ID. Choose a
-page size within the server's `maxObjectsInGet` and query limits; each page also
-needs room for two method calls in a request.
-
-```ts
-import type { ClientApi } from "json-meta-client";
-
-export async function* readInbox(
-  api: ClientApi<readonly ["mail"]>,
-  accountId: string,
-  inboxId: string,
-  limit = 10,
-) {
-  if (!Number.isInteger(limit) || limit < 1) {
-    throw new Error("Use a positive page size");
-  }
-  let anchor: string | undefined;
-  const seen = new Set<string>();
-  for (;;) {
-    const query = api.Email.query({
-      accountId,
-      filter: { inMailbox: inboxId },
-      sort: [
-        { property: "receivedAt", isAscending: false },
-      ],
-      ...(anchor
-        ? { anchor, anchorOffset: 1 }
-        : { position: 0 }),
-      limit,
-    });
-    const get = api.Email.get({
-      accountId,
-      ids: query.resultRef("/ids"),
-      properties: ["id", "from", "subject", "receivedAt"],
-    });
-    const [page, emails] = await Promise.all([query, get]);
-    if (page.ids.length === 0) return;
-
-    for (const email of emails.list) {
-      if (!seen.has(email.id)) {
-        seen.add(email.id);
-        yield email;
-      }
-    }
-    if (emails.notFound?.length)
-      console.warn("Messages disappeared", emails.notFound);
-    const next = page.ids.at(-1);
-    if (next === anchor)
-      throw new Error("Pagination did not advance");
-    anchor = next;
-  }
+for (const email of getEmails.list) {
+  console.log(email);
 }
 ```
 
-Consume it with `for await (const email of readInbox(client.api, accountId, inboxId))`.
-The explicit `receivedAt` sort gives the pages a consistent order; JMAP requires
-the tie order to remain stable for equal values. A vanished anchor or another
-method failure rejects the iterator.
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
+  "methodCalls": [
+    [
+      "Email/query",
+      {
+        "filter": {
+          "operator": "AND",
+          "conditions": [
+            { "inMailbox": "P-F" },
+            { "notKeyword": "$seen" },
+            { "notKeyword": "$draft" }
+          ]
+        },
+        "accountId": "*********"
+      },
+      "Email/query::6f7adf07"
+    ],
+    [
+      "Email/get",
+      {
+        "#ids": {
+          "name": "Email/query",
+          "resultOf": "Email/query::6f7adf07",
+          "path": "/ids"
+        },
+        "properties": [
+          "to",
+          "from",
+          "subject",
+          "sentAt",
+          "keywords"
+        ],
+        "accountId": "*********"
+      },
+      "Email/get::c2ef5d19"
+    ]
+  ]
+}
+```
 
-A live inbox can still change while you read it. This iterator suppresses
-duplicate IDs, but a new message inserted before the anchor may be missed.
-Restart or use query-change synchronisation when you need to reconcile concurrent
-changes. The `seen` set grows with the number of messages read; this is a
-bounded-page example, not a constant-memory snapshot.
+:::
 
 ## Send an email
 
-Sending requires both `"mail"` and `"submission"` on one account. The example
-checks the primary mail account, finds Drafts and Sent mailboxes, and uses the
-first accessible sending identity. In an application, let the user choose an
-authorised identity and recipient before submitting.
+Sending takes two steps. First, store the message as a draft in the Drafts
+mailbox. Then create an email submission, which asks the server to deliver the
+draft from one of your identities. Both steps need the `submission` capability
+as well as `mail`.
 
-Creating an Email stores a draft. Creating an EmailSubmission asks the server
-to send it. The two calls below share a request, with a creation reference
-connecting the submission to its draft:
+### Prep
 
-```ts
+Find the ID of the Drafts mailbox and choose an identity to send from. The
+mailbox query and identity get are independent, so they can share a request:
+
+::: code-group
+
+```ts [prep.ts]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -204,334 +217,244 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail", "submission"],
 });
-const session = await client.session;
-const mail = "urn:ietf:params:jmap:mail";
-const submissionCapability =
-  "urn:ietf:params:jmap:submission";
-const accountId = session.primaryAccounts[mail];
-const account = accountId
-  ? session.accounts[accountId]
-  : undefined;
-if (
-  !accountId ||
-  account?.isReadOnly ||
-  !session.capabilities[mail] ||
-  !session.capabilities[submissionCapability] ||
-  !account?.accountCapabilities[mail] ||
-  !account.accountCapabilities[submissionCapability]
-) {
-  throw new Error(
-    "A writable account with mail and submission support is required",
-  );
-}
 
-const [drafts, sent, identities] = await Promise.all([
+const [mailboxes, identities] = await Promise.all([
   client.api.Mailbox.query({
-    accountId,
     filter: { role: "drafts" },
-    limit: 1,
   }),
-  client.api.Mailbox.query({
-    accountId,
-    filter: { role: "sent" },
-    limit: 1,
+  client.api.Identity.get({
+    ids: undefined, // Omitting `ids` fetches every identity
   }),
-  client.api.Identity.get({ accountId, ids: null }),
 ]);
-const draftMailboxId = drafts.ids[0];
-const sentMailboxId = sent.ids[0];
+
+const draftMailboxId = mailboxes.ids[0];
 const identity = identities.list[0];
-if (!draftMailboxId || !sentMailboxId || !identity) {
-  throw new Error(
-    "Drafts, Sent, and a sending identity are required",
-  );
+```
+
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail",
+    "urn:ietf:params:jmap:submission"
+  ],
+  "methodCalls": [
+    [
+      "Mailbox/query",
+      {
+        "filter": {
+          "role": "drafts"
+        },
+        "accountId": "*********"
+      },
+      "Mailbox/query::7478d066"
+    ],
+    [
+      "Identity/get",
+      {
+        "accountId": "*********"
+      },
+      "Identity/get::f33ce75b"
+    ]
+  ]
 }
+```
+
+:::
+
+### Draft and send
+
+Each object in `create` has a creation ID that you choose, such as `draft` and
+`submission` below. The server reports results under these IDs, and later calls
+in the same request can refer to the new object before it has a server ID.
+Short, descriptive creation IDs make requests easier to read while debugging.
+
+Here, `draft.createdRef("draft")` points the submission at the email created by
+the first call. `onSuccessDestroyEmail` removes the draft once the server
+accepts the submission, so it does not remain in Drafts:
+
+::: code-group
+
+```ts [draft-and-send.ts]
+import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  auth: { token: "YOUR_ACCESS_TOKEN" },
+  capabilities: ["mail", "submission"],
+});
+
+// Values found in the prep step
+const draftMailboxId = "DRAFTS_MAILBOX_ID";
+const identity = {
+  id: "IDENTITY_ID",
+  name: "Me",
+  email: "me@example.com",
+};
+
+const bodyId = "body";
 
 const draft = client.api.Email.set({
-  accountId,
   create: {
     draft: {
-      mailboxIds: { [draftMailboxId]: true },
+      // Ensure the email is a draft
       keywords: { $draft: true },
+
+      // Put the draft in the drafts mailbox
+      mailboxIds: { [draftMailboxId]: true },
+
+      // Typical email fields
       from: [
         { name: identity.name, email: identity.email },
       ],
-      to: [{ name: null, email: "recipient@example.com" }],
-      subject: "Hello from JMAP",
-      bodyValues: { body: { value: "Hello!" } },
-      textBody: [{ partId: "body", type: "text/plain" }],
+      to: [{ name: null, email: "someone@example.com" }],
+      subject: "Hi there",
+
+      // Set the body
+      bodyValues: {
+        [bodyId]: {
+          value:
+            "Hello there!\nI hope you are well.\nBest,\nMe",
+        },
+      },
+      textBody: [
+        {
+          partId: bodyId,
+          type: "text/plain",
+        },
+      ],
     },
   },
 });
-const submission = client.api.EmailSubmission.set({
-  accountId,
+
+await client.api.EmailSubmission.set({
   create: {
+    // Send the email that was created
     submission: {
       emailId: draft.createdRef("draft"),
       identityId: identity.id,
     },
   },
-  onSuccessUpdateEmail: {
-    "#submission": {
-      mailboxIds: { [sentMailboxId]: true },
-      "keywords/$draft": null,
-    },
-  },
-});
-const [created, submitted] = await Promise.all([
-  draft,
-  submission,
-]);
-const emailId = created.created?.draft?.id;
-if (!emailId || !submitted.created?.submission) {
-  throw new Error(
-    JSON.stringify({
-      draft: created.notCreated,
-      submission: submitted.notCreated,
-    }),
-  );
-}
 
-const filed = await client.api.Email.get({
-  accountId,
-  ids: [emailId],
-  properties: ["id", "mailboxIds", "keywords"],
+  // Delete the draft if it is sent successfully
+  onSuccessDestroyEmail: ["#submission"],
 });
-const saved = filed.list[0];
-if (
-  !saved?.mailboxIds[sentMailboxId] ||
-  saved.keywords.$draft
-) {
-  throw new Error(
-    "Submission created; Sent filing needs reconciliation. Do not resend.",
-  );
-}
-console.log(
-  "Submission created",
-  submitted.created.submission.id,
-  emailId,
-);
 ```
 
-Both mailboxes must permit the requested writes. `onSuccessUpdateEmail` asks
-the server to file the accepted draft in Sent and remove `$draft`. Its
-`"#submission"` key refers to the submission's creation ID. Keep all creation
-IDs unique within the request.
-
-The filing update can fail separately from submission creation. The client
-returns the matching EmailSubmission result, not the implicit Email/set result,
-so the recipe reads the email afterwards to verify filing. A filing problem
-needs reconciliation; sending the message again could duplicate it. If you
-intend to delete the email after submission instead, use
-`onSuccessDestroyEmail: ["#submission"]` and do not also update that email.
-
-A successful submission means acceptance for sending, not confirmed delivery.
-Inspect `EmailSubmission.get` and delivery status when required. If either set
-contains `notCreated`, retain the draft and inspect the failure. If the HTTP
-response is lost, inspect server state before retrying: the server may already
-have created the draft or submission. Successful sibling operations are not
-rolled back.
-
-## Send an attachment
-
-Upload the file to the same account used by the sending recipe. Then add its
-blob metadata to `create.draft.attachments` in the Email/set call. This complete
-upload example prepares that array:
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-const uploaded = await client.blob.upload(
-  new Blob(["Report contents\n"], { type: "text/plain" }),
-  { accountId: "ACCOUNT_ID" },
-);
-export const attachments = [
-  {
-    blobId: uploaded.blobId,
-    type: uploaded.type,
-    name: "report.txt",
-    disposition: "attachment" as const,
-  },
-];
-```
-
-Use `attachments` as the draft's `attachments` value, then create and verify
-the submission as in [Send an email](#send-an-email). In a browser, a
-user-selected `File` can replace the example's `Blob`.
-
-The upload is a separate HTTP request before the draft and submission. If
-creation fails, the upload has still happened. The
-[file transfer guide](./features/blobs.md) covers body types, media types, and
-transfer failures.
-
-## Reply to a thread
-
-A reply uses message headers to relate itself to the original email. Read
-`messageId`, `references`, and the reply address; do not try to set `threadId`,
-which the server assigns. This example prepares the fields for a direct reply,
-using `replyTo` when available and `from` otherwise:
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-const result = await client.api.Email.get({
-  accountId: "ACCOUNT_ID",
-  ids: ["EMAIL_ID"],
-  properties: [
-    "id",
-    "subject",
-    "replyTo",
-    "from",
-    "messageId",
-    "references",
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail",
+    "urn:ietf:params:jmap:submission"
   ],
-});
-const original = result.list[0];
-if (!original)
-  throw new Error("The original email was not found");
-const recipients = original.replyTo?.length
-  ? original.replyTo
-  : original.from;
-if (!recipients?.length || !original.messageId?.length) {
-  throw new Error(
-    "The original email needs a reply address and Message-ID",
-  );
-}
-const subject = original.subject ?? "";
-export const reply = {
-  to: recipients,
-  subject: /^re:/i.test(subject)
-    ? subject
-    : `Re: ${subject}`,
-  inReplyTo: original.messageId,
-  references: [
-    ...(original.references ?? []),
-    ...original.messageId,
-  ],
-};
-```
-
-In the sending recipe, spread `...reply` into `create.draft` after its `to` and
-`subject` fields, and set the reply's body. Use the same account and an
-authorised sender identity, then create and check the submission. This sends a
-direct reply; reply-all needs its own recipient selection and deduplication.
-
-The server determines thread grouping from the headers, so these fields cannot
-force a particular thread ID. To mark the original as `$answered`, perform and
-check a separate Email/set update after successful submission creation.
-
-## Move an email
-
-Replace `mailboxIds` to move a message to one destination and remove all its
-previous mailbox memberships. The recipe below targets the Archive role; that
-mailbox must allow the write. If you want to remove only one membership while
-keeping others, fetch `mailboxIds` and construct the desired map instead.
-
-Read the current state and send it as `ifInState` to detect intervening changes:
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-const accountId = "ACCOUNT_ID";
-const emailId = "EMAIL_ID";
-const target = await client.api.Mailbox.query({
-  accountId,
-  filter: { role: "archive" },
-  limit: 1,
-});
-const archiveId = target.ids[0];
-if (!archiveId)
-  throw new Error("Choose a writable destination mailbox");
-
-const current = await client.api.Email.get({
-  accountId,
-  ids: [emailId],
-  properties: ["id"],
-});
-if (!current.list[0])
-  throw new Error("The email was not found");
-const result = await client.api.Email.set({
-  accountId,
-  ifInState: current.state,
-  update: {
-    [emailId]: { mailboxIds: { [archiveId]: true } },
-  },
-});
-if (result.notUpdated?.[emailId]) {
-  throw new Error(
-    JSON.stringify(result.notUpdated[emailId]),
-  );
-}
-if (
-  !result.updated ||
-  !Object.hasOwn(result.updated, emailId)
-) {
-  throw new Error("The server did not confirm the move");
-}
-console.log("Moved", emailId, archiveId);
-```
-
-An account change can cause `stateMismatch`. Read current state and reassess the
-move before retrying. Object-specific failures, such as `forbidden` or
-`notFound`, appear in `notUpdated`; see [errors](./reference/errors.md).
-
-## Get email attachments
-
-Read the attachment metadata, selecting the body-part fields needed for the
-download. Each attachment's `blobId` can then be passed to `client.blob.download`:
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-const accountId = "ACCOUNT_ID";
-const result = await client.api.Email.get({
-  accountId,
-  ids: ["EMAIL_ID"],
-  properties: ["id", "attachments"],
-  bodyProperties: ["blobId", "name", "type", "size"],
-});
-const email = result.list[0];
-if (!email) throw new Error("The email was not found");
-
-for (const attachment of email.attachments) {
-  if (!attachment.blobId)
-    throw new Error(
-      "Attachment has no downloadable blob ID",
-    );
-  const name = attachment.name ?? "attachment";
-  const response = await client.blob.download({
-    accountId,
-    blobId: attachment.blobId,
-    name,
-    type: attachment.type,
-  });
-  const bytes = await response.arrayBuffer();
-  console.log(name, attachment.type, bytes.byteLength);
+  "methodCalls": [
+    [
+      "Email/set",
+      {
+        "create": {
+          "draft": {
+            "keywords": { "$draft": true },
+            "mailboxIds": { "P2k": true },
+            "from": [
+              { "name": "**", "email": "****************" }
+            ],
+            "to": [
+              {
+                "name": null,
+                "email": "someone@example.com"
+              }
+            ],
+            "subject": "Hi there",
+            "bodyValues": {
+              "body": {
+                "value": "Hello there!\nI hope you are well.\nBest,\nMe"
+              }
+            },
+            "textBody": [
+              {
+                "partId": "body",
+                "type": "text/plain"
+              }
+            ]
+          }
+        },
+        "accountId": "*********"
+      },
+      "Email/set::e6af7055"
+    ],
+    [
+      "EmailSubmission/set",
+      {
+        "create": {
+          "submission": {
+            "emailId": "#draft",
+            "identityId": "123634456"
+          }
+        },
+        "onSuccessDestroyEmail": ["#submission"],
+        "accountId": "*********"
+      },
+      "EmailSubmission/set::ac3e2f7c"
+    ]
+  ]
 }
 ```
 
-An empty attachment list needs no downloads. Transfers run sequentially here to
-bound memory and concurrency. An attachment can disappear after the successful
-Email/get, so handle download and body-reading failures too. Pass the bytes to
-your application's save or preview UI; the [blob guide](./features/blobs.md#consume-a-download-response)
-covers response readers and safe filename handling.
+:::
+
+## Send an attachment <Badge type="warning" text="To do" />
+
+::: code-group
+
+```ts [example.ts]
+// TODO
+```
+
+```json [request.json]
+{}
+```
+
+:::
+
+## Reply to a thread <Badge type="warning" text="To do" />
+
+::: code-group
+
+```ts [example.ts]
+// TODO
+```
+
+```json [request.json]
+{}
+```
+
+:::
+
+## Move an email <Badge type="warning" text="To do" />
+
+::: code-group
+
+```ts [example.ts]
+// TODO
+```
+
+```json [request.json]
+{}
+```
+
+:::
+
+## Get email attachments <Badge type="warning" text="To do" />
+
+::: code-group
+
+```ts [example.ts]
+// TODO
+```
+
+```json [request.json]
+{}
+```
+
+:::

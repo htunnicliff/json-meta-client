@@ -60,7 +60,7 @@ the write even though your application saw a connection error. Retrying a
 non-idempotent operation, such as creating a submission, can duplicate it.
 Retain enough context to inspect server state before retrying. The
 [error reference](./reference/errors.md) describes the failure shapes, and the
-[sending recipe](./examples.md#send-an-email) shows the checks around a draft
+[sending example](./examples.md#send-an-email) shows the checks around a draft
 and its submission.
 
 ## Give credentials and subscriptions an owner
