@@ -21,7 +21,7 @@ import type {
 } from "../core/rfc8620-jmap.ts";
 import type { Card, Media } from "../formats/rfc9553-jscontact.ts";
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:contacts": {};
   }

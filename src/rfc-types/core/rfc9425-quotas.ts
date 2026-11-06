@@ -10,7 +10,7 @@
 
 import type { MethodGet, MethodChanges, MethodQuery, MethodQueryChanges } from "./rfc8620-jmap.ts";
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:quota": {};
   }

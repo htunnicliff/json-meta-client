@@ -20,7 +20,7 @@ export class MethodCallError extends JsonMetaError {
   constructor(
     message: string,
     options: {
-      methodCall: MethodCall<unknown>;
+      methodCall: MethodCall<object>;
       responseData?: unknown;
     },
   ) {
@@ -32,7 +32,7 @@ export class MethodCallError extends JsonMetaError {
   /**
    * The given method call sent in a request
    */
-  readonly methodCall: MethodCall<unknown>;
+  readonly methodCall: MethodCall<object>;
 
   /**
    * The response body, if it exists

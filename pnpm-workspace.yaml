@@ -3,8 +3,5 @@ allowBuilds:
   protobufjs: false
   ssh2: false
 
-minimumReleaseAgeExclude:
-  - jmap-rfc-types
-
 publicHoistPattern:
   - vue

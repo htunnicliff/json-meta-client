@@ -8,8 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Invocation } from "jmap-rfc-types";
-
+import type { Invocation } from "../rfc-types/core/index.ts";
 import { randomHex } from "./random-hex.ts";
 
 interface MethodCallParams<T> {
@@ -18,7 +17,7 @@ interface MethodCallParams<T> {
   readonly id?: string;
 }
 
-export class MethodCall<T> implements MethodCallParams<T> {
+export class MethodCall<T extends object> implements MethodCallParams<T> {
   constructor(params: MethodCallParams<T>) {
     this.method = params.method;
     this.args = params.args;

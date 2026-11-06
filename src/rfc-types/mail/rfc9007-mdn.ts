@@ -11,7 +11,7 @@
 import type { PatchObject, SetError } from "../core/index.ts";
 import type { EmailUpdate } from "./rfc8621-mail.ts";
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:mdn": {};
   }

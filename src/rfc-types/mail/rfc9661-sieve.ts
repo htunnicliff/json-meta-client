@@ -10,7 +10,7 @@
 
 import type { MethodGet, MethodQuery, MethodSet, SetError } from "../core/index.ts";
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:sieve": {
       implementation: string;

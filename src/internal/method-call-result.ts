@@ -8,9 +8,9 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Invocation } from "jmap-rfc-types";
+import type { Invocation } from "../rfc-types/core/index.ts";
 
-export class MethodCallResult<T> {
+export class MethodCallResult<T extends object> {
   constructor(result: Invocation<T>) {
     this.method = result[0];
     this.data = result[1];

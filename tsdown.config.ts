@@ -1,7 +1,17 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: [
+    "src/index.ts",
+    "src/rfc-types/core/index.ts",
+    "src/rfc-types/mail/index.ts",
+    "src/rfc-types/contacts/index.ts",
+    "src/rfc-types/formats/index.ts",
+    "src/rfc-types/extensions.ts",
+  ],
+  // Preserve relative RFC module augmentations in the published declarations.
+  unbundle: true,
+  fixedExtension: false,
   dts: {
     generator: "tsc",
     sourcemap: true,

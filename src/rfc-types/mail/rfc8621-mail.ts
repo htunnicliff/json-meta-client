@@ -23,7 +23,7 @@ import type {
 
 // TODO: Finish mail types
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:mail": {};
     "urn:ietf:params:jmap:submission": {};

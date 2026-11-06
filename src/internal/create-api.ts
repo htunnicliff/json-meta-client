@@ -19,7 +19,7 @@ import { addRefMethod } from "./ref.ts";
 import type { AugmentedOptions, Middleware } from "./types.ts";
 
 interface ApiOptions {
-  processMethodCalls: Flush<MethodCall<unknown>>;
+  processMethodCalls: Flush<MethodCall<object>>;
   middleware: ReadonlyArray<Middleware>;
   signal?: AbortSignal;
 }
@@ -31,10 +31,13 @@ export function createApi<T extends object>({
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): JsonValue => {
+  const applyMiddleware = (payload: JsonObject): object => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
       transformed = fn(transformed);
+    }
+    if (typeof transformed !== "object" || transformed === null || Array.isArray(transformed)) {
+      throw new TypeError("JMAP method arguments must be an object");
     }
     return transformed;
   };

@@ -10,13 +10,6 @@
 
 import { isDeepStrictEqual } from "node:util";
 
-import type {
-  BlobUploadResponse,
-  Request as JMAPRequest,
-  Response as JMAPResponse,
-  ProblemDetails,
-  Session,
-} from "jmap-rfc-types";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,7 +29,15 @@ import {
   UnknownError,
 } from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
+import type {
+  FileUpload,
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  ProblemDetails,
+  Session,
+} from "../rfc-types/core/index.ts";
 import type { AfterResponseHook, BeforeRequestHook } from "../types.ts";
+import { coreSessionCapabilities } from "./fixtures.ts";
 
 // ------ Fixtures ----------------------------------------
 
@@ -72,7 +73,7 @@ const DEFAULT_SESSION = {
   downloadUrl,
   eventSourceUrl: `${host}/events`,
   capabilities: {
-    [core.urn]: {},
+    [core.urn]: coreSessionCapabilities,
     [mail.urn]: {},
     [example.urn]: {},
   },
@@ -894,6 +895,21 @@ describe(JsonMetaClient, () => {
       );
     });
 
+    it.each([null, [], "invalid", 1, false])(
+      "rejects non-object middleware output: %j",
+      (output) => {
+        const client = new JsonMetaClient({
+          middleware: [() => output],
+          sessionUrl,
+          bearerToken,
+          capabilities: [mail],
+        });
+        expect(() => client.api.Mailbox.query({})).toThrow(
+          "JMAP method arguments must be an object",
+        );
+      },
+    );
+
     it("runs custom middleware after the built-in request transformations", async () => {
       const mockMiddleware = vi.fn<Middleware>((_args) => {
         return { foo: true };
@@ -965,7 +981,7 @@ describe(JsonMetaClient, () => {
     it("posts body to correct url", async () => {
       const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
 
-      const providedResponse: BlobUploadResponse = {
+      const providedResponse: FileUpload.Result = {
         accountId,
         blobId: crypto.randomUUID(),
         size: blob.size,
