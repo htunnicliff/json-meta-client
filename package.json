@@ -37,26 +37,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./rfc-types/core": {
-      "types": "./dist/rfc-types/core/index.d.ts",
-      "default": "./dist/rfc-types/core/index.js"
-    },
-    "./rfc-types/mail": {
-      "types": "./dist/rfc-types/mail/index.d.ts",
-      "default": "./dist/rfc-types/mail/index.js"
-    },
-    "./rfc-types/contacts": {
-      "types": "./dist/rfc-types/contacts/index.d.ts",
-      "default": "./dist/rfc-types/contacts/index.js"
-    },
-    "./rfc-types/formats": {
-      "types": "./dist/rfc-types/formats/index.d.ts",
-      "default": "./dist/rfc-types/formats/index.js"
-    },
-    "./rfc-types/extensions": {
-      "types": "./dist/rfc-types/extensions.d.ts",
-      "default": "./dist/rfc-types/extensions.js"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
