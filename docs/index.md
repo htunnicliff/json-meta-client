@@ -68,17 +68,21 @@ import {data as pkg} from './pkg.data.ts'
 
 ## Configuration
 
-Configure a client with a bearer token, session URL, and capabilities:
+Configure a client with authentication, a session URL, and capabilities:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<token>",
+  auth: { token: "<token>" },
   sessionUrl: "<server>/.well-known/jmap",
   capabilities: ["mail", "submission"],
 });
 ```
+
+The `auth` option also supports Basic credentials and custom
+callbacks. See [Authentication](./features/authentication.md)
+for examples and migration from `bearerToken`.
 
 ## Usage
 

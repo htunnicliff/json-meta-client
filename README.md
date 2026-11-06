@@ -21,11 +21,17 @@ Create a client with the capabilities your JMAP server supports:
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  bearerToken: "<token>",
+  auth: { token: "<token>" },
   sessionUrl: "<session-url>",
   capabilities: ["mail", "submission", "contacts"],
 });
 ```
+
+Authentication also accepts `auth: { username, password }` for
+Basic or an async callback that mutates the outgoing request.
+See [authentication and migration](https://json-meta-client.dev/features/authentication)
+for examples. Existing callers must replace `bearerToken: token`
+with `auth: { token }`.
 
 #### Issue a single JMAP request
 

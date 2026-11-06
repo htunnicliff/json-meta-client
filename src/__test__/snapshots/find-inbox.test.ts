@@ -19,7 +19,7 @@ test("find inbox query", async () => {
   let requestBody: unknown;
 
   const client = new JsonMetaClient({
-    bearerToken,
+    auth: { token: bearerToken },
     sessionUrl,
     capabilities: ["mail"],
     hooks: {

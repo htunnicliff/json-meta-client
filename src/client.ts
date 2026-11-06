@@ -59,7 +59,7 @@ export class JsonMetaClient<
 
     // Assemble config
     this.#config = {
-      bearerToken: options.bearerToken,
+      auth: options.auth,
       sessionUrl: options.sessionUrl,
       capabilities: getCapabilitiesForBuiltIns(options.capabilities),
       hooks: options.hooks,
@@ -176,9 +176,7 @@ export class JsonMetaClient<
 
     const eventSource = createEventSource({
       url,
-      headers: {
-        authorization: `Bearer ${this.#config.bearerToken}`,
-      },
+      fetch: async (url, options) => (await this.#fetch(url, options)).response,
       onMessage: (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -383,9 +381,18 @@ export class JsonMetaClient<
     let requestClone: Request | undefined;
     let response: Response;
     try {
-      const headers = new Headers(options.headers);
-      headers.set("authorization", `Bearer ${this.#config.bearerToken}`);
-      request = new Request(url, { ...options, headers });
+      request = new Request(url, options);
+      const auth = this.#config.auth;
+      if (typeof auth === "function") {
+        await auth({ request });
+      } else if (typeof auth.token === "string") {
+        request.headers.set("authorization", `Bearer ${auth.token}`);
+      } else {
+        const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
+        const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
+        const encoded = btoa(binString);
+        request.headers.set("authorization", `Basic ${encoded}`);
+      }
       for (const hook of this.#config.hooks?.beforeRequest ?? []) {
         // oxlint-disable-next-line no-await-in-loop
         request = await hook({ request });
