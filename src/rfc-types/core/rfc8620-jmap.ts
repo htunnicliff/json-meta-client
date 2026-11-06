@@ -27,6 +27,9 @@ declare module "../extensions.ts" {
   }
 }
 
+/**
+ * @see https://www.rfc-editor.org/info/rfc8620/#section-2
+ */
 export interface Session {
   capabilities: SessionCapabilities;
   accounts: { [id: string]: Account };
@@ -40,6 +43,9 @@ export interface Session {
   [key: string]: unknown;
 }
 
+/**
+ * @see https://www.rfc-editor.org/info/rfc8620/#section-2
+ */
 export interface Account {
   name: string;
   isPersonal: boolean;
@@ -47,26 +53,33 @@ export interface Account {
   accountCapabilities: AccountCapabilities;
 }
 
+/**
+ * @see https://www.rfc-editor.org/info/rfc8620/#section-3.2
+ */
 export type Invocation<T = unknown> = [name: string, argsOrResponse: T, methodCallId: string];
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.3 */
 export interface Request {
   methodCalls: readonly Invocation[];
   using: readonly string[];
   createdIds?: Record<string, string>;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.4 */
 export interface Response {
   methodResponses: readonly Invocation[];
   sessionState: string;
   createdIds?: Record<string, string>;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.5 */
 export interface ResultReference {
   resultOf: string;
   name: string;
   path: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.6 */
 export interface ProblemDetails {
   type: string;
   status?: number;
@@ -89,6 +102,7 @@ export type PickPropertiesForEntity<
   : Pick<T, Options["defaultProperties"]>;
 
 export namespace MethodGet {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.1 */
   export interface Input<T> {
     accountId: string;
     ids?: readonly string[] | null;
@@ -109,6 +123,7 @@ export namespace MethodGet {
 }
 
 export namespace MethodChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.2 */
   export interface Input {
     accountId: string;
     sinceState: string;
@@ -155,6 +170,7 @@ export type PatchObject<T> = {
 };
 
 export namespace MethodSet {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.3 */
   export interface Input<
     T extends object,
     Create extends object = Omit<T, "id">,
@@ -188,6 +204,7 @@ export interface SetError<T = Record<string, unknown>> {
 }
 
 export namespace MethodCopy {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.4 */
   export interface Input<T extends { id: string }> {
     fromAccountId: string;
     ifFromInState?: string | null;
@@ -214,6 +231,7 @@ export namespace MethodCopy {
 }
 
 export namespace MethodQuery {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.5 */
   export interface Input<T extends object, Filter extends object = T> {
     accountId: string;
     filter?: FilterOperator<Filter> | FilterCondition<Filter> | null;
@@ -242,6 +260,7 @@ export namespace MethodQuery {
 }
 
 export namespace MethodQueryChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.6 */
   export interface Input<T extends object, Filter extends object> {
     accountId: string;
     filter?: FilterOperator<Filter> | FilterCondition<Filter> | null;
@@ -284,6 +303,7 @@ export interface Comparator<T extends object> {
 }
 
 export namespace FileUpload {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-6.1 */
   export interface Params {
     accountId: string;
   }
@@ -297,6 +317,7 @@ export namespace FileUpload {
 }
 
 export namespace FileDownload {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-6.2 */
   export interface Params {
     accountId: string;
     blobId: string;
@@ -306,6 +327,7 @@ export namespace FileDownload {
 }
 
 export namespace CoreEcho {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-4 */
   export interface Contract {
     input: any;
     output: this["input"];
@@ -313,6 +335,7 @@ export namespace CoreEcho {
 }
 
 export namespace BlobCopy {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-6.3 */
   export interface Input {
     fromAccountId: string;
     accountId: string;
@@ -336,6 +359,7 @@ export interface TypeState {
   [type: string]: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-7.1 */
 export interface StateChange {
   "@type": "StateChange";
   changed: {
@@ -344,6 +368,7 @@ export interface StateChange {
 }
 
 export namespace PushSubscriptionGet {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-7.2.1 */
   export interface Contract {
     input: Omit<MethodGet.Input<PushSubscription>, "accountId">;
     output: Omit<MethodGet.Output<PushSubscription, this["input"]>, "accountId" | "state">;
@@ -351,6 +376,7 @@ export namespace PushSubscriptionGet {
 }
 
 export namespace PushSubscriptionSet {
+  /** @see https://www.rfc-editor.org/info/rfc8620/#section-7.2.2 */
   export interface Input extends Omit<
     MethodSet.Input<PushSubscription, PushSubscriptionCreate>,
     "accountId" | "ifInState"
@@ -367,6 +393,7 @@ export namespace PushSubscriptionSet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-7.2 */
 export interface PushSubscription {
   id: string;
   deviceClientId: string;
@@ -383,12 +410,14 @@ export interface PushSubscriptionCreate extends Omit<PushSubscription, "id"> {
   } | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-7.2 */
 export interface PushVerification {
   "@type": "PushVerification";
   pushSubscriptionId: string;
   verificationCode: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-7.3 */
 export interface EventSourceArguments {
   types: string;
   closeafter: "state" | "no";

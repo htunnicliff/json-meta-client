@@ -8,6 +8,7 @@
 
 declare module "../extensions.ts" {
   export interface SessionCapabilities {
+    /** @see https://www.rfc-editor.org/info/rfc9749/#section-3 */
     "urn:ietf:params:jmap:webpush-vapid": {
       applicationServerKey: string;
     };

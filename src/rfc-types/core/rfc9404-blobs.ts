@@ -23,17 +23,20 @@ declare module "../extensions.ts" {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
 export type DataSourceObject =
   | { "data:asText": string }
   | { "data:asBase64": string }
   | { blobId: string; offset?: number | null; length?: number };
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
 export interface UploadObject {
   data: DataSourceObject[];
   type?: string | null;
 }
 
 export namespace BlobUpload {
+  /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
   export interface Input {
     accountId: string;
     create: Record<string, UploadObject>;
@@ -51,12 +54,14 @@ export namespace BlobUpload {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
 export interface UploadedBlob {
   id: FileUpload.Result["blobId"];
   type: string | null;
   size: FileUpload.Result["size"];
 }
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.2 */
 export type Blob = {
   id: string;
   "data:asText"?: string | null;
@@ -69,6 +74,7 @@ export type Blob = {
 };
 
 export namespace BlobGet {
+  /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.2 */
   export interface Input {
     accountId: string;
     ids: readonly string[];
@@ -89,6 +95,7 @@ export namespace BlobGet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.2 */
 export type BlobGetProperties =
   | "data"
   | "data:asText"
@@ -97,6 +104,7 @@ export type BlobGetProperties =
   | `digest:${string}`;
 
 export namespace BlobLookup {
+  /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.3 */
   export interface Input {
     accountId: string;
     typeNames: string[];
@@ -113,6 +121,7 @@ export namespace BlobLookup {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc9404/#section-4.3 */
 export interface BlobInfo {
   id: string;
   matchedIds: {

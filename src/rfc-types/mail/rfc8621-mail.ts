@@ -45,6 +45,7 @@ declare module "../extensions.ts" {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-2 */
 export interface Mailbox {
   id: string;
   name: string;
@@ -60,6 +61,7 @@ export interface Mailbox {
   isSubscribed: boolean;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-2 */
 export interface MailboxRights {
   mayReadItems: boolean;
   mayAddItems: boolean;
@@ -73,6 +75,7 @@ export interface MailboxRights {
 }
 
 export namespace MailboxGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-2.1 */
   export interface Input extends MethodGet.Input<Mailbox> {}
   export interface Output<Args> extends MethodGet.Output<Mailbox, Args> {}
   export interface Contract {
@@ -82,6 +85,7 @@ export namespace MailboxGet {
 }
 
 export namespace MailboxChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-2.2 */
   export interface Input extends MethodChanges.Input {}
   export interface Output extends MethodChanges.Output {
     updatedProperties?: (keyof Mailbox)[] | null;
@@ -92,6 +96,7 @@ export namespace MailboxChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-2.3 */
 export interface MailboxFilter {
   parentId: string | null;
   name: string;
@@ -101,6 +106,7 @@ export interface MailboxFilter {
 }
 
 export namespace MailboxQuery {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-2.3 */
   export interface Input extends MethodQuery.Input<Mailbox, MailboxFilter> {
     sortAsTree?: boolean;
     filterAsTree?: boolean;
@@ -113,6 +119,7 @@ export namespace MailboxQuery {
 }
 
 export namespace MailboxQueryChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-2.4 */
   export interface Input extends MethodQueryChanges.Input<Mailbox, MailboxFilter> {}
   export interface Output extends MethodQueryChanges.Output {}
   export interface Contract {
@@ -132,6 +139,7 @@ export type WritableMailbox = Pick<Mailbox, "name"> &
 export type MailboxUpdate = Omit<WritableMailbox, "role"> & WithoutProperties<"role">;
 
 export namespace MailboxSet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-2.5 */
   export interface Input extends MethodSet.Input<Mailbox, WritableMailbox, MailboxUpdate> {
     onDestroyRemoveEmails?: boolean;
   }
@@ -142,12 +150,14 @@ export namespace MailboxSet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-3 */
 export interface Thread {
   id: string;
   emailIds: string[];
 }
 
 export namespace ThreadGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-3.1 */
   export interface Input extends MethodGet.Input<Thread> {}
   export interface Output<Args> extends MethodGet.Output<Thread, Args> {}
   export interface Contract {
@@ -157,6 +167,7 @@ export namespace ThreadGet {
 }
 
 export namespace ThreadChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-3.2 */
   export interface Input extends MethodChanges.Input {}
   export interface Output extends MethodChanges.Output {}
   export interface Contract {
@@ -165,6 +176,7 @@ export namespace ThreadChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1 */
 export interface EmailBase {
   id: string;
   blobId: string;
@@ -197,6 +209,7 @@ export interface EmailBase {
   sentAt: string | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1 */
 export interface EmailComputedFields {
   bodyStructure: EmailBodyPart;
   bodyValues: { [partId: string]: EmailBodyValue };
@@ -207,16 +220,19 @@ export interface EmailComputedFields {
   preview: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1 */
 export interface ReadableEmail extends EmailBase, EmailComputedFields {
   [header: `header:${string}`]: unknown;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
 export interface WritableEmailBodyValue {
   value: string;
   isEncodingProblem?: false;
   isTruncated?: false;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
 export type WritableEmailBodyPart = Partial<
   Pick<EmailBodySubPart, "name" | "type" | "disposition" | "cid" | "language" | "location">
 > & {
@@ -235,6 +251,7 @@ export type WritableEmailBodyPart = Partial<
       }
   );
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.6 */
 export type WritableEmail = WithoutProperties<
   "id" | "blobId" | "threadId" | "size" | "preview" | "hasAttachment"
 > &
@@ -258,27 +275,32 @@ export type WritableEmail = WithoutProperties<
       }
   );
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.6 */
 export type EmailUpdate = Pick<EmailBase, "mailboxIds" | "keywords"> &
   WithoutProperties<
     | Exclude<keyof EmailBase | keyof EmailComputedFields, "mailboxIds" | "keywords">
     | `header:${string}`
   >;
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2 */
 export interface EmailAddress {
   email: string;
   name?: string | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2 */
 export interface EmailAddressGroup {
   addresses: EmailAddress[];
   name?: string | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.3 */
 export interface EmailHeader {
   name: string;
   value: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
 export interface EmailBodySubPart {
   partId: string | null;
   blobId: string | null;
@@ -293,10 +315,12 @@ export interface EmailBodySubPart {
   location: string | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
 export interface EmailBodyPart extends EmailBodySubPart {
   subParts?: EmailBodyPart[] | null;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.2 */
 export interface EmailBodyValue {
   value: string;
   isEncodingProblem: boolean;
@@ -319,11 +343,13 @@ export type EmailForArgs<Args> = Omit<ReadableEmail, keyof EmailComputedFields> 
   preview: string;
 };
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.2 */
 export type EmailGetDefaultProperties =
   | Exclude<keyof EmailBase, "headers">
   | Exclude<keyof EmailComputedFields, "bodyStructure">;
 
 export namespace EmailGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.2 */
   export interface Input extends MethodGet.Input<ReadableEmail> {
     bodyProperties?: (keyof EmailBodyPart)[] | null;
     fetchTextBodyValues?: boolean;
@@ -348,6 +374,7 @@ export namespace EmailGet {
 }
 
 export namespace EmailChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.3 */
   export interface Input extends MethodChanges.Input {}
   export interface Output extends MethodChanges.Output {}
   export interface Contract {
@@ -356,6 +383,7 @@ export namespace EmailChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.4.1 */
 export interface EmailFilter {
   inMailbox: string;
   inMailboxOtherThan: string[];
@@ -379,6 +407,7 @@ export interface EmailFilter {
   header: [string, string?];
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.4.2 */
 export type EmailComparator =
   | Comparator<ReadableEmail>
   | {
@@ -389,6 +418,7 @@ export type EmailComparator =
     };
 
 export namespace EmailQuery {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.4 */
   export interface Input extends Omit<MethodQuery.Input<ReadableEmail, EmailFilter>, "sort"> {
     sort?: readonly EmailComparator[] | null;
     collapseThreads?: boolean;
@@ -401,6 +431,7 @@ export namespace EmailQuery {
 }
 
 export namespace EmailQueryChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.5 */
   export interface Input extends Omit<
     MethodQueryChanges.Input<ReadableEmail, EmailFilter>,
     "sort"
@@ -415,12 +446,14 @@ export namespace EmailQueryChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-10.6.3 */
 export interface EmailBlobNotFoundError extends SetError<WritableEmail> {
   type: "blobNotFound";
   notFound: string[];
 }
 
 export namespace EmailSet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.6 */
   export interface Input extends MethodSet.Input<ReadableEmail, WritableEmail, EmailUpdate> {}
   export interface Output extends MethodSet.Output<ReadableEmail, EmailCopyResult> {
     notCreated?: Record<string, SetError<WritableEmail> & { notFound?: string[] }> | null;
@@ -431,9 +464,11 @@ export namespace EmailSet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.7 */
 export type EmailCopyResult = Pick<ReadableEmail, "id" | "blobId" | "threadId" | "size">;
 
 export namespace EmailCopy {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.7 */
   export interface Input extends MethodCopy.Input<
     Pick<ReadableEmail, "id"> &
       Partial<Pick<ReadableEmail, "mailboxIds" | "keywords" | "receivedAt">>
@@ -446,6 +481,7 @@ export namespace EmailCopy {
 }
 
 export namespace EmailImport {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.8 */
   export interface Input {
     accountId: string;
     ifInState?: string | null;
@@ -464,6 +500,7 @@ export namespace EmailImport {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.9 */
 export type ParsedEmail<Args = {}> = Omit<
   EmailForArgs<Args>,
   "id" | "mailboxIds" | "keywords" | "receivedAt" | "threadId"
@@ -495,6 +532,7 @@ export type EmailParseDefaultProperties =
   | "attachments";
 
 export namespace EmailParse {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.9 */
   export interface Input extends Pick<
     EmailGet.Input,
     | "bodyProperties"
@@ -525,6 +563,7 @@ export namespace EmailParse {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-5 */
 export interface SearchSnippet {
   emailId: string;
   subject: string | null;
@@ -532,6 +571,7 @@ export interface SearchSnippet {
 }
 
 export namespace SearchSnippetGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-5.1 */
   type BaseInput = Pick<MethodQuery.Input<ReadableEmail, EmailFilter>, "accountId" | "filter">;
 
   export interface Input extends BaseInput {
@@ -548,6 +588,7 @@ export namespace SearchSnippetGet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-6 */
 export interface Identity {
   id: string;
   name: string;
@@ -560,6 +601,7 @@ export interface Identity {
 }
 
 export namespace IdentityGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-6.1 */
   export interface Input extends MethodGet.Input<Identity> {}
   export interface Output<Args> extends MethodGet.Output<Identity, Args> {}
   export interface Contract {
@@ -569,6 +611,7 @@ export namespace IdentityGet {
 }
 
 export namespace IdentityChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-6.2 */
   export interface Input extends MethodChanges.Input {}
   export interface Output extends MethodChanges.Output {}
   export interface Contract {
@@ -577,14 +620,17 @@ export namespace IdentityChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-6.3 */
 export type WritableIdentity = WithoutProperties<"id" | "mayDelete"> &
   Pick<Identity, "email"> &
   Partial<Omit<Identity, "id" | "email" | "mayDelete">>;
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-6.3 */
 export type IdentityUpdate = Omit<Identity, "id" | "email" | "mayDelete"> &
   WithoutProperties<"id" | "email" | "mayDelete">;
 
 export namespace IdentitySet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-6.3 */
   export interface Input extends MethodSet.Input<Identity, WritableIdentity, IdentityUpdate> {}
   export interface Output extends MethodSet.Output<Identity> {}
   export interface Contract {
@@ -593,8 +639,10 @@ export namespace IdentitySet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7 */
 export type UndoStatus = "pending" | "final" | "canceled";
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7 */
 export interface EmailSubmission {
   id: string;
   identityId: string;
@@ -610,17 +658,20 @@ export interface EmailSubmission {
   mdnBlobIds: string[];
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7 */
 export interface DeliveryStatus {
   smtpReply: string;
   delivered: "queued" | "yes" | "no" | "unknown";
   displayed: "unknown" | "yes";
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7.5 */
 export interface SubmissionEnvelope {
   mailFrom: SubmissionAddress;
   rcptTo: SubmissionAddress[];
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7.5 */
 export interface SubmissionAddress {
   email: string;
   parameters?: {
@@ -629,6 +680,7 @@ export interface SubmissionAddress {
 }
 
 export namespace EmailSubmissionGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-7.1 */
   export interface Input extends MethodGet.Input<EmailSubmission> {}
   export interface Output<Args> extends MethodGet.Output<EmailSubmission, Args> {}
   export interface Contract {
@@ -638,6 +690,7 @@ export namespace EmailSubmissionGet {
 }
 
 export namespace EmailSubmissionChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-7.2 */
   export interface Input extends MethodChanges.Input {}
   export interface Output extends MethodChanges.Output {}
   export interface Contract {
@@ -646,6 +699,7 @@ export namespace EmailSubmissionChanges {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7.3 */
 export interface EmailSubmissionFilter {
   identityIds: string[];
   emailIds: string[];
@@ -655,9 +709,11 @@ export interface EmailSubmissionFilter {
   after: string;
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-7.3 */
 export type EmailSubmissionComparator = Comparator<EmailSubmission & { sentAt: string }>;
 
 export namespace EmailSubmissionQuery {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-7.3 */
   export interface Input extends Omit<
     MethodQuery.Input<EmailSubmission, EmailSubmissionFilter>,
     "sort"
@@ -672,6 +728,7 @@ export namespace EmailSubmissionQuery {
 }
 
 export namespace EmailSubmissionQueryChanges {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-7.4 */
   export interface Input extends Omit<
     MethodQueryChanges.Input<EmailSubmission, EmailSubmissionFilter>,
     "sort"
@@ -692,6 +749,7 @@ export type WritableEmailSubmission = WithoutProperties<
   Partial<Pick<EmailSubmission, "envelope">>;
 
 export namespace EmailSubmissionSet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-7.5 */
   export interface Input extends MethodSet.Input<
     EmailSubmission,
     WritableEmailSubmission,
@@ -707,6 +765,7 @@ export namespace EmailSubmissionSet {
   }
 }
 
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-8 */
 export interface VacationResponse {
   id: "singleton";
   isEnabled: boolean;
@@ -718,6 +777,7 @@ export interface VacationResponse {
 }
 
 export namespace VacationResponseGet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-8.1 */
   export interface Input extends MethodGet.Input<VacationResponse> {}
   export interface Output<Args> extends MethodGet.Output<VacationResponse, Args> {}
   export interface Contract {
@@ -727,6 +787,7 @@ export namespace VacationResponseGet {
 }
 
 export namespace VacationResponseSet {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-8.2 */
   export interface Input extends Pick<
     MethodSet.Input<VacationResponse, never, Omit<VacationResponse, "id">>,
     "accountId" | "ifInState"
