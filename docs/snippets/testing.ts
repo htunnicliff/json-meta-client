@@ -121,8 +121,10 @@ try {
     capabilities: ["mail"],
   });
   const query = client.api.Email.query({ limit: 1 });
-  const get = client.api.Email.get({ ids: query.resultRef("/ids"), properties: ["id", "subject"] });
-  const [, emails] = await Promise.all([query, get]);
+  const emails = await client.api.Email.get({
+    ids: query.resultRef("/ids"),
+    properties: ["id", "subject"],
+  });
   assert.equal(emails.list[0]?.subject, "Hello");
   assert.equal(batches, 1);
 

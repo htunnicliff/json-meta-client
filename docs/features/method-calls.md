@@ -45,7 +45,7 @@ requesting everything at once.
 
 When a query supplies the IDs for a get, use a result reference to run both in
 one request. Create the query first, pass its reference to the get, and then
-await both calls together:
+await the get:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -60,11 +60,10 @@ const query = client.api.Email.query({
   filter: { notKeyword: "$seen" },
   limit: 10,
 });
-const get = client.api.Email.get({
+const emails = await client.api.Email.get({
   ids: query.resultRef("/ids"),
   properties: ["id", "subject"],
 });
-const [, emails] = await Promise.all([query, get]);
 console.log(emails.list);
 ```
 
@@ -142,7 +141,7 @@ const client = new JsonMetaClient({
 const parent = client.api.Mailbox.set({
   create: { project: { name: "Project" } },
 });
-const child = client.api.Mailbox.set({
+const children = await client.api.Mailbox.set({
   create: {
     tasks: {
       name: "Tasks",
@@ -150,11 +149,6 @@ const child = client.api.Mailbox.set({
     },
   },
 });
-const [parents, children] = await Promise.all([
-  parent,
-  child,
-]);
-console.log(parents.created!.project!.id);
 console.log(children.created!.tasks!.id);
 ```
 

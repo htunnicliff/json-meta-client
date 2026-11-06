@@ -24,9 +24,10 @@ still be unsupported by the selected account. The
 
 ## Let dependencies determine request boundaries
 
-Independent reads can share a request. Create them together, then await them
-with `Promise.all`. If one call needs IDs from another, a result reference lets
-the server resolve that dependency within the same request.
+Independent reads can share a request. Create them together, then await the
+results you use; `Promise.all` helps when you need several. If one call needs
+IDs from another, a result reference lets the server resolve that dependency
+within the same request, and only the final call needs an `await`.
 
 A shared request is not a transaction. One method can succeed while another
 fails, and `Promise.all` does not cancel its siblings when it rejects. When

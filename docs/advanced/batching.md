@@ -67,17 +67,15 @@ const client = new JsonMetaClient({
   capabilities: ["mail"],
 });
 
-const mailboxes = await client.isolated(async (api) => {
+const mailboxes = await client.isolated((api) => {
   const query = api.Mailbox.query({
     filter: { role: "inbox" },
     limit: 1,
   });
-  const get = api.Mailbox.get({
+  return api.Mailbox.get({
     ids: query.resultRef("/ids"),
     properties: ["id", "name"],
   });
-  const [, result] = await Promise.all([query, get]);
-  return result;
 });
 console.log(mailboxes.list);
 ```
