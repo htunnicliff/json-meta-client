@@ -31,7 +31,10 @@ declare module "../extensions.ts" {
  * @see https://www.rfc-editor.org/info/rfc8620/#section-2
  */
 export interface Session {
-  capabilities: SessionCapabilities;
+  capabilities: Partial<SessionCapabilities> &
+    Pick<SessionCapabilities, "urn:ietf:params:jmap:core"> & {
+      [uri: string]: object;
+    };
   accounts: { [id: string]: Account };
   primaryAccounts: { [urn: string]: string };
   username: string;
@@ -50,13 +53,17 @@ export interface Account {
   name: string;
   isPersonal: boolean;
   isReadOnly: boolean;
-  accountCapabilities: AccountCapabilities;
+  accountCapabilities: Partial<AccountCapabilities> & { [uri: string]: object };
 }
 
 /**
  * @see https://www.rfc-editor.org/info/rfc8620/#section-3.2
  */
-export type Invocation<T = unknown> = [name: string, argsOrResponse: T, methodCallId: string];
+export type Invocation<T extends object = object> = [
+  name: string,
+  argsOrResponse: T,
+  methodCallId: string,
+];
 
 /** @see https://www.rfc-editor.org/info/rfc8620/#section-3.3 */
 export interface Request {
@@ -72,7 +79,7 @@ export interface Response {
   createdIds?: Record<string, string>;
 }
 
-/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.5 */
+/** @see https://www.rfc-editor.org/info/rfc8620/#section-3.7 */
 export interface ResultReference {
   resultOf: string;
   name: string;
@@ -82,6 +89,7 @@ export interface ResultReference {
 /** @see https://www.rfc-editor.org/info/rfc8620/#section-3.6 */
 export interface ProblemDetails {
   type: string;
+  title?: string;
   status?: number;
   detail?: string;
   instance?: string;
@@ -185,7 +193,7 @@ export namespace MethodSet {
 
   export interface Output<T extends object, Created extends object = Partial<T> & { id: string }> {
     accountId: string;
-    oldState: string | null;
+    oldState?: string | null;
     newState: string;
     created?: Record<string, Created> | null;
     updated?: Record<string, Partial<T> | null> | null;
@@ -196,10 +204,10 @@ export namespace MethodSet {
   }
 }
 
-export interface SetError<T = Record<string, unknown>> {
+export interface SetError {
   type: string;
   description?: string | null;
-  properties?: ReadonlyArray<keyof T>;
+  properties?: ReadonlyArray<string>;
   existingId?: string;
 }
 
@@ -210,7 +218,7 @@ export namespace MethodCopy {
     ifFromInState?: string | null;
     accountId: string;
     ifInState?: string | null;
-    create: Record<string, T>;
+    create: Record<string, Pick<T, "id"> & Partial<Omit<T, "id">>>;
     onSuccessDestroyOriginal?: boolean;
     destroyFromIfInState?: string | null;
   }
@@ -218,7 +226,7 @@ export namespace MethodCopy {
   export interface Output<T, Created extends object = Partial<T> & { id: string }> {
     fromAccountId: string;
     accountId: string;
-    oldState: string | null;
+    oldState?: string | null;
     newState: string;
     created?: Record<string, Created> | null;
     notCreated?: Record<string, SetError> | null;
@@ -329,7 +337,7 @@ export namespace FileDownload {
 export namespace CoreEcho {
   /** @see https://www.rfc-editor.org/info/rfc8620/#section-4 */
   export interface Contract {
-    input: any;
+    input: Record<string, unknown>;
     output: this["input"];
   }
 }
@@ -378,7 +386,11 @@ export namespace PushSubscriptionGet {
 export namespace PushSubscriptionSet {
   /** @see https://www.rfc-editor.org/info/rfc8620/#section-7.2.2 */
   export interface Input extends Omit<
-    MethodSet.Input<PushSubscription, PushSubscriptionCreate>,
+    MethodSet.Input<
+      PushSubscription,
+      PushSubscriptionCreate,
+      Pick<PushSubscription, "verificationCode" | "expires" | "types">
+    >,
     "accountId" | "ifInState"
   > {}
 
@@ -402,7 +414,9 @@ export interface PushSubscription {
   types?: string[] | null;
 }
 
-export interface PushSubscriptionCreate extends Omit<PushSubscription, "id"> {
+export interface PushSubscriptionCreate extends Omit<PushSubscription, "id" | "verificationCode"> {
+  id?: never;
+  verificationCode?: null;
   url: string;
   keys?: {
     p256dh: string;

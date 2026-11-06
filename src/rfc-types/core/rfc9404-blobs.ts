@@ -25,9 +25,27 @@ declare module "../extensions.ts" {
 
 /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
 export type DataSourceObject =
-  | { "data:asText": string }
-  | { "data:asBase64": string }
-  | { blobId: string; offset?: number | null; length?: number };
+  | {
+      "data:asText": string | null;
+      "data:asBase64"?: never;
+      blobId?: never;
+      offset?: never;
+      length?: never;
+    }
+  | {
+      "data:asBase64": string | null;
+      "data:asText"?: never;
+      blobId?: never;
+      offset?: never;
+      length?: never;
+    }
+  | {
+      blobId: string;
+      offset?: number | null;
+      length?: number | null;
+      "data:asText"?: never;
+      "data:asBase64"?: never;
+    };
 
 /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */
 export interface UploadObject {
@@ -77,7 +95,7 @@ export namespace BlobGet {
   /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.2 */
   export interface Input {
     accountId: string;
-    ids: readonly string[];
+    ids?: readonly string[] | null;
     properties?: readonly BlobGetProperties[] | null;
     offset?: number | null;
     length?: number | null;
