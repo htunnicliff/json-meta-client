@@ -30,7 +30,7 @@ const result = await client.api.Mailbox.query({
 console.log(result.ids[0] ?? "No inbox found");
 ```
 
-Follow the [first-request tutorial](https://json-meta-client.dev/) for runtime
+Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
 requirements and a complete walkthrough. The manual also includes
 [mail recipes](https://json-meta-client.dev/examples),
 [authentication options](https://json-meta-client.dev/features/authentication),

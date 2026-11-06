@@ -27,7 +27,7 @@ export default defineConfig({
     },
     // https://vitepress.dev/reference/default-theme-config
     nav: [
-      { text: "Getting Started", link: "/" },
+      { text: "Getting Started", link: "/getting-started" },
       { text: "API Reference", link: "/reference/api" },
       { text: "JMAP Standard", link: "https://jmap.io/" },
     ],
@@ -35,7 +35,7 @@ export default defineConfig({
       {
         text: "Getting Started",
         items: [
-          { text: "Your First Request", link: "/" },
+          { text: "Your First Request", link: "/getting-started" },
           { text: "Application Design", link: "/best-practices" },
           { text: "Testing", link: "/testing" },
           { text: "Mail Recipes", link: "/examples" },

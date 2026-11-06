@@ -6,7 +6,7 @@ that serves a session, accepts a batched query and get, and then returns a
 method failure. All requests stay inside the process.
 
 Use Node.js 26 and install `json-meta-client` in your project as shown in the
-[first-request tutorial](./index.md). The fixture uses Node's built-in assertion
+[first-request tutorial](./getting-started.md). The fixture uses Node's built-in assertion
 module and needs no test runner.
 
 ## 1. Set up a standalone test

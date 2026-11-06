@@ -1,7 +1,7 @@
 # Mail recipes
 
 Use these recipes when you know the mail operation you want to perform. If you
-are connecting for the first time, start with the [first-request tutorial](./index.md).
+are connecting for the first time, start with the [first-request tutorial](./getting-started.md).
 Each TypeScript block is a complete module. Replace the session URL, token,
 and uppercase ID placeholders with values from your provider and account.
 

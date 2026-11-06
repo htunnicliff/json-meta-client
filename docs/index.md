@@ -1,116 +1,44 @@
-# Your first JMAP request
+---
+layout: home
 
-json-meta-client is a TypeScript [JMAP](https://jmap.io/) client. JMAP is the
-protocol used by mail servers to expose messages, mailboxes, and other account
-data. You call methods such as `Mailbox.get()` in JavaScript; the client sends
-the corresponding JMAP requests and gives you typed results.
+hero:
+  name: JSON Meta Client
+  text: A typed JMAP client for your application.
+  tagline: Work with mail, contacts, and server extensions in TypeScript. Built for Node.js and modern browsers, with automatic batching and typed results.
+  actions:
+    - theme: brand
+      text: Make your first request
+      link: /getting-started
+    - theme: alt
+      text: API reference
+      link: /reference/api
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/htunnicliff/json-meta-client
 
-In this tutorial, you will connect to a mail account and print the name of its
-inbox. The example only reads data.
-
-## Before you begin
-
-You need your provider's JMAP session URL and a bearer token that can read your
-mail account. The provider must support the JMAP Mail capability. The client
-uses the session URL you supply; it cannot find a provider from an email address.
-
-Use Node.js 26 for this walkthrough. The repository builds and tests with
-Node.js 26.13.0. The package is ESM and relies on modern web APIs, including
-`fetch`, `Request`, `Response`, `Blob`, and `Promise.withResolvers`, without
-providing polyfills. It also works in modern browsers; the
-[browser setup guide](./features/authentication.md#run-in-a-browser) covers
-imports and server access there.
-
-## Install the package
-
-In your project directory, run:
-
-```sh
-pnpm add json-meta-client
-```
-
-## Connect and find your inbox
-
-Create a file named `first-request.mts` with the code below. Replace
-`https://jmap.example.com/.well-known/jmap` with your provider's session URL and
-`YOUR_ACCESS_TOKEN` with your token. Keep the token out of source control.
-
-```ts [first-request.mts]
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
-});
-
-const session = await client.session;
-const mail = "urn:ietf:params:jmap:mail";
-const accountId = session.primaryAccounts[mail];
-if (
-  !session.capabilities[mail] ||
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[mail]
-) {
-  throw new Error("A primary mail account is required");
-}
-
-const matches = await client.api.Mailbox.query({
-  accountId,
-  filter: { role: "inbox" },
-  limit: 1,
-});
-const inboxId = matches.ids[0];
-if (!inboxId) throw new Error("No inbox was found");
-
-const mailboxes = await client.api.Mailbox.get({
-  accountId,
-  ids: [inboxId],
-  properties: ["id", "name"],
-});
-const inbox = mailboxes.list[0];
-if (!inbox)
-  throw new Error("The inbox is no longer readable");
-
-console.log(inbox.id, inbox.name);
-```
-
-Run the file:
-
-```sh
-node first-request.mts
-```
-
-You should see an inbox ID followed by its name. The name comes from the server
-and may be something other than “Inbox”. If the request fails, the
-[error reference](./reference/errors.md) explains how to distinguish a connection
-failure from a rejected JMAP method.
-
-## What happened
-
-Reading `client.session` fetched the server's session document. That document
-covers the available accounts and the URLs used for later requests. The
-example chose the primary mail account and checked that both the server and
-that account advertise mail support.
-
-`Mailbox.query` then found a mailbox by its `inbox` role. A query returns IDs,
-so the example passed the first ID to `Mailbox.get` to read the mailbox's name.
-The `properties` array asked for just the fields the example uses; TypeScript
-reflects that selection in the result type.
-
-These calls ran in separate requests because the example awaited the query
-before creating the get call. You can also let the server pass IDs between
-calls in one request, using a [result reference](./features/method-calls.md#reference-a-previous-result).
-
-## Continue from here
-
-To read messages rather than mailboxes, follow the
-[unread-mail recipe](./examples.md#list-unread-emails). The
-[method call guide](./features/method-calls.md) shows how to select fields,
-update objects, and link dependent calls.
-
-When you are ready to build an application, read about
-[accounts and capabilities](./features/capabilities.md),
-[application design](./best-practices.md), and
-[testing without a server](./testing.md). Exact signatures and defaults are in
-the [API reference](./reference/api.md).
+features:
+  - title: Typed method calls
+    details: Call JMAP methods with typed arguments and results. Select the properties you need and get result types that reflect your selection.
+    link: /features/method-calls
+    linkText: Make method calls
+  - title: Automatic batching
+    details: Queue calls together in one request and pass results between them with JMAP result references. Use isolated queues when work needs its own batch.
+    link: /advanced/batching
+    linkText: Control request batches
+  - title: Choose your capabilities
+    details: Configure built-in support for mail, submission, contacts, and more. Check server and account capabilities before using a feature.
+    link: /features/capabilities
+    linkText: Choose capabilities and accounts
+  - title: State change events
+    details: Subscribe to server-sent state changes, then fetch changes for the affected data. Dispose of subscriptions when their owner finishes.
+    link: /features/events
+    linkText: Listen for changes
+  - title: Blob transfers
+    details: Upload attachments and download blobs through the URLs advertised by your JMAP server, using the client's authentication.
+    link: /features/blobs
+    linkText: Transfer files
+  - title: Server extensions
+    details: Describe custom capabilities and method contracts for your server. Keep typed arguments, results, and metadata alongside the built-in capabilities.
+    link: /advanced/extending
+    linkText: Add an extension
+---
