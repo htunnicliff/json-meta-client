@@ -13,8 +13,10 @@ words:
   - htunnicliff
   - importmap
   - JMAP
+  - jscontact
   - microtask
   - microtasks
+  - notjunk
   - oxfmt
   - oxlint
   - protobufjs
@@ -25,6 +27,8 @@ words:
   - tsgolint
   - tunnicliff
   - unstub
+  - webpush
+  - vacationresponse
   - zizmor
   - zizmorcore
 ignorePaths:
