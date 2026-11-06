@@ -1,6 +1,7 @@
 version: "0.2"
 language: en
 words:
+  - actioned
   - badheaders
   - Batchable
   - capnweb
@@ -14,21 +15,26 @@ words:
   - importmap
   - JMAP
   - jscontact
+  - mattpocock
   - microtask
   - microtasks
   - notjunk
   - oxfmt
   - oxlint
+  - pocock
   - protobufjs
   - pyzor
   - reqheaders
   - rocksdb
   - stalwartlabs
+  - triaging
   - tsgolint
   - tunnicliff
   - unstub
-  - webpush
   - vacationresponse
+  - wayfinder
+  - Wayfinding
+  - webpush
   - zizmor
   - zizmorcore
 ignorePaths:
