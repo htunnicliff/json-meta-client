@@ -55,7 +55,7 @@ export namespace QuotaChanges {
   export interface Input extends MethodChanges.Input {}
 
   export interface Output extends MethodChanges.Output {
-    updatedProperties: string[] | null;
+    updatedProperties?: string[] | null;
     [key: string]: unknown;
   }
 
@@ -67,10 +67,10 @@ export namespace QuotaChanges {
 
 /** @see https://www.rfc-editor.org/info/rfc9425/#section-4.4 */
 export interface QuotaFilter {
-  name: string;
-  scope: string;
-  resourceType: QuotaResourceType;
-  type: string;
+  name?: string;
+  scope?: string;
+  resourceType?: string;
+  type?: string;
 }
 
 export namespace QuotaQuery {
