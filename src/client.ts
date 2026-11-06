@@ -8,16 +8,6 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type {
-  BlobDownloadParams,
-  BlobUploadParams,
-  BlobUploadResponse,
-  EventSourceArguments,
-  Request as JMAPRequest,
-  Response as JMAPResponse,
-  ProblemDetails,
-  StateChange,
-} from "jmap-rfc-types";
 import type { SetOptional, SetRequired } from "type-fest";
 
 import type { DefaultCapabilities } from "./built-ins.ts";
@@ -42,6 +32,15 @@ import { MethodCallResult } from "./internal/method-call-result.ts";
 import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type {
+  FileDownload,
+  FileUpload,
+  EventSourceArguments,
+  Request as JMAPRequest,
+  Response as JMAPResponse,
+  ProblemDetails,
+  StateChange,
+} from "./rfc-types/core/index.ts";
 import type {
   CapabilityOption,
   ClientApi,
@@ -127,13 +126,13 @@ export class JsonMetaClient<
      */
     upload: async (
       body: BodyInit,
-      params: SetOptional<BlobUploadParams, "accountId"> = {},
-    ): Promise<BlobUploadResponse> => {
+      params: SetOptional<FileUpload.Params, "accountId"> = {},
+    ): Promise<FileUpload.Result> => {
       const session = await this.session;
       const url = expandURITemplate(session.uploadUrl, {
         accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
       });
-      const data = await this.#fetchJson<BlobUploadResponse>(url, {
+      const data = await this.#fetchJson<FileUpload.Result>(url, {
         method: "POST",
         body,
       });
@@ -142,7 +141,7 @@ export class JsonMetaClient<
     /**
      * Download a blob
      */
-    download: async (params: SetOptional<BlobDownloadParams, "accountId">): Promise<Response> => {
+    download: async (params: SetOptional<FileDownload.Params, "accountId">): Promise<Response> => {
       const session = await this.session;
       const url = expandURITemplate(session.downloadUrl, {
         ...params,
@@ -163,12 +162,16 @@ export class JsonMetaClient<
     const { pingSeconds = 30, signal } = options;
     const session = await this.session;
     const primaryAccountId = session.primaryAccounts[mail.urn]!;
-    const url = expandURITemplate(session.eventSourceUrl, {
+    const eventSourceArguments: EventSourceArguments = {
       types: "*",
       // spellchecker:disable-next-line
       closeafter: "no",
-      ping: pingSeconds.toFixed(0),
-    } satisfies EventSourceArguments);
+      ping: pingSeconds,
+    };
+    const url = expandURITemplate(session.eventSourceUrl, {
+      ...eventSourceArguments,
+      ping: eventSourceArguments.ping.toFixed(0),
+    });
     const { createEventSource } = await import("eventsource-client");
 
     const eventSource = createEventSource({
@@ -287,7 +290,7 @@ export class JsonMetaClient<
   /**
    * The primary "flush" function that processes pending batch jobs
    */
-  #processQueuedMethodCalls: Flush<MethodCall<unknown>> = async (jobs) => {
+  #processQueuedMethodCalls: Flush<MethodCall<object>> = async (jobs) => {
     try {
       const methodCalls = jobs.map((b) => b.payload);
 
@@ -315,7 +318,7 @@ export class JsonMetaClient<
         body: JSON.stringify(request),
       });
 
-      const resultsById = new Map<string, MethodCallResult<unknown>[]>();
+      const resultsById = new Map<string, MethodCallResult<object>[]>();
       for (const invocation of response.methodResponses) {
         const result = new MethodCallResult(invocation);
         const results = resultsById.get(result.id);

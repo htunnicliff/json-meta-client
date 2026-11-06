@@ -8,9 +8,9 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { ExtendedJSONPointer, ResultReference } from "jmap-rfc-types";
 import type { IsUnknown } from "type-fest";
 
+import type { ResultReference } from "../rfc-types/core/index.ts";
 import type { ExtractByPointer, PointerPaths } from "./types.ts";
 
 const refSymbol: unique symbol = Symbol("ref");
@@ -25,9 +25,7 @@ export type Ref<T = unknown> = ResultReference & {
 };
 
 export type ResultRefFn<Output> = <
-  const Pointer extends (IsUnknown<Output> extends true
-    ? ExtendedJSONPointer
-    : PointerPaths<Output>),
+  const Pointer extends (IsUnknown<Output> extends true ? `/${string}` : PointerPaths<Output>),
 >(
   pointer: Pointer,
 ) => Ref<ExtractByPointer<Output, Pointer>>;

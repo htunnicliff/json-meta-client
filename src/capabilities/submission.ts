@@ -8,36 +8,40 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { EmailSubmissionContracts, IdentityContracts } from "jmap-rfc-types/contracts";
-
 import type { Capability } from "../capability.ts";
+import type { AccountCapabilities } from "../rfc-types/extensions.ts";
+import type {
+  EmailSubmissionChanges,
+  EmailSubmissionGet,
+  EmailSubmissionQuery,
+  EmailSubmissionQueryChanges,
+  EmailSubmissionSet,
+  IdentityChanges,
+  IdentityGet,
+  IdentitySet,
+} from "../rfc-types/mail/index.ts";
 
 /**
  * Account limits and SMTP extensions advertised by the JMAP Submission capability.
  *
  * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3.2
  */
-export interface SubmissionAccountCapabilities {
-  /** Maximum send delay in seconds; zero means delayed sending is unsupported. */
-  maxDelayedSend: number;
-  /** SMTP extension names mapped to their argument lists. */
-  submissionExtensions: Record<string, string[]>;
-}
+export type SubmissionAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:submission"];
 
 export const submission: Capability<
   "Identity" | "EmailSubmission",
   {
     Identity: {
-      get: IdentityContracts.Get.Contract;
-      set: IdentityContracts.Set.Contract;
-      changes: IdentityContracts.Changes.Contract;
+      get: IdentityGet.Contract;
+      set: IdentitySet.Contract;
+      changes: IdentityChanges.Contract;
     };
     EmailSubmission: {
-      get: EmailSubmissionContracts.Get.Contract;
-      set: EmailSubmissionContracts.Set.Contract;
-      query: EmailSubmissionContracts.Query.Contract;
-      queryChanges: EmailSubmissionContracts.QueryChanges.Contract;
-      changes: EmailSubmissionContracts.Changes.Contract;
+      get: EmailSubmissionGet.Contract;
+      set: EmailSubmissionSet.Contract;
+      query: EmailSubmissionQuery.Contract;
+      queryChanges: EmailSubmissionQueryChanges.Contract;
+      changes: EmailSubmissionChanges.Contract;
     };
   },
   "urn:ietf:params:jmap:submission",

@@ -8,10 +8,12 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Response as JmapResponse, Session } from "jmap-rfc-types";
 import nock from "nock";
 
 import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
+import { core } from "../capabilities/core.ts";
+import type { CoreSessionCapabilities } from "../capabilities/core.ts";
+import type { Response as JmapResponse, Session } from "../rfc-types/core/index.ts";
 
 export const host = "https://example.test";
 
@@ -33,9 +35,21 @@ const accountCapabilities = Object.fromEntries(
 const primaryAccounts = Object.fromEntries(
   Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, accountId]),
 );
-const capabilities = Object.fromEntries(
-  Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, {}]),
-);
+export const coreSessionCapabilities: CoreSessionCapabilities = {
+  maxSizeUpload: 50_000_000,
+  maxConcurrentUpload: 4,
+  maxSizeRequest: 10_000_000,
+  maxConcurrentRequests: 4,
+  maxCallsInRequest: 16,
+  maxObjectsInGet: 256,
+  maxObjectsInSet: 128,
+  collationAlgorithms: [],
+};
+
+const capabilities = {
+  ...Object.fromEntries(Object.values(BUILT_IN_CAPABILITIES).map((c) => [c.urn, {}])),
+  [core.urn]: coreSessionCapabilities,
+};
 
 export function makeSession(): Session {
   return {

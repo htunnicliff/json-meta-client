@@ -8,9 +8,8 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Session } from "jmap-rfc-types";
-
 import { mail } from "../../capabilities/mail.ts";
+import type { Session } from "../../rfc-types/core/index.ts";
 import type { Middleware } from "../types.ts";
 
 export function injectAccountId(getSession: () => Session): Middleware {

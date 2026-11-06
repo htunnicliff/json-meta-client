@@ -10,7 +10,7 @@
 
 // cspell:words smime smimeverify
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:smimeverify": {};
   }
@@ -41,7 +41,7 @@ export interface EmailSmimeProperties {
   smimeVerifiedAt: string | null;
 }
 
-declare module "./rfc8621-mail.ts" {
+declare module "./rfc8621-mail.js" {
   // These server-set properties are returned only when explicitly requested.
   export interface ReadableEmail extends EmailSmimeProperties {}
 

@@ -58,7 +58,6 @@ describe("session capability details", () => {
   it("allows a shared account to support contacts without supporting mail", () => {
     const session = {
       ...makeSession(),
-      capabilities: {},
       accounts: {
         shared: {
           name: "Shared contacts",
@@ -104,7 +103,7 @@ describe("session capability details", () => {
       void sessionDetails.undeclaredVendorField;
     }
 
-    expectTypeOf(session.capabilities["urn:example:other"]).toBeUnknown();
+    expectTypeOf(session.capabilities["urn:example:other"]).toEqualTypeOf<object | undefined>();
     expectTypeOf(await client.refreshSession()).toEqualTypeOf(session);
   });
 

@@ -10,7 +10,7 @@
 
 import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
 
-declare module "../extensions.ts" {
+declare module "../extensions.js" {
   export interface SessionCapabilities {
     "urn:ietf:params:jmap:core": {
       maxSizeUpload: number;

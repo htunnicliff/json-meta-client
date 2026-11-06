@@ -8,9 +8,8 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { ProblemDetails } from "jmap-rfc-types";
-
 import type { MethodCall } from "../internal/method-call.ts";
+import type { ProblemDetails } from "../rfc-types/core/index.ts";
 import { JsonMetaError } from "./json-meta-error.ts";
 import { UnknownError } from "./unknown-error.ts";
 
@@ -25,9 +24,9 @@ export class JmapError extends JsonMetaError implements ProblemDetails {
   readonly limit?: string;
   readonly methodCallId?: string;
   readonly status?: number;
-  readonly methodCall?: MethodCall<unknown>;
+  readonly methodCall?: MethodCall<object>;
 
-  constructor(message: string, cause: unknown, options: { methodCall?: MethodCall<unknown> } = {}) {
+  constructor(message: string, cause: unknown, options: { methodCall?: MethodCall<object> } = {}) {
     super(message, { cause });
     this.methodCall = options.methodCall;
     if (JmapError.isProblemDetails(cause)) {

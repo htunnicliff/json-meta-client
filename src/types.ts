@@ -8,7 +8,6 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Session as JmapSession } from "jmap-rfc-types";
 import type { UnionToIntersection } from "type-fest";
 
 import type {
@@ -19,6 +18,7 @@ import type {
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
 import type { Augment, Middleware } from "./internal/types.ts";
+import type { Session as JmapSession } from "./rfc-types/core/index.ts";
 
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   /**
