@@ -1,99 +1,200 @@
-# Your first JMAP request
+# Getting Started
 
-json-meta-client is a TypeScript [JMAP](https://jmap.io/) client. JMAP is the
-protocol used by mail servers to expose messages, mailboxes, and other account
-data. You call methods such as `Mailbox.get()` in JavaScript; the client sends
-the corresponding JMAP requests and gives you typed results.
+## Installation
 
-In this tutorial, you will connect to a mail account and print the name of its
-inbox. The example only reads data.
+Install the library using a package manager:
 
-## Before you begin
+::: code-group
 
-You need your provider's JMAP session URL and a bearer token that can read your
-mail account. The provider must support the JMAP Mail capability. The client
-uses the session URL you supply; it cannot find a provider from an email address.
-
-Use Node.js 26 for this walkthrough. The repository builds and tests with
-Node.js 26.13.0. The package is ESM and relies on modern web APIs, including
-`fetch`, `Request`, `Response`, `Blob`, and `Promise.withResolvers`, without
-providing polyfills. It also works in modern browsers; the
-[browser setup guide](./features/authentication.md#run-in-a-browser) covers
-imports and server access there.
-
-## Install the package
-
-In your project directory, run:
-
-```sh
+```sh [pnpm]
 pnpm add json-meta-client
 ```
 
-## Connect and find your inbox
+```sh [npm]
+npm add json-meta-client
+```
 
-Create a file named `first-request.mts` with the code below. Replace
-`https://jmap.example.com/.well-known/jmap` with your provider's session URL and
-`YOUR_ACCESS_TOKEN` with your token. Keep the token out of source control.
+```sh [yarn]
+yarn add json-meta-client
+```
 
-```ts [first-request.mts]
+```sh [bun]
+bun add json-meta-client
+```
+
+```sh [deno]
+deno add json-meta-client
+```
+:::
+
+Or install it using a module script:
+
+<script setup>
+import { data as pkg } from './pkg.data.ts'
+
+const { version } = pkg;
+const installPath = pkg.exports['.'].replace('./', '');
+const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
+</script>
+
+::: code-group
+
+```html-vue [Script ~vscode-icons:file-type-html~]
+<script type="module">
+  import { JsonMetaClient } from "{{cdnUrl}}";
+</script>
+```
+
+```html-vue [Import Map ~vscode-icons:file-type-light-json~]
+<html>
+  <head>
+    <script type="importmap">
+      {
+        "imports": {
+          "json-meta-client": "{{cdnUrl}}",
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      import { JsonMetaClient } from "json-meta-client";
+    </script>
+  </body>
+</html>
+```
+
+:::
+
+## Configuration
+
+Configure a client with authentication, a session URL, and capabilities:
+
+```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
-  capabilities: ["mail"],
+  auth: { token: "<token>" },
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: ["mail", "submission"],
 });
+```
 
-const matches = await client.api.Mailbox.query({
+Clients support both Bearer and Basic authentication schemes.
+
+For other kinds of authentication (e.g. a proxy header), a custom callback can
+be used to modify fetch requests as needed. See
+[Authentication](./features/authentication.md) for more examples.
+
+## Usage
+
+Find the inbox:
+
+::: code-group
+
+```ts [example.ts]
+const mailboxes = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
-const inboxId = matches.ids[0]!;
 
-const mailboxes = await client.api.Mailbox.get({
-  ids: [inboxId],
-  properties: ["id", "name"],
+const [inboxId] = mailboxes.list;
+```
+
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
+  "methodCalls": [
+    [
+      "Mailbox/query",
+      {
+        "filter": { "role": "inbox" },
+        "limit": 1,
+        "accountId": "<accountId>"
+      },
+      "Mailbox/query::e64dc905"
+    ]
+  ]
+}
+```
+
+:::
+
+Get the first ten unread emails in the inbox:
+
+::: code-group
+
+```ts [example.ts]
+const query = client.api.Email.query({
+  filter: { inMailbox: inboxId },
+  limit: 10,
 });
-const inbox = mailboxes.list[0]!;
 
-console.log(inbox.id, inbox.name);
+const emails = await client.api.Email.get({
+  ids: query.resultRef("/ids"),
+  properties: ["id", "to", "from", "subject", "sentAt"],
+});
+
+for (const email of emails.list) {
+  // ...
+}
 ```
 
-Run the file:
-
-```sh
-node first-request.mts
+```json [request.json]
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
+  "methodCalls": [
+    [
+      "Email/query",
+      {
+        "filter": { "inMailbox": "<inboxId>" },
+        "limit": 10,
+        "accountId": "<accountId>"
+      },
+      "Email/query::d1ca7ea5"
+    ],
+    [
+      "Email/get",
+      {
+        "#ids": {
+          "name": "Email/query",
+          "resultOf": "Email/query::68ed8b27",
+          "path": "/ids"
+        },
+        "properties": [
+          "id",
+          "to",
+          "from",
+          "subject",
+          "sentAt"
+        ],
+        "accountId": "<accountId>"
+      },
+      "Email/get::a4f7a29b"
+    ]
+  ]
+}
 ```
 
-You should see an inbox ID followed by its name. The name comes from the server
-and may be something other than “Inbox”. If the request fails, the
-[error reference](./reference/errors.md) explains how to distinguish a connection
-failure from a rejected JMAP method.
+:::
 
-## What happened
+## Next Steps
 
-The first method call fetched the server's session document. That document
-covers the available accounts and the URLs used for later requests. Because the
-example does not pass an `accountId`, the client used the primary mail account.
-
-`Mailbox.query` then found a mailbox by its `inbox` role. A query returns IDs,
-so the example passed the first ID to `Mailbox.get` to read the mailbox's name.
-The `properties` array asked for just the fields the example uses; TypeScript
-reflects that selection in the result type.
-
-These calls ran in separate requests because the example awaited the query
-before creating the get call. You can also let the server pass IDs between
-calls in one request, using a [result reference](./features/method-calls.md#reference-a-previous-result).
-
-## Continue from here
-
-To read messages rather than mailboxes, follow the
-[unread-mail example](./examples.md#list-unread-emails). The
-[method call guide](./features/method-calls.md) shows how to select fields,
-update objects, and link dependent calls.
-
-When you are ready to build an application, read about
-[accounts and capabilities](./features/capabilities.md),
-[application design](./best-practices.md), and
-[testing without a server](./testing.md). Exact signatures and defaults are in
-the [API reference](./reference/api.md).
+| I want to...                            | Read                                       |
+| --------------------------------------- | ------------------------------------------ |
+| Make JMAP requests                      | [Method Calls](./features/method-calls.md) |
+| Listen for state changes                | [Events](./features/events.md)             |
+| Upload and download files               | [Blobs](./features/blobs.md)               |
+| Do things the _right way™_              | [Best Practices](./best-practices.md)      |
+| Test with this library                  | [Testing](./testing.md)                    |
+| Understand the API                      | [API](./reference/api.md)                  |
+| Handle failures                         | [Errors](./reference/errors.md)            |
+| Understand how method calls are batched | [Batching](./advanced/batching.md)         |
+| Define custom capabilities              | [Extending](./advanced/extending.md)       |
+| Hook into the request lifecycle         | [Hooks](./advanced/hooks.md)               |
