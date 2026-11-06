@@ -389,7 +389,8 @@ export class JsonMetaClient<
         request.headers.set("authorization", `Bearer ${auth.token}`);
       } else {
         const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
-        const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+        const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
+        const encoded = btoa(binString);
         request.headers.set("authorization", `Basic ${encoded}`);
       }
       for (const hook of this.#config.hooks?.beforeRequest ?? []) {
