@@ -44,33 +44,17 @@ const client = new JsonMetaClient({
   capabilities: ["mail"],
 });
 
-const session = await client.session;
-const mail = "urn:ietf:params:jmap:mail";
-const accountId = session.primaryAccounts[mail];
-if (
-  !session.capabilities[mail] ||
-  !accountId ||
-  !session.accounts[accountId]?.accountCapabilities[mail]
-) {
-  throw new Error("A primary mail account is required");
-}
-
 const matches = await client.api.Mailbox.query({
-  accountId,
   filter: { role: "inbox" },
   limit: 1,
 });
-const inboxId = matches.ids[0];
-if (!inboxId) throw new Error("No inbox was found");
+const inboxId = matches.ids[0]!;
 
 const mailboxes = await client.api.Mailbox.get({
-  accountId,
   ids: [inboxId],
   properties: ["id", "name"],
 });
-const inbox = mailboxes.list[0];
-if (!inbox)
-  throw new Error("The inbox is no longer readable");
+const inbox = mailboxes.list[0]!;
 
 console.log(inbox.id, inbox.name);
 ```
@@ -88,10 +72,9 @@ failure from a rejected JMAP method.
 
 ## What happened
 
-Reading `client.session` fetched the server's session document. That document
-covers the available accounts and the URLs used for later requests. The
-example chose the primary mail account and checked that both the server and
-that account advertise mail support.
+The first method call fetched the server's session document. That document
+covers the available accounts and the URLs used for later requests. Because the
+example does not pass an `accountId`, the client used the primary mail account.
 
 `Mailbox.query` then found a mailbox by its `inbox` role. A query returns IDs,
 so the example passed the first ID to `Mailbox.get` to read the mailbox's name.

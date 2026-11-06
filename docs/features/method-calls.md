@@ -6,8 +6,8 @@ determine the methods TypeScript exposes; [choose those capabilities](./capabili
 before following the examples below.
 
 Most object operations follow the same pattern: `query` finds IDs, `get` reads
-objects, and `set` creates, updates, or destroys them. The examples use an
-explicit `ACCOUNT_ID`; replace it with an account selected from your session.
+objects, and `set` creates, updates, or destroys them. The examples omit
+`accountId`, so the client uses the primary mail account.
 
 ## Read the fields you need
 
@@ -23,18 +23,11 @@ const client = new JsonMetaClient({
 });
 
 const result = await client.api.Email.get({
-  accountId: "ACCOUNT_ID",
   ids: ["EMAIL_ID"],
   properties: ["id", "subject", "from"],
 });
 for (const email of result.list) {
   console.log(email.id, email.subject, email.from);
-}
-if (result.notFound?.length) {
-  console.warn(
-    "Messages are no longer readable",
-    result.notFound,
-  );
 }
 ```
 
@@ -64,12 +57,10 @@ const client = new JsonMetaClient({
 });
 
 const query = client.api.Email.query({
-  accountId: "ACCOUNT_ID",
   filter: { notKeyword: "$seen" },
   limit: 10,
 });
 const get = client.api.Email.get({
-  accountId: "ACCOUNT_ID",
   ids: query.resultRef("/ids"),
   properties: ["id", "subject"],
 });
@@ -121,18 +112,11 @@ const client = new JsonMetaClient({
 });
 const mailboxId = "MAILBOX_ID";
 const result = await client.api.Mailbox.set({
-  accountId: "ACCOUNT_ID",
   update: { [mailboxId]: { isSubscribed: true } },
 });
 
 const failure = result.notUpdated?.[mailboxId];
 if (failure) throw new Error(JSON.stringify(failure));
-if (
-  !result.updated ||
-  !Object.hasOwn(result.updated, mailboxId)
-) {
-  throw new Error("The server did not confirm the update");
-}
 console.log("Subscribed to", mailboxId);
 ```
 
@@ -156,11 +140,9 @@ const client = new JsonMetaClient({
   capabilities: ["mail"],
 });
 const parent = client.api.Mailbox.set({
-  accountId: "ACCOUNT_ID",
   create: { project: { name: "Project" } },
 });
 const child = client.api.Mailbox.set({
-  accountId: "ACCOUNT_ID",
   create: {
     tasks: {
       name: "Tasks",
@@ -172,15 +154,8 @@ const [parents, children] = await Promise.all([
   parent,
   child,
 ]);
-if (!parents.created?.project || !children.created?.tasks) {
-  throw new Error(
-    JSON.stringify({
-      parent: parents.notCreated,
-      child: children.notCreated,
-    }),
-  );
-}
-console.log(children.created.tasks.id);
+console.log(parents.created!.project!.id);
+console.log(children.created!.tasks!.id);
 ```
 
 `parent.createdRef("project")` returns `"#project"`. It checks that `project`

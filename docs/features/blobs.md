@@ -11,7 +11,7 @@ configure file transfers.
 
 ## Upload bytes, then read them back
 
-Choose an account that allows the transfer. Pass a typed `Blob` or `File` so
+Both helpers use the primary mail account. Pass a typed `Blob` or `File` so
 `fetch` can set the intended media type. This example uploads a short text file,
 then downloads it using the returned blob ID:
 
@@ -23,18 +23,14 @@ const client = new JsonMetaClient({
   auth: { token: "YOUR_ACCESS_TOKEN" },
   capabilities: ["mail"],
 });
-const accountId = "ACCOUNT_ID";
 const file = new Blob(["Report contents\n"], {
   type: "text/plain",
 });
 
-const uploaded = await client.blob.upload(file, {
-  accountId,
-});
+const uploaded = await client.blob.upload(file);
 console.log(uploaded.blobId, uploaded.type, uploaded.size);
 
 const response = await client.blob.download({
-  accountId,
   blobId: uploaded.blobId,
   name: "report.txt",
   type: uploaded.type,

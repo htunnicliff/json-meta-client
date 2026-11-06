@@ -1,6 +1,6 @@
 ::: code-group
 
-```ts {16} [Your code]
+```ts {14} [Your code]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -10,12 +10,10 @@ const client = new JsonMetaClient({
 });
 
 const unread = client.api.Email.query({
-  accountId: "ACCOUNT_ID",
   filter: { notKeyword: "$seen" },
   limit: 5,
 });
 const emails = client.api.Email.get({
-  accountId: "ACCOUNT_ID",
   ids: unread.resultRef("/ids"),
   properties: ["subject", "from"],
 });

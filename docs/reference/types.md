@@ -55,11 +55,10 @@ const client = new JsonMetaClient(options);
 const session: ClientSession<typeof options.capabilities> =
   await client.session;
 const sieve =
-  session.capabilities["urn:ietf:params:jmap:sieve"];
-if (sieve) console.log(sieve.implementation);
+  session.capabilities["urn:ietf:params:jmap:sieve"]!;
+console.log(sieve.implementation);
 
 const result = await client.api.Email.get({
-  accountId: "ACCOUNT_ID",
   ids: ["EMAIL_ID"],
   properties: ["id", "subject"],
 });

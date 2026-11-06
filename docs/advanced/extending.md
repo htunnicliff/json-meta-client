@@ -51,22 +51,15 @@ const client = new JsonMetaClient({
 });
 
 const session = await client.session;
-const accountId = session.primaryAccounts[notes.urn];
-const account = accountId
-  ? session.accounts[accountId]
-  : undefined;
+const accountId = session.primaryAccounts[notes.urn]!;
 const accountDetails =
-  account?.accountCapabilities[notes.urn];
-const serverDetails = session.capabilities[notes.urn];
-if (!accountId || !accountDetails || !serverDetails) {
-  throw new Error(
-    "A notes server and account are required",
-  );
-}
+  session.accounts[accountId]!.accountCapabilities[
+    notes.urn
+  ]!;
+const serverDetails = session.capabilities[notes.urn]!;
 console.log(serverDetails.version, accountDetails.maxNotes);
 
 const result = await client.api.Note.get({
-  accountId,
   ids: ["NOTE_ID"],
 });
 for (const note of result.list) console.log(note.title);
@@ -77,9 +70,10 @@ and session metadata, in that order. Both metadata types default to `unknown`.
 The builder accepts no runtime method implementations; it preserves the literal
 URI and entity names in a descriptor containing `urn` and `entities`.
 
-Check advertised support before reading metadata. A declared metadata type does
-not guarantee the server returned it. Pass `accountId` explicitly for extension
-methods: omitting it uses the primary mail account, even for a notes method.
+A declared metadata type does not guarantee the server returned it, so the
+session types keep it optional. When you omit `accountId`, the client uses the
+primary mail account, even for a notes method. Pass `accountId` when the notes
+account differs from the mail account.
 
 Built-in keys can appear alongside descriptors in `capabilities`. Use those keys
 rather than importing internal built-in descriptors or RFC modules; the public
@@ -164,9 +158,7 @@ const client = new JsonMetaClient({
   capabilities: [vendor],
 });
 
-const result = await client.api.Vendor.inspect!({
-  accountId: "ACCOUNT_ID",
-});
+const result = await client.api.Vendor.inspect!({});
 if (
   typeof result === "object" &&
   result !== null &&

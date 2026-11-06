@@ -21,12 +21,10 @@ const client = new JsonMetaClient({
 
 const [mailboxes, unread] = await Promise.all([
   client.api.Mailbox.get({
-    accountId: "ACCOUNT_ID",
     ids: null,
     properties: ["id", "name"],
   }),
   client.api.Email.query({
-    accountId: "ACCOUNT_ID",
     filter: { notKeyword: "$seen" },
     limit: 10,
   }),
@@ -71,12 +69,10 @@ const client = new JsonMetaClient({
 
 const mailboxes = await client.isolated(async (api) => {
   const query = api.Mailbox.query({
-    accountId: "ACCOUNT_ID",
     filter: { role: "inbox" },
     limit: 1,
   });
   const get = api.Mailbox.get({
-    accountId: "ACCOUNT_ID",
     ids: query.resultRef("/ids"),
     properties: ["id", "name"],
   });
@@ -119,23 +115,13 @@ const client = new JsonMetaClient({
 });
 const core = (await client.session).capabilities[
   "urn:ietf:params:jmap:core"
-];
-if (
-  !core ||
-  core.maxObjectsInGet < 1 ||
-  core.maxCallsInRequest < 1
-) {
-  throw new Error(
-    "The server did not advertise usable request limits",
-  );
-}
+]!;
 
 const ids = ["EMAIL_ID_1", "EMAIL_ID_2"];
 const size = core.maxObjectsInGet;
 for (let offset = 0; offset < ids.length; offset += size) {
   const result = await client.isolated((api) =>
     api.Email.get({
-      accountId: "ACCOUNT_ID",
       ids: ids.slice(offset, offset + size),
       properties: ["id", "subject"],
     }),

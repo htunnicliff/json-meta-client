@@ -27,7 +27,7 @@ const result = await client.api.Mailbox.query({
   filter: { role: "inbox" },
   limit: 1,
 });
-console.log(result.ids[0] ?? "No inbox found");
+console.log(result.ids[0]);
 ```
 
 Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
