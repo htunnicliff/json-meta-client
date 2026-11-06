@@ -1,11 +1,11 @@
 ::: code-group
 
-```ts {14} [Your code]
+```ts [TypeScript ~vscode-icons:file-type-typescript~]
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "YOUR_ACCESS_TOKEN" },
+  auth: { token: "********" },
   capabilities: ["mail"],
 });
 
@@ -13,29 +13,37 @@ const unread = client.api.Email.query({
   filter: { notKeyword: "$seen" },
   limit: 5,
 });
-const emails = client.api.Email.get({
+
+const emails = await client.api.Email.get({
   ids: unread.resultRef("/ids"),
   properties: ["subject", "from"],
 });
 
-for (const email of (await emails).list) {
-  console.log(email.subject);
+for (const { subject, from } of emails.list) {
+  console.log(subject, from);
 }
 ```
 
-```json {13-17} [Sent to the server]
+```json [JMAP Request ~vscode-icons:file-type-light-json~]
 {
-  "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:mail"
+  ],
   "methodCalls": [
     [
       "Email/query",
-      { "accountId": "ACCOUNT_ID", "filter": { "notKeyword": "$seen" }, "limit": 5 },
+      {
+        "accountId": "********",
+        "filter": { "notKeyword": "$seen" },
+        "limit": 5
+      },
       "Email/query::3fa9c01b"
     ],
     [
       "Email/get",
       {
-        "accountId": "ACCOUNT_ID",
+        "accountId": "********",
         "#ids": {
           "name": "Email/query",
           "resultOf": "Email/query::3fa9c01b",

@@ -3,7 +3,7 @@ import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-i
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  title: "JSON Meta Client",
+  title: "json-meta-client",
   description: "A JMAP client compatible with Node.js and the browser",
   lastUpdated: true,
   lang: "en-US",

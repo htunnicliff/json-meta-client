@@ -14,7 +14,7 @@ export default {
   Layout: () => {
     return h(DefaultTheme.Layout, null, {
       // https://vitepress.dev/guide/extending-default-theme#layout-slots
-      "home-hero-after": () => h(HomeRequest),
+      "home-features-after": () => h(HomeRequest),
     });
   },
   enhanceApp(_options) {

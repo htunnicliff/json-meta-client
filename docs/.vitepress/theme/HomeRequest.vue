@@ -5,11 +5,8 @@ import Example from "../../snippets/home-request.md";
 <template>
   <section class="home-request">
     <div class="container">
-      <h2 class="heading">Two calls, one request</h2>
-      <p class="lede">
-        Calls made together travel in a single JMAP request. The server passes the query's IDs
-        straight to <code>Email/get</code>, so there is no second round trip.
-      </p>
+      <h2 class="heading">Multiple calls in one request</h2>
+      <p class="lede">Calls made together travel in a single JMAP request, without a round-trip.</p>
       <div class="vp-doc">
         <Example />
       </div>
@@ -25,7 +22,8 @@ import Example from "../../snippets/home-request.md";
 
 .container {
   max-width: 1152px;
-  margin: 0 auto;
+  margin-block-start: 2rem;
+  margin-inline: auto;
 }
 
 .heading {
