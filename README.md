@@ -1,8 +1,7 @@
 # json-meta-client
 
-[![CI](https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml/badge.svg)](https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml)
-[![npm](https://img.shields.io/npm/v/json-meta-client)](https://www.npmjs.com/package/json-meta-client)
-[![License](https://img.shields.io/npm/l/json-meta-client)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
+[![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge)](./LICENSE)
 
 ## Introduction
 
