@@ -4,16 +4,23 @@
 These docs are not yet complete.
 :::
 
+These examples use the `client` configured in
+[Introduction](./getting-started.md#configuration), and each builds on the
+values found by the examples before it.
+
 ## Get the session
+
+The client fetches the session once and caches it. Call `refreshSession()`
+to fetch it again, for example after the server reports a new session state.
 
 ::: code-group
 
 ```ts [example.ts]
 // Get the current session (cached)
-await client.session;
+const session = await client.session;
 
 // Get a fresh session
-await client.refreshSession();
+const freshSession = await client.refreshSession();
 ```
 
 :::
@@ -32,7 +39,7 @@ const getMailboxes = await client.api.Mailbox.get({
   properties: ["id", "name"],
 });
 
-const [inboxId] = getMailboxes.list;
+const inboxId = getMailboxes.list[0]!.id;
 
 for (const mailbox of getMailboxes.list) {
   console.log(mailbox.id, mailbox.name);
@@ -131,13 +138,7 @@ for (const email of getEmails.list) {
           "resultOf": "Email/query::6f7adf07",
           "path": "/ids"
         },
-        "properties": [
-          "to",
-          "from",
-          "subject",
-          "sentAt",
-          "keywords"
-        ],
+        "properties": ["from", "subject", "sentAt"],
         "accountId": "*********"
       },
       "Email/get::c2ef5d19"
@@ -166,8 +167,8 @@ const [mailboxes, identities] = await Promise.all([
   }),
 ]);
 
-const draftMailboxId = mailboxes.ids[0];
-const identity = identities.list[0];
+const draftMailboxId = mailboxes.ids[0]!;
+const identity = identities.list[0]!;
 ```
 
 ```json [request.json]
@@ -228,8 +229,10 @@ const draft = client.api.Email.set({
       mailboxIds: { [draftMailboxId]: true },
 
       // Typical email fields
-      from: [{ email: identity.email }],
-      to: [{ email: "someone@example.com" }],
+      from: [
+        { name: identity.name, email: identity.email },
+      ],
+      to: [{ name: null, email: "someone@example.com" }],
       subject: "Hi there",
 
       // Set the body
@@ -237,7 +240,6 @@ const draft = client.api.Email.set({
         [bodyId]: {
           value:
             "Hello there!\nI hope you are well.\nBest,\nMe",
-          charset: "utf-8",
         },
       },
       textBody: [
@@ -279,13 +281,22 @@ await client.api.EmailSubmission.set({
           "draft": {
             "keywords": { "$draft": true },
             "mailboxIds": { "P2k": true },
-            "from": [{ "email": "****************" }],
-            "to": [{ "email": "someone@example.com" }],
+            "from": [
+              {
+                "name": "****",
+                "email": "****************"
+              }
+            ],
+            "to": [
+              {
+                "name": null,
+                "email": "someone@example.com"
+              }
+            ],
             "subject": "Hi there",
             "bodyValues": {
               "body": {
-                "value": "Hello there!\nI hope you are well.\nBest,\nMe",
-                "charset": "utf-8"
+                "value": "Hello there!\nI hope you are well.\nBest,\nMe"
               }
             },
             "textBody": [

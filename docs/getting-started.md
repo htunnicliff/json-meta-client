@@ -23,7 +23,7 @@ bun add json-meta-client
 ```
 
 ```sh [deno]
-deno add json-meta-client
+deno add npm:json-meta-client
 ```
 :::
 
@@ -51,7 +51,7 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
     <script type="importmap">
       {
         "imports": {
-          "json-meta-client": "{{cdnUrl}}",
+          "json-meta-client": "{{cdnUrl}}"
         }
       }
     </script>
@@ -98,7 +98,7 @@ const mailboxes = await client.api.Mailbox.query({
   limit: 1,
 });
 
-const [inboxId] = mailboxes.list;
+const inboxId = mailboxes.ids[0]!;
 ```
 
 ```json [request.json]
@@ -164,7 +164,7 @@ for (const email of emails.list) {
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::68ed8b27",
+          "resultOf": "Email/query::d1ca7ea5",
           "path": "/ids"
         },
         "properties": [

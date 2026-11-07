@@ -5,7 +5,7 @@ import ts from "typescript";
 
 const root = process.cwd();
 const output = path.join(root, ".temp", "docs-snippets");
-const sources = new Map();
+const fence = /^```(?:ts|typescript)(?:[^\S\n][^\n]*)?\n([\s\S]*?)^```/gm;
 
 async function markdownFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -20,50 +20,68 @@ async function markdownFiles(directory) {
   return nested.flat();
 }
 
+/**
+ * Turns a page into one module holding its TypeScript fences in reading
+ * order, so later examples can use what earlier ones declared. Every other
+ * line is blanked, keeping line numbers equal to the Markdown source.
+ */
+function pageModule(contents) {
+  const lines = contents.split("\n").map(() => "");
+  let fences = 0;
+  for (const match of contents.matchAll(fence)) {
+    const start = contents.slice(0, match.index).split("\n").length;
+    match[1].split("\n").forEach((line, offset) => (lines[start + offset] = line));
+    fences++;
+  }
+  // `export {}` keeps pages without imports from sharing one global scope.
+  return { fences, source: `${lines.join("\n")}\nexport {};\n` };
+}
+
 await rm(output, { recursive: true, force: true });
-await mkdir(output, { recursive: true });
 try {
   const markdown = [
     path.join(root, "README.md"),
     ...(await markdownFiles(path.join(root, "docs"))),
   ];
+  const pageByModule = new Map();
   let count = 0;
-  const documents = await Promise.all(
-    markdown.map(async (file) => ({ file, contents: await readFile(file, "utf8") })),
+  await Promise.all(
+    markdown.map(async (file) => {
+      const { fences, source } = pageModule(await readFile(file, "utf8"));
+      if (!fences) return;
+      count += fences;
+      const page = path.relative(root, file);
+      const module = path.join(output, `${page}.mts`);
+      pageByModule.set(module, page);
+      await mkdir(path.dirname(module), { recursive: true });
+      await writeFile(module, source);
+    }),
   );
-  const writes = [];
-  for (const { file, contents } of documents) {
-    // Each TypeScript fence is an independent, complete public-package example.
-    for (const match of contents.matchAll(
-      /^```(?:ts|typescript)(?:[^\S\n][^\n]*)?\n([\s\S]*?)^```/gm,
-    )) {
-      const name = path.join(output, `example-${++count}.mts`);
-      const line = contents.slice(0, match.index).split("\n").length;
-      sources.set(name, `${path.relative(root, file)}:${line}`);
-      writes.push(writeFile(name, match[1]));
-    }
-  }
-  await Promise.all(writes);
   // Included examples are checked from their actual files, avoiding a second copy.
   const snippets = (await readdir(path.join(root, "docs", "snippets")))
     .filter((name) => name.endsWith(".ts"))
     .map((name) => path.join(root, "docs", "snippets", name));
-  const program = ts.createProgram([...sources.keys(), ...snippets], {
-    target: ts.ScriptTarget.ESNext,
-    module: ts.ModuleKind.NodeNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
-    strict: true,
-    noUncheckedIndexedAccess: true,
-    noEmit: true,
-    skipLibCheck: true,
-    types: ["node"],
-  });
+  const program = ts.createProgram(
+    [path.join(root, "scripts", "docs-client.ts"), ...pageByModule.keys(), ...snippets],
+    {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      strict: true,
+      noUncheckedIndexedAccess: true,
+      noEmit: true,
+      skipLibCheck: true,
+      types: ["node"],
+    },
+  );
   const diagnostics = ts.getPreEmitDiagnostics(program);
   for (const diagnostic of diagnostics) {
     let location = "";
     if (diagnostic.file && diagnostic.start !== undefined) {
       const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-      location = `${sources.get(diagnostic.file.fileName) ?? path.relative(root, diagnostic.file.fileName)} (snippet ${line + 1}:${character + 1}): `;
+      const file =
+        pageByModule.get(diagnostic.file.fileName) ?? path.relative(root, diagnostic.file.fileName);
+      location = `${file}:${line + 1}:${character + 1}: `;
     }
     console.error(
       `${location}TS${diagnostic.code}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`,
@@ -73,7 +91,7 @@ try {
   if (diagnostics.length) process.exitCode = 1;
   else
     console.log(
-      `Checked ${count} TypeScript fences and ${snippets.length} included snippets against public package exports.`,
+      `Checked ${count} TypeScript fences on ${pageByModule.size} pages and ${snippets.length} included snippets against public package exports.`,
     );
 } finally {
   await rm(output, { recursive: true, force: true });

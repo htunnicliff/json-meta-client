@@ -11,7 +11,7 @@ The library is alpha software; its API may change between releases.
 pnpm add json-meta-client
 ```
 
-Supply your provider's JMAP session URL and a token authorised to read mail.
+Supply your provider's JMAP session URL and a token authorized to read mail.
 This example uses the primary mail account to find its inbox:
 
 ```ts
@@ -33,7 +33,7 @@ console.log(result.ids[0]);
 Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
 requirements and a complete walkthrough. The manual also includes
 [examples](https://json-meta-client.dev/examples),
-[authentication options](https://json-meta-client.dev/features/authentication),
+[authentication options](https://json-meta-client.dev/reference/api#authentication),
 and an [API reference](https://json-meta-client.dev/reference/api).
 
 Licensed under [MPL-2.0](./LICENSE).
