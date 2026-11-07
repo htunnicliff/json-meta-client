@@ -1,18 +1,40 @@
 # json-meta-client
 
-A TypeScript [JMAP](https://jmap.io/) client for Node.js and browsers. Call your
-server's methods through a typed API, combine calls in one request, and pass
-results between them without another round trip. The client also handles blob
-transfers and state-change subscriptions.
+[![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
+[![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8)](./LICENSE)
+
+## Introduction
+
+json-meta-client is a TypeScript [JMAP](https://jmap.io/) client for Node.js
+and browsers.
+
+With json-meta-client, you call your server's methods through a typed API.
+Calls made together are sent as one request, and results flow between them
+without another round trip.
+
+It features:
+
+- Typed method calls for core, mail, contacts, and more
+- Automatic batching of method calls into one request
+- Result references between calls in a batch
+- Blob uploads and downloads
+- Subscriptions to server state changes
+- Extensions for new capabilities and methods
+- Comprehensive error classes
+- Built and tested against the JMAP RFCs
+
+...and a lot more.
 
 The library is alpha software; its API may change between releases.
+
+View full documentation and examples on
+[json-meta-client.dev](https://json-meta-client.dev).
+
+## Quick Start
 
 ```sh
 pnpm add json-meta-client
 ```
-
-Supply your provider's JMAP session URL and a token authorized to read mail.
-This example uses the primary mail account to find its inbox:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -23,17 +45,28 @@ const client = new JsonMetaClient({
   capabilities: ["mail"],
 });
 
-const result = await client.api.Mailbox.query({
-  filter: { role: "inbox" },
-  limit: 1,
+const unread = client.api.Email.query({
+  filter: { notKeyword: "$seen" },
+  limit: 5,
 });
-console.log(result.ids[0]);
+
+const emails = await client.api.Email.get({
+  ids: unread.resultRef("/ids"),
+  properties: ["subject", "from"],
+});
+
+for (const { subject, from } of emails.list) {
+  console.log(subject, from);
+}
 ```
 
-Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
-requirements and a complete walkthrough. The manual also includes
-[examples](https://json-meta-client.dev/examples),
-[authentication options](https://json-meta-client.dev/reference/api#authentication),
-and an [API reference](https://json-meta-client.dev/reference/api).
+In this example, `Email/query` finds up to five unread emails, and `Email/get`
+reads their subjects and senders. The client sends both calls in a single
+request, passing the query's IDs to `Email/get` with a result reference.
 
-Licensed under [MPL-2.0](./LICENSE).
+Follow the [getting started guide](https://json-meta-client.dev/getting-started)
+for runtime requirements and a complete walkthrough.
+
+## License
+
+The [MPL-2.0 License](./LICENSE).
