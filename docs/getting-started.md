@@ -84,7 +84,7 @@ Clients support both Bearer and Basic authentication schemes.
 
 For other kinds of authentication (e.g. a proxy header), a custom callback can
 be used to modify fetch requests as needed. See
-[Authentication](./features/authentication.md) for more examples.
+[Authentication](./reference/api.md#authentication) for more examples.
 
 ## Usage
 

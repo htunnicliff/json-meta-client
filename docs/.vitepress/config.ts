@@ -46,7 +46,6 @@ export default defineConfig({
       {
         text: "Features",
         items: [
-          { text: "Authentication", link: "/features/authentication" },
           { text: "Method Calls", link: "/features/method-calls" },
           { text: "Capabilities", link: "/features/capabilities" },
           { text: "Events", link: "/features/events" },
