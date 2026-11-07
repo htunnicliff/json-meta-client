@@ -59,6 +59,7 @@ export default defineConfig({
           { text: "Capabilities", link: "/reference/capabilities" },
           { text: "Errors", link: "/reference/errors" },
           { text: "Types", link: "/reference/types" },
+          { text: "RFCs", link: "/reference/rfcs" },
         ],
       },
       {

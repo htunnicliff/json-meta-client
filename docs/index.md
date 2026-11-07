@@ -45,6 +45,6 @@ features:
 
   - title: Built to Spec
     details: Rigorously built and tested against the official JMAP standards
-    link: https://github.com/htunnicliff/json-meta-client/tree/main/src/rfc-types
-    linkText: View RFC types
+    link: /reference/rfcs
+    linkText: View RFCs
 ---
