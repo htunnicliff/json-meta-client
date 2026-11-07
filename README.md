@@ -1,7 +1,7 @@
 # json-meta-client
 
 [![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
-[![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge)](./LICENSE)
+[![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8)](./LICENSE)
 
 ## Introduction
 
