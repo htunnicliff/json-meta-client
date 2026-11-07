@@ -1,6 +1,6 @@
 /**
  * Airmail red and blue brand colors, with pale beige in place of the light
- * grays in light mode; everything else uses the stock theme.
+ * grays in light mode and beige text in dark mode; everything else uses the stock theme.
  * https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css
  */
 
@@ -27,6 +27,9 @@
 }
 
 .dark {
+  --vp-c-text-1: #f0e9d8;
+  --vp-c-text-2: rgba(240, 230, 205, 0.64);
+  --vp-c-text-3: rgba(240, 230, 205, 0.42);
   --vp-c-brand-1: #ff7080;
   --vp-c-brand-2: #f0505f;
   --vp-c-brand-3: #c8283a;
