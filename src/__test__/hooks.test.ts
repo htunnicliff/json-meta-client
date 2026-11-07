@@ -36,7 +36,7 @@ describe("Fetch hooks", () => {
     const client = new JsonMetaClient({
       sessionUrl,
       capabilities: [],
-      auth: { token: "token" },
+      auth: "token",
       hooks: {
         beforeFetch: [
           async ({ request }) => {
@@ -109,7 +109,7 @@ describe("JMAP envelope hooks", () => {
       });
     const client = new JsonMetaClient({
       sessionUrl,
-      auth: { token: "token" },
+      auth: "token",
       capabilities: [],
       middleware: [(args) => ({ ...Object(args), middleware: true })],
       hooks: {
@@ -293,7 +293,7 @@ it.each([
     const client = new JsonMetaClient({
       sessionUrl,
       capabilities: [],
-      auth: { token: "token" },
+      auth: "token",
       hooks: { afterEventSourceConnect: [afterConnect] },
     });
     const subscription = await client.onStateChange(
@@ -334,7 +334,7 @@ it.each(["beforeJmapRequest", "afterJmapResponse"] as const)(
     const client = new JsonMetaClient({
       sessionUrl,
       capabilities: [],
-      auth: { token: "token" },
+      auth: "token",
       hooks: {
         [phase]: [
           async () => {
@@ -362,7 +362,7 @@ it("preserves request-hook error wrapping and response-hook error identity", asy
   const before = new JsonMetaClient({
     sessionUrl,
     capabilities: [],
-    auth: { token: "token" },
+    auth: "token",
     hooks: {
       beforeFetch: [
         async () => {
@@ -376,7 +376,7 @@ it("preserves request-hook error wrapping and response-hook error identity", asy
   const after = new JsonMetaClient({
     sessionUrl,
     capabilities: [],
-    auth: { token: "token" },
+    auth: "token",
     hooks: {
       afterFetch: [
         async () => {
@@ -394,7 +394,7 @@ it("allows afterFetch to repair HTTP errors before validation and JSON parsing",
   const client = new JsonMetaClient({
     sessionUrl,
     capabilities: [],
-    auth: { token: "token" },
+    auth: "token",
     hooks: {
       afterFetch: [
         ({ response }) => {
@@ -418,7 +418,7 @@ it("does not report a connection for HTTP 204 or retry after server closure", as
   const client = new JsonMetaClient({
     sessionUrl,
     capabilities: [],
-    auth: { token: "token" },
+    auth: "token",
     hooks: { afterEventSourceConnect: [afterConnect] },
   });
   const subscription = await client.onStateChange(handler);
@@ -449,7 +449,7 @@ it.each(["beforeEventSourceConnect", "afterEventSourceConnect"] as const)(
     const client = new JsonMetaClient({
       sessionUrl,
       capabilities: [],
-      auth: { token: "token" },
+      auth: "token",
       hooks: {
         [phase]: [
           async () => {
@@ -504,7 +504,7 @@ it("does not report a connection failure when the subscription is aborted", asyn
   vi.stubGlobal("fetch", fetchMock);
   const controller = new AbortController();
   const handler = vi.fn<OnStateChangeHandler>();
-  const client = new JsonMetaClient({ sessionUrl, capabilities: [], auth: { token: "token" } });
+  const client = new JsonMetaClient({ sessionUrl, capabilities: [], auth: "token" });
   const subscription = await client.onStateChange(handler, { signal: controller.signal });
   try {
     await fetching.promise;

@@ -27,7 +27,7 @@ describe("authentication", () => {
       auth: { username: "üser", password: "päss:word" },
       authorization: "Basic w7xzZXI6cMOkc3M6d29yZA==",
     },
-    { auth: { token: "token" }, authorization: "Bearer token" },
+    { auth: "token", authorization: "Bearer token" },
   ])("authenticates every transport with $authorization", async ({ auth, authorization }) => {
     const scope = nock(host, {
       reqheaders: { authorization },
@@ -225,14 +225,11 @@ describe("authentication", () => {
   it.each([
     undefined,
     null,
-    "token",
+    "",
+    "  ",
     42,
     [],
     {},
-    { token: "" },
-    { token: "  " },
-    { token: null },
-    { token: 42 },
     { username: "user" },
     { password: "pass" },
     { username: "", password: "pass" },
@@ -241,11 +238,6 @@ describe("authentication", () => {
     { username: 42, password: "pass" },
     { username: "user", password: null },
     { username: "user", password: 42 },
-    { token: "token", username: "user" },
-    { token: "token", password: "pass" },
-    { token: "token", username: "user", password: "pass" },
-    { token: undefined, username: "user", password: "pass" },
-    { token: "token", username: undefined },
   ])("rejects invalid credentials during construction: %j", (auth) => {
     expect(
       () =>

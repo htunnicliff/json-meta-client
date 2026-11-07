@@ -27,11 +27,10 @@ import type {
 /** Mutate the outgoing request before request hooks; async callbacks are awaited. */
 export type AuthCallback = (args: { request: Request }) => void | Promise<void>;
 
-/** Bearer, Basic, or custom authentication for every transport. */
-export type Auth =
-  | AuthCallback
-  | { token: string; username?: never; password?: never }
-  | { username: string; password: string; token?: never };
+/**
+ * Bearer token string, Basic credentials, or a custom callback, applied on every transport.
+ */
+export type Auth = AuthCallback | string | { username: string; password: string };
 
 export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   /**

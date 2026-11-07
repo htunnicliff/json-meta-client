@@ -5,7 +5,7 @@ import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: { token: "********" },
+  auth: "********",
   capabilities: ["mail"],
 });
 

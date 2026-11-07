@@ -69,7 +69,7 @@ const archive = defineCapability({
 
 const client = new JsonMetaClient({
   sessionUrl: "https://example.test/jmap",
-  auth: { token: "token" },
+  auth: "token",
   capabilities: [mail, notes, archive],
 });
 
@@ -113,7 +113,7 @@ describe("public custom capability authoring", () => {
     const unknown = defineCapability({ urn: "urn:example:unknown", entities: ["Unknown"] });
     const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
-      auth: { token: "token" },
+      auth: "token",
       capabilities: [unknown],
     });
     expectTypeOf<keyof typeof client.api.Unknown>().toEqualTypeOf<string | number>();
@@ -126,7 +126,7 @@ describe("public custom capability authoring", () => {
     const vendor = defineCapability({ urn: "urn:example:vendor", entities: ["Note"] });
     const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
-      auth: { token: "token" },
+      auth: "token",
       capabilities: [notes, vendor],
     });
     const query = client.api.Note.query({ text: "draft" });
@@ -150,7 +150,7 @@ describe("public custom capability authoring", () => {
     }>();
     const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
-      auth: { token: "token" },
+      auth: "token",
       capabilities: [first, second],
     });
     const pending = client.api.Conflict.run({ value: "callable" });
@@ -172,7 +172,7 @@ describe("public custom capability authoring", () => {
     }>();
     const client = new JsonMetaClient({
       sessionUrl: "https://example.test/jmap",
-      auth: { token: "token" },
+      auth: "token",
       capabilities: [first, second],
     });
     expectTypeOf<

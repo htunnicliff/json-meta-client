@@ -39,7 +39,7 @@ const vendorMail = defineCapability({
 >();
 
 const options = {
-  auth: { token: "token" },
+  auth: "token",
   sessionUrl: "https://example.test/jmap",
   capabilities: ["mail", vendorMail],
 } as const satisfies Config<readonly CapabilityOption[]>;

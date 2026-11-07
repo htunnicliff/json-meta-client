@@ -74,13 +74,14 @@ Configure a client with authentication, a session URL, and capabilities:
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: { token: "<token>" },
+  auth: "<token>",
   sessionUrl: "<server>/.well-known/jmap",
   capabilities: ["mail", "submission"],
 });
 ```
 
-Clients support both Bearer and Basic authentication schemes.
+Pass a string as `auth` to send it as a Bearer token. Clients also support Basic
+authentication with `auth: { username, password }`.
 
 For other kinds of authentication (e.g. a proxy header), a custom callback can
 be used to modify fetch requests as needed. See

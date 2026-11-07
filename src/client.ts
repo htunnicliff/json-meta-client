@@ -405,8 +405,8 @@ export class JsonMetaClient<
       const auth = this.#config.auth;
       if (typeof auth === "function") {
         await auth({ request });
-      } else if (typeof auth.token === "string") {
-        request.headers.set("authorization", `Bearer ${auth.token}`);
+      } else if (typeof auth === "string") {
+        request.headers.set("authorization", `Bearer ${auth}`);
       } else {
         const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
         const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
