@@ -1,5 +1,40 @@
 # json-meta-client
 
+## 1.0.0-alpha.0
+
+### Major Changes
+
+- [#170](https://github.com/htunnicliff/json-meta-client/pull/170) [`4787e7a`](https://github.com/htunnicliff/json-meta-client/commit/4787e7aed9d7613a4522c40c50edd54e12647a06) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Release 1.0.0. From this version on, breaking changes bump the
+  major version, following semantic versioning.
+
+### Minor Changes
+
+- [#165](https://github.com/htunnicliff/json-meta-client/pull/165) [`b949115`](https://github.com/htunnicliff/json-meta-client/commit/b94911528ea56c5669f494f781cd050cc1ec3055) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add `beforeFetch` / `afterFetch`, `beforeJmapRequest` / `afterJmapResponse`, and `beforeEventSourceConnect` / `afterEventSourceConnect` hooks with sequential async support. Fetch hooks cover every transport; JMAP hooks transform complete batch envelopes; connection hooks run for each event-stream connection or reconnect before messages are read.
+
+  Breaking: remove the `beforeRequest` / `afterResponse` options and the `BeforeRequestHook` / `AfterResponseHook` type exports. The Fetch hook interface is now `beforeFetch` / `afterFetch` with `BeforeFetchHook` / `AfterFetchHook` types.
+
+  Event streams now validate status, content type, and body availability before connection observers run. Connection failures are reported through the state-change handler as `StateChangeError`; intentional aborts remain silent and HTTP 204 still stops reconnects.
+
+- [#150](https://github.com/htunnicliff/json-meta-client/pull/150) [`1741692`](https://github.com/htunnicliff/json-meta-client/commit/1741692b60e4e0b870d9b791f96e4f4077b9e1de) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Use the built-in RFC types for all client and capability contracts.
+
+  Blob, Contacts, and Sieve methods now validate arguments and infer responses. Core exposes the RFC `echo` method. Session metadata and mail inputs now follow the built-in RFC contracts, including required core limits, nullable email address fields, and required mailbox IDs when creating emails.
+
+- [#163](https://github.com/htunnicliff/json-meta-client/pull/163) [`a4cb17a`](https://github.com/htunnicliff/json-meta-client/commit/a4cb17a69a5153864c0eaa42a79f830a180c8ddb) Thanks [@htunnicliff](https://github.com/htunnicliff)! - BREAKING: Replace `bearerToken` with the required `auth` option.
+  Migrate `bearerToken: token` to `auth: token`; the old option
+  has no compatibility alias. Basic credentials are supported via
+  `auth: { username, password }`, with UTF-8/Base64 encoding handled
+  by the client. Custom callbacks use
+  `auth: ({ request }) => void | Promise<void>` and can mutate the
+  outgoing request before it is sent.
+
+  Authentication runs before `beforeFetch` hooks on every
+  transport, including session discovery, API calls, blob transfers,
+  and event-stream reconnects. Event streams now also run the
+  request and response hooks; callbacks are awaited for each
+  connection so callers can supply current credentials.
+
+- [`833234c`](https://github.com/htunnicliff/json-meta-client/commit/833234cf727a862497c0fa4b3e5094d9dc96d7c2) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Remove sourcemaps
+
 ## 0.14.0
 
 ### Minor Changes
