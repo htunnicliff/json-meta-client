@@ -27,7 +27,7 @@ describe("hook types", () => {
     assertType<Config<[]>>({
       sessionUrl: "https://example.test/session",
       capabilities: [],
-      auth: { token: "token" },
+      auth: "token",
       hooks: {
         beforeFetch: [
           ({ request }) => {

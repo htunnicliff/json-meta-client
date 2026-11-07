@@ -23,17 +23,10 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
 
   const isAuthObject = auth !== null && typeof auth === "object";
 
-  const isBearerAuth =
-    isAuthObject &&
-    "token" in auth &&
-    typeof auth.token === "string" &&
-    auth.token.trim().length > 0 &&
-    !("username" in auth) &&
-    !("password" in auth);
+  const isBearerAuth = typeof auth === "string" && auth.trim().length > 0;
 
   const isBasicAuth =
     isAuthObject &&
-    !("token" in auth) &&
     typeof auth.username === "string" &&
     auth.username.trim().length > 0 &&
     !auth.username.includes(":") &&
@@ -43,7 +36,7 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
 
   if (!validAuth) {
     throw new ConfigurationError(
-      "`auth` must contain a non-empty token or a username and password, or be a callback",
+      "`auth` must be a non-empty token string, a username and password, or a callback",
       {
         cause: { auth },
       },

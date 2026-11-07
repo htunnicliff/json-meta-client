@@ -57,7 +57,7 @@ function setup() {
   vi.stubGlobal("fetch", fetchMock);
   const client = new JsonMetaClient({
     sessionUrl: "https://example.test/session",
-    auth: { token: "test" },
+    auth: "test",
     capabilities: [mail, submission],
   });
   return { client, requests };

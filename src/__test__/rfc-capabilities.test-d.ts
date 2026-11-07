@@ -14,7 +14,7 @@ import { JsonMetaClient } from "../index.ts";
 import type { SetError } from "../rfc-types/core/index.ts";
 
 const client = new JsonMetaClient({
-  auth: { token: "token" },
+  auth: "token",
   sessionUrl: "https://example.test/jmap",
   capabilities: ["blob", "contacts", "sieve", "community:maskedEmail"],
 });

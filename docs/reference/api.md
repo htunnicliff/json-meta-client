@@ -6,14 +6,15 @@ These docs haven't been written yet but will be added soon.
 
 ## Authentication
 
-The `auth` option accepts a token, a username and password, or a callback.
+The `auth` option accepts a bearer token string, a username and password, or a
+callback.
 The client applies it to every request it sends: session discovery, method
 calls, blob uploads and downloads, and event-stream connections, including
 reconnects.
 
 | `auth` value             | Sends                                                    |
 | ------------------------ | -------------------------------------------------------- |
-| `{ token }`              | `Authorization: Bearer <token>`                          |
+| `"<token>"`              | `Authorization: Bearer <token>`                          |
 | `{ username, password }` | `Authorization: Basic` with `username:password` as UTF-8 |
 | `AuthCallback`           | Whatever the callback sets on the request                |
 

@@ -3,7 +3,7 @@
 ---
 
 BREAKING: Replace `bearerToken` with the required `auth` option.
-Migrate `bearerToken: token` to `auth: { token }`; the old option
+Migrate `bearerToken: token` to `auth: token`; the old option
 has no compatibility alias. Basic credentials are supported via
 `auth: { username, password }`, with UTF-8/Base64 encoding handled
 by the client. Custom callbacks use
