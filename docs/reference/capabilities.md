@@ -4,6 +4,17 @@
 These docs are not yet complete.
 :::
 
+<!-- DOCS OUTLINE (not rendered)
+- Per built-in, to complete the generated tables:
+  - Method list per entity (new data loader or hand-written tables)
+  - Account and session capability detail fields
+  - RFC link
+- ## Default capability
+  - `core` is always enabled
+- ## Not yet provided as capabilities
+  - Quotas, Principals/Sharing, and MDN have types but no capability objects
+-->
+
 <script setup>
   import {data as builtIns } from './capabilities.data.ts';
 
