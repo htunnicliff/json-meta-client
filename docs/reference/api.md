@@ -4,6 +4,26 @@
 These docs haven't been written yet but will be added soon.
 :::
 
+<!-- DOCS OUTLINE (not rendered)
+- ## `JsonMetaClient`
+  - ### `new JsonMetaClient(config)`
+    - Every `Config` field with type and default; validation rules: token must be
+      non-empty, username cannot contain `:`, `sessionUrl` must be parseable
+  - ### `api`
+  - ### `session` (getter returning a cached promise)
+  - ### `refreshSession()`
+  - ### `blob.upload()` / `blob.download()`
+  - ### `onStateChange()`
+  - ### `cancelBatch()`
+  - ### `isolated()`
+  - Each entry: signature, return type, errors thrown, link to the feature page
+- ## Pending method calls
+  - `resultRef`, `createdRef`, `$id`, `$args`, `$method`
+- ## `defineCapability()`
+- ## Authentication (already written)
+  - Add: a rejected callback prevents the request from being sent; Basic encoding handles UTF-8
+-->
+
 ## Authentication
 
 The `auth` option accepts a bearer token string, a username and password, or a
