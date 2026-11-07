@@ -1,39 +1,20 @@
 # json-meta-client
 
-A TypeScript [JMAP](https://jmap.io/) client for Node.js and browsers. Call your
-server's methods through a typed API, combine calls in one request, and pass
-results between them without another round trip. The client also handles blob
-transfers and state-change subscriptions.
+[![CI](https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml/badge.svg)](https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml)
+[![npm](https://img.shields.io/npm/v/json-meta-client)](https://www.npmjs.com/package/json-meta-client)
+
+A typed [JMAP](https://jmap.io/) client for Node.js and browsers.
 
 The library is alpha software; its API may change between releases.
 
-```sh
-pnpm add json-meta-client
-```
+## Documentation
 
-Supply your provider's JMAP session URL and a token authorized to read mail.
-This example uses the primary mail account to find its inbox:
+To get started, visit [json-meta-client.dev](https://json-meta-client.dev).
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
+## Changelog
 
-const client = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: "YOUR_ACCESS_TOKEN",
-  capabilities: ["mail"],
-});
+Detailed changes for each release are documented in the [changelog](./CHANGELOG.md).
 
-const result = await client.api.Mailbox.query({
-  filter: { role: "inbox" },
-  limit: 1,
-});
-console.log(result.ids[0]);
-```
+## License
 
-Follow the [first-request tutorial](https://json-meta-client.dev/getting-started) for runtime
-requirements and a complete walkthrough. The manual also includes
-[examples](https://json-meta-client.dev/examples),
-[authentication options](https://json-meta-client.dev/reference/api#authentication),
-and an [API reference](https://json-meta-client.dev/reference/api).
-
-Licensed under [MPL-2.0](./LICENSE).
+[MPL-2.0](./LICENSE)
