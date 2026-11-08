@@ -1,9 +1,5 @@
 # Capabilities
 
-:::warning IN PROGRESS
-These docs are not yet complete.
-:::
-
 :::note TODO
 - Per built-in, to complete the generated tables:
   - Method list per entity (new data loader or hand-written tables)
