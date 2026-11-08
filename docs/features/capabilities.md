@@ -1,9 +1,5 @@
 # Capabilities
 
-:::note TODO
-These docs haven't been written yet but will be added soon.
-:::
-
 ## What a capability is
 
 :::note TODO

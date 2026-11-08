@@ -1,9 +1,5 @@
 # Extending
 
-:::note TODO
-These docs haven't been written yet but will be added soon.
-:::
-
 ## Defining a capability
 
 :::note TODO
