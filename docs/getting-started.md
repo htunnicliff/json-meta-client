@@ -2,7 +2,7 @@
 
 ## Requirements
 
-:::note TODO
+:::warning TODO
 - ESM-only package (`"type": "module"`, single `.` export)
 - Needs globals: `fetch`, `Request`, `Response`, `Headers`, `AbortController`,
   `queueMicrotask`, `crypto.getRandomValues`, `TextEncoder`, `btoa`,
@@ -80,7 +80,7 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 
 ## Configuration
 
-:::note TODO
+:::warning TODO
 - Short table of all `Config` fields: `auth`, `sessionUrl` (string or `URL`),
   `capabilities`, `hooks`, `middleware` (mark unstable)
 - `core` is always included, so empty capabilities still give `Core.echo`,
@@ -111,7 +111,7 @@ be used to modify fetch requests as needed. See
 
 ## Usage
 
-:::note TODO
+:::warning TODO
 - Add a sentence explaining that `accountId` was filled in automatically
 :::
 
@@ -213,7 +213,7 @@ for (const email of emails.list) {
 
 ## Next Steps
 
-:::note TODO
+:::warning TODO
 - Add rows for Capabilities and Types
 :::
 

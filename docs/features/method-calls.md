@@ -2,7 +2,7 @@
 
 ## Calling methods
 
-:::note TODO
+:::warning TODO
 - Pattern `client.api.<Entity>.<method>(args, options?)` maps to JMAP `"Entity/method"`
 - Arguments and responses are typed by the configured capabilities
 - At runtime the API is a Proxy: any `Entity.method` name can be called; only the types limit it
@@ -10,7 +10,7 @@
 
 ## Account IDs
 
-:::note TODO
+:::warning TODO
 - When `accountId` is omitted, it is filled from
   `session.primaryAccounts["urn:ietf:params:jmap:mail"]`
 - Gotcha: this is the primary MAIL account even for Contacts or Sieve calls;
@@ -20,14 +20,14 @@
 
 ## Getting results
 
-:::note TODO
+:::warning TODO
 - A call returns a promise for the method's response arguments
 - The call is sent when its batch flushes, not when awaited (link to Batching)
 :::
 
 ## Selecting properties
 
-:::note TODO
+:::warning TODO
 - `properties` on `/get` narrows the type of each `list` item; otherwise default
   properties; `id` is always included
 - `Email/get` also narrows body parts based on `bodyProperties`
@@ -35,7 +35,7 @@
 
 ## Result references
 
-:::note TODO
+:::warning TODO
 - `call.resultRef("/pointer")` passes one call's output to another in the same request
 - Pointer is type-checked against the source call's output, including the `*`
   array wildcard (RFC 8620 section 3.7); the pointed-to value is checked against the argument type
@@ -46,7 +46,7 @@
 
 ## Creation references
 
-:::note TODO
+:::warning TODO
 - `createdRef("localId")` exists only on `/set` calls and returns `"#localId"`
 - ID is checked against the keys of `create` at the type level and at runtime
   (unknown ID throws `RangeError`)
@@ -56,7 +56,7 @@
 
 ## Patch updates
 
-:::note TODO
+:::warning TODO
 - `update` takes typed `PatchObject` paths such as `"keywords/$seen": true`
 - `null` removes a value; arrays are replaced whole
 - JSON Pointer escaping (`~0`, `~1`) is handled in the types
@@ -64,7 +64,7 @@
 
 ## Call metadata
 
-:::note TODO
+:::warning TODO
 - Every pending call has `$id`, `$method`, `$args`
 - `{ id }` option sets a custom method-call ID (default `"Entity/method::<8 hex>"`);
   useful for debugging and snapshot tests
@@ -72,7 +72,7 @@
 
 ## Method errors
 
-:::note TODO
+:::warning TODO
 - When one method in a batch fails, only that call rejects with `JmapError`;
   the others still resolve (short `try`/`catch` example)
 - Link to the Errors reference

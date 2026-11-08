@@ -4,7 +4,7 @@
 
 ### `new JsonMetaClient(config)`
 
-:::note TODO
+:::warning TODO
 - Every `Config` field with type and default; validation rules: token must be
   non-empty, username cannot contain `:`, `sessionUrl` must be parseable
 :::
@@ -13,7 +13,7 @@
 
 ### `session`
 
-:::note TODO
+:::warning TODO
 - Getter returning a cached promise
 :::
 
@@ -27,13 +27,13 @@
 
 ### `isolated()`
 
-:::note TODO
+:::warning TODO
 - Each entry: signature, return type, errors thrown, link to the feature page
 :::
 
 ## Pending method calls
 
-:::note TODO
+:::warning TODO
 - `resultRef`, `createdRef`, `$id`, `$args`, `$method`
 :::
 
@@ -41,7 +41,7 @@
 
 ## Authentication
 
-:::note TODO
+:::warning TODO
 - Add: a rejected callback prevents the request from being sent; Basic encoding handles UTF-8
 :::
 

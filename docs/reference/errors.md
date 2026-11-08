@@ -2,7 +2,7 @@
 
 ## Hierarchy
 
-:::note TODO
+:::warning TODO
 - Base class `JsonMetaError`
 - Subclasses: `ConfigurationError` (and its subclass `CapabilityConfigurationError`),
   `HttpError`, `NetworkError`, `JmapError`, `MethodCallError`, `CancellationError`,
@@ -11,7 +11,7 @@
 
 ## One section per class
 
-:::note TODO
+:::warning TODO
 - When it is thrown, its extra properties, and its `is*Error` type guard
 - Extra properties:
   - `HttpError`: `request`, `response` (body unread), `responseData`, `status`;
@@ -26,7 +26,7 @@
 
 ## Errors not wrapped by the library
 
-:::note TODO
+:::warning TODO
 - Malformed JSON in a successful response rejects with a plain `SyntaxError`
 - Errors thrown by `afterFetch` hooks pass through unchanged
 - `createdRef` throws `RangeError`
@@ -35,7 +35,7 @@
 
 ## Handling patterns
 
-:::note TODO
+:::warning TODO
 - Example distinguishing an HTTP failure, a JMAP method error
   (`type === "invalidArguments"`), and a network failure
 - List common JMAP request-level and method-level `type` values

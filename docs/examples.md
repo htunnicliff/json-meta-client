@@ -333,7 +333,7 @@ await client.api.EmailSubmission.set({
 
 ## Send an attachment <Badge type="warning" text="To do" />
 
-:::note TODO
+:::warning TODO
 - `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
   `blobId`, then `EmailSubmission/set` with `createdRef`
 :::
@@ -352,7 +352,7 @@ await client.api.EmailSubmission.set({
 
 ## Reply to a thread <Badge type="warning" text="To do" />
 
-:::note TODO
+:::warning TODO
 - `Email/get` with `messageId`, `references`, `threadId`, `subject`; then a draft
   with `inReplyTo`, `references`, and `Re:`; then submit
 :::
@@ -371,7 +371,7 @@ await client.api.EmailSubmission.set({
 
 ## Move an email <Badge type="warning" text="To do" />
 
-:::note TODO
+:::warning TODO
 - `Email/set` update with a `mailboxIds/<id>` patch, or by replacing `mailboxIds` entirely
 :::
 
@@ -389,7 +389,7 @@ await client.api.EmailSubmission.set({
 
 ## Get email attachments <Badge type="warning" text="To do" />
 
-:::note TODO
+:::warning TODO
 - `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
 :::
 
@@ -407,7 +407,7 @@ await client.api.EmailSubmission.set({
 
 ## Possible additions
 
-:::note TODO
+:::warning TODO
 - Mark as read (`keywords/$seen`)
 - Search with a `SearchSnippet` result reference
 - Sync with `Email/changes` driven by `onStateChange`
@@ -416,7 +416,7 @@ await client.api.EmailSubmission.set({
 
 ## Cleanup
 
-:::note TODO
+:::warning TODO
 - "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
   omitting the argument is enough
 :::

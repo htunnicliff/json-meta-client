@@ -1,6 +1,6 @@
 # RFCs
 
-:::note TODO
+:::warning TODO
 - Fix the "Runtime" column: RFC 9425 (Quotas), 9670 (Sharing), 9007 (MDN), and
   9749 (VAPID) have types only; no capability provides `Quota/*`, `Principal/*`,
   `ShareNotification/*`, or `MDN/*` methods, and VAPID only adds session details

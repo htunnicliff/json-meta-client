@@ -1,6 +1,6 @@
 # Capabilities
 
-:::note TODO
+:::warning TODO
 - Per built-in, to complete the generated tables:
   - Method list per entity (new data loader or hand-written tables)
   - Account and session capability detail fields
@@ -9,13 +9,13 @@
 
 ## Default capability
 
-:::note TODO
+:::warning TODO
 - `core` is always enabled
 :::
 
 ## Not yet provided as capabilities
 
-:::note TODO
+:::warning TODO
 - Quotas, Principals/Sharing, and MDN have types but no capability objects
 :::
 

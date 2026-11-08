@@ -2,13 +2,13 @@
 
 ## What a capability is
 
-:::note TODO
+:::warning TODO
 - A URN plus a set of entities; adds typed methods to `client.api`
 :::
 
 ## Enabling capabilities
 
-:::note TODO
+:::warning TODO
 - Built-in names as strings: `"mail"`, `"submission"`, `"blob"`, `"contacts"`,
   `"sieve"`, `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
 - Names are case-sensitive; unknown names fail at the type level and throw
@@ -19,7 +19,7 @@
 
 ## The `using` array
 
-:::note TODO
+:::warning TODO
 - Each request includes `core` plus URNs of entities used by the batch's calls
 - An entity in several capabilities includes all their URNs (e.g. `Blob` in `core` and `blob`)
 - URNs are never duplicated
@@ -27,14 +27,14 @@
 
 ## Checking server support
 
-:::note TODO
+:::warning TODO
 - On first session load, configured URNs missing from `session.capabilities`
   produce a `console.warn` with a `ConfigurationError`; this does not throw
 :::
 
 ## Reading capability details
 
-:::note TODO
+:::warning TODO
 - `session.capabilities[urn]` (server-wide) and
   `session.accounts[id].accountCapabilities[urn]` (per account) are typed per configured capability
 - Both are `Partial`: check for `undefined` before reading (this page is where
@@ -44,7 +44,7 @@
 
 ## Community capabilities
 
-:::note TODO
+:::warning TODO
 - What the `community:` prefix means
 - `MaskedEmail` (`https://www.fastmail.com/dev/maskedemail`) (`get`/`set`, fields and states)
 :::
