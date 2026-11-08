@@ -4,26 +4,6 @@
 These docs are not yet complete.
 :::
 
-<!-- DOCS OUTLINE (not rendered)
-- ## Send an attachment
-  - `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
-    `blobId`, then `EmailSubmission/set` with `createdRef`
-- ## Reply to a thread
-  - `Email/get` with `messageId`, `references`, `threadId`, `subject`; then a draft
-    with `inReplyTo`, `references`, and `Re:`; then submit
-- ## Move an email
-  - `Email/set` update with a `mailboxIds/<id>` patch, or by replacing `mailboxIds` entirely
-- ## Get email attachments
-  - `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
-- Possible additions:
-  - Mark as read (`keywords/$seen`)
-  - Search with a `SearchSnippet` result reference
-  - Sync with `Email/changes` driven by `onStateChange`
-  - Set a vacation response
-- Cleanup: "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
-  omitting the argument is enough
--->
-
 These examples use the `client` configured in
 [Introduction](./getting-started.md#configuration), and each builds on the
 values found by the examples before it.
@@ -353,6 +333,11 @@ await client.api.EmailSubmission.set({
 
 ## Send an attachment <Badge type="warning" text="To do" />
 
+:::warning TODO
+- `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
+  `blobId`, then `EmailSubmission/set` with `createdRef`
+:::
+
 ::: code-group
 
 ```ts [example.ts]
@@ -366,6 +351,11 @@ await client.api.EmailSubmission.set({
 :::
 
 ## Reply to a thread <Badge type="warning" text="To do" />
+
+:::warning TODO
+- `Email/get` with `messageId`, `references`, `threadId`, `subject`; then a draft
+  with `inReplyTo`, `references`, and `Re:`; then submit
+:::
 
 ::: code-group
 
@@ -381,6 +371,10 @@ await client.api.EmailSubmission.set({
 
 ## Move an email <Badge type="warning" text="To do" />
 
+:::warning TODO
+- `Email/set` update with a `mailboxIds/<id>` patch, or by replacing `mailboxIds` entirely
+:::
+
 ::: code-group
 
 ```ts [example.ts]
@@ -395,6 +389,10 @@ await client.api.EmailSubmission.set({
 
 ## Get email attachments <Badge type="warning" text="To do" />
 
+:::warning TODO
+- `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
+:::
+
 ::: code-group
 
 ```ts [example.ts]
@@ -405,4 +403,20 @@ await client.api.EmailSubmission.set({
 {}
 ```
 
+:::
+
+## Possible additions
+
+:::warning TODO
+- Mark as read (`keywords/$seen`)
+- Search with a `SearchSnippet` result reference
+- Sync with `Email/changes` driven by `onStateChange`
+- Set a vacation response
+:::
+
+## Cleanup
+
+:::warning TODO
+- "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
+  omitting the argument is enough
 :::
