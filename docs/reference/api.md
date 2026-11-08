@@ -8,14 +8,18 @@ These docs haven't been written yet but will be added soon.
 
 ### `new JsonMetaClient(config)`
 
-- [ ] Every `Config` field with type and default; validation rules: token must be
-      non-empty, username cannot contain `:`, `sessionUrl` must be parseable
+:::note TODO
+- Every `Config` field with type and default; validation rules: token must be
+  non-empty, username cannot contain `:`, `sessionUrl` must be parseable
+:::
 
 ### `api`
 
 ### `session`
 
-- [ ] Getter returning a cached promise
+:::note TODO
+- Getter returning a cached promise
+:::
 
 ### `refreshSession()`
 
@@ -27,17 +31,23 @@ These docs haven't been written yet but will be added soon.
 
 ### `isolated()`
 
-- [ ] Each entry: signature, return type, errors thrown, link to the feature page
+:::note TODO
+- Each entry: signature, return type, errors thrown, link to the feature page
+:::
 
 ## Pending method calls
 
-- [ ] `resultRef`, `createdRef`, `$id`, `$args`, `$method`
+:::note TODO
+- `resultRef`, `createdRef`, `$id`, `$args`, `$method`
+:::
 
 ## `defineCapability()`
 
 ## Authentication
 
-- [ ] Add: a rejected callback prevents the request from being sent; Basic encoding handles UTF-8
+:::note TODO
+- Add: a rejected callback prevents the request from being sent; Basic encoding handles UTF-8
+:::
 
 The `auth` option accepts a bearer token string, a username and password, or a
 callback.

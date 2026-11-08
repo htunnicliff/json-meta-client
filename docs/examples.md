@@ -333,8 +333,10 @@ await client.api.EmailSubmission.set({
 
 ## Send an attachment <Badge type="warning" text="To do" />
 
-- [ ] `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
-      `blobId`, then `EmailSubmission/set` with `createdRef`
+:::note TODO
+- `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
+  `blobId`, then `EmailSubmission/set` with `createdRef`
+:::
 
 ::: code-group
 
@@ -350,8 +352,10 @@ await client.api.EmailSubmission.set({
 
 ## Reply to a thread <Badge type="warning" text="To do" />
 
-- [ ] `Email/get` with `messageId`, `references`, `threadId`, `subject`; then a draft
-      with `inReplyTo`, `references`, and `Re:`; then submit
+:::note TODO
+- `Email/get` with `messageId`, `references`, `threadId`, `subject`; then a draft
+  with `inReplyTo`, `references`, and `Re:`; then submit
+:::
 
 ::: code-group
 
@@ -367,7 +371,9 @@ await client.api.EmailSubmission.set({
 
 ## Move an email <Badge type="warning" text="To do" />
 
-- [ ] `Email/set` update with a `mailboxIds/<id>` patch, or by replacing `mailboxIds` entirely
+:::note TODO
+- `Email/set` update with a `mailboxIds/<id>` patch, or by replacing `mailboxIds` entirely
+:::
 
 ::: code-group
 
@@ -383,7 +389,9 @@ await client.api.EmailSubmission.set({
 
 ## Get email attachments <Badge type="warning" text="To do" />
 
-- [ ] `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
+:::note TODO
+- `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
+:::
 
 ::: code-group
 
@@ -399,12 +407,16 @@ await client.api.EmailSubmission.set({
 
 ## Possible additions
 
-- [ ] Mark as read (`keywords/$seen`)
-- [ ] Search with a `SearchSnippet` result reference
-- [ ] Sync with `Email/changes` driven by `onStateChange`
-- [ ] Set a vacation response
+:::note TODO
+- Mark as read (`keywords/$seen`)
+- Search with a `SearchSnippet` result reference
+- Sync with `Email/changes` driven by `onStateChange`
+- Set a vacation response
+:::
 
 ## Cleanup
 
-- [ ] "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
-      omitting the argument is enough
+:::note TODO
+- "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
+  omitting the argument is enough
+:::

@@ -2,13 +2,15 @@
 
 ## Requirements
 
-- [ ] ESM-only package (`"type": "module"`, single `.` export)
-- [ ] Needs globals: `fetch`, `Request`, `Response`, `Headers`, `AbortController`,
-      `queueMicrotask`, `crypto.getRandomValues`, `TextEncoder`, `btoa`,
-      `URL.canParse`, `Object.hasOwn`, `Promise.withResolvers`
-      (in practice Node 22+, or a current browser, Deno, or Bun)
-- [ ] `Symbol.dispose` optional; without it `onStateChange` returns an object with a `disconnect` key
-- [ ] Works in Node and browsers
+:::note TODO
+- ESM-only package (`"type": "module"`, single `.` export)
+- Needs globals: `fetch`, `Request`, `Response`, `Headers`, `AbortController`,
+  `queueMicrotask`, `crypto.getRandomValues`, `TextEncoder`, `btoa`,
+  `URL.canParse`, `Object.hasOwn`, `Promise.withResolvers`
+  (in practice Node 22+, or a current browser, Deno, or Bun)
+- `Symbol.dispose` optional; without it `onStateChange` returns an object with a `disconnect` key
+- Works in Node and browsers
+:::
 
 ## Installation
 
@@ -78,13 +80,15 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 
 ## Configuration
 
-- [ ] Short table of all `Config` fields: `auth`, `sessionUrl` (string or `URL`),
-      `capabilities`, `hooks`, `middleware` (mark unstable)
-- [ ] `core` is always included, so empty capabilities still give `Core.echo`,
-      `Blob.copy`, and `PushSubscription`
-- [ ] Constructor validates config immediately and throws `ConfigurationError` /
-      `CapabilityConfigurationError` (link to Errors)
-- [ ] The client object is frozen
+:::note TODO
+- Short table of all `Config` fields: `auth`, `sessionUrl` (string or `URL`),
+  `capabilities`, `hooks`, `middleware` (mark unstable)
+- `core` is always included, so empty capabilities still give `Core.echo`,
+  `Blob.copy`, and `PushSubscription`
+- Constructor validates config immediately and throws `ConfigurationError` /
+  `CapabilityConfigurationError` (link to Errors)
+- The client object is frozen
+:::
 
 Configure a client with authentication, a session URL, and capabilities:
 
@@ -107,7 +111,9 @@ be used to modify fetch requests as needed. See
 
 ## Usage
 
-- [ ] Add a sentence explaining that `accountId` was filled in automatically
+:::note TODO
+- Add a sentence explaining that `accountId` was filled in automatically
+:::
 
 Find the inbox:
 
@@ -207,7 +213,9 @@ for (const email of emails.list) {
 
 ## Next Steps
 
-- [ ] Add rows for Capabilities and Types
+:::note TODO
+- Add rows for Capabilities and Types
+:::
 
 | I want to...                            | Read                                       |
 | --------------------------------------- | ------------------------------------------ |
