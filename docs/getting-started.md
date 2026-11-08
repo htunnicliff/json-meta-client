@@ -2,14 +2,20 @@
 
 ## Requirements
 
-:::warning TODO
-- ESM-only package (`"type": "module"`, single `.` export)
-- Needs globals: `fetch`, `Request`, `Response`, `Headers`, `AbortController`,
-  `queueMicrotask`, `crypto.getRandomValues`, `TextEncoder`, `btoa`,
-  `URL.canParse`, `Object.hasOwn`, `Promise.withResolvers`
-  (in practice Node 22+, or a current browser, Deno, or Bun)
-- `Symbol.dispose` optional; without it `onStateChange` returns an object with a `disconnect` key
-- Works in Node and browsers
+To use `json-meta-client`, you'll need an environment that supports ES modules, `fetch`, `Promise.withResolvers`, `URL.canParse`, and `Object.hasOwn`.
+
+If your environment meets [Baseline](https://web-platform-dx.github.io/baseline/),
+you are all set!
+
+::: tip
+
+Some runtimes that meet that standard include:
+
+- Browsers released after 2024
+- Node (22+)
+- Deno
+- Bun
+
 :::
 
 ## Installation
@@ -57,7 +63,7 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 </script>
 ```
 
-```html-vue [Import Map ~vscode-icons:file-type-light-json~]
+```html-vue [Import Map ~vscode-icons:file-type-xml~]
 <html>
   <head>
     <script type="importmap">
