@@ -19,7 +19,9 @@
 Code examples in `docs/` and `README.md` show the happy path:
 
 - Let the client fill in `accountId` from the primary account. Pass it only in
-  examples about working with multiple accounts.
+  examples about working with multiple accounts. Always pass it to
+  `client.blob.upload()`, `client.blob.download()` and `Blob.copy`, because the
+  client can't infer the account that owns or receives a blob.
 - Assume the server provides everything the example needs: capabilities,
   accounts, mailboxes, identities, and created objects. Read those values
   directly, using a non-null assertion (`!`) where the type checker requires

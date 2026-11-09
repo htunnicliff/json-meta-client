@@ -362,6 +362,11 @@ export namespace BlobCopy {
   export interface Contract {
     input: Input;
     output: Output;
+    /**
+     * `accountId` is the destination, which the client cannot infer, so
+     * callers must always pass it.
+     */
+    requiresAccountId: true;
   }
 }
 

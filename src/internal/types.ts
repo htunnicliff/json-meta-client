@@ -160,7 +160,9 @@ export type MethodArguments<Contract extends MethodContract> = {
   [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
-    ? SetOptional<Args, "accountId">
+    ? Contract extends { requiresAccountId: true }
+      ? Args
+      : SetOptional<Args, "accountId">
     : Args
   : never;
 

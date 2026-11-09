@@ -3,14 +3,14 @@
 ## Uploading
 
 :::warning TODO
-- `client.blob.upload(body: BodyInit, { accountId? })` returns `{ accountId, blobId, type, size }`
-- Content-Type comes from the body (a `Blob`'s `type`); default account is the primary mail account
+- `client.blob.upload(body: BodyInit, { accountId })` returns `{ accountId, blobId, type, size }`
+- Content-Type comes from the body (a `Blob`'s `type`); `accountId` is required
 :::
 
 ## Downloading
 
 :::warning TODO
-- `client.blob.download({ blobId, type, name, accountId? })` returns the raw `Response`
+- `client.blob.download({ blobId, type, name, accountId })` returns the raw `Response`
   (stream it or call `.blob()`)
 - A failed download throws `HttpError`
 :::
@@ -25,7 +25,7 @@
 ## Copying between accounts
 
 :::warning TODO
-- `Blob.copy` (from core)
+- `Blob.copy` (from core); `accountId` is the destination and is required
 :::
 
 ## Blob management (RFC 9404)

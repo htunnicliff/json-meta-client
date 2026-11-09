@@ -40,8 +40,14 @@ describe("RFC capability contracts through the client", () => {
     });
     expectTypeOf(fetched.list[0]!["data:asText"]).toEqualTypeOf<string | null | undefined>();
     expectTypeOf(fetched).not.toHaveProperty("state");
-    const copied = await client.api.Blob.copy({ fromAccountId: "other", blobIds: ["blob"] });
+    const copied = await client.api.Blob.copy({
+      accountId: "destination",
+      fromAccountId: "other",
+      blobIds: ["blob"],
+    });
     expectTypeOf(copied.copied).toEqualTypeOf<Record<string, string> | null | undefined>();
+    // @ts-expect-error Blob/copy names the destination account, so accountId is required.
+    void client.api.Blob.copy({ fromAccountId: "other", blobIds: ["blob"] });
     const found = await client.api.Blob.lookup({ ids: ["blob"], typeNames: ["Email"] });
     expectTypeOf(found.list[0]!.matchedIds).toEqualTypeOf<Record<string, string[]>>();
     // @ts-expect-error Blob/get properties describe JMAP blobs, not browser Blob objects.
@@ -55,6 +61,22 @@ describe("RFC capability contracts through the client", () => {
         },
       },
     });
+  });
+
+  it("requires accountId for blob transfers but not for Email.copy", () => {
+    const mailClient = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["mail"],
+    });
+    const download = { blobId: "blob", type: "text/plain", name: "file" };
+    void mailClient.blob.upload("body", { accountId: "a" });
+    void mailClient.blob.download({ ...download, accountId: "a" });
+    // @ts-expect-error Uploads need the account that will own the blob.
+    void mailClient.blob.upload("body");
+    // @ts-expect-error Downloads need the account that owns the blob.
+    void mailClient.blob.download(download);
+    expectTypeOf(mailClient.api.Email.copy({ fromAccountId: "other", create: {} })).toBeObject();
   });
 
   it("selects contact properties and carries query references into get calls", async () => {

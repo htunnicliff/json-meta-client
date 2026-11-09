@@ -1042,7 +1042,7 @@ describe(JsonMetaClient, () => {
           }),
         );
         vi.stubGlobal("fetch", fetchMock);
-        await expect(client.blob.upload(body)).resolves.toEqual(responseData);
+        await expect(client.blob.upload(body, { accountId })).resolves.toEqual(responseData);
         expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(Request));
         const request = fetchMock.mock.calls[0]![0];
         if (!(request instanceof Request)) throw new Error("Expected Request");
@@ -1060,7 +1060,7 @@ describe(JsonMetaClient, () => {
       const scope = nock(host)
         .post(`/upload/${encodeURIComponent(accountId)}`)
         .reply(413, { type: "tooLarge", detail: "Blob too large" });
-      await expect(client.blob.upload(body)).rejects.toMatchObject({
+      await expect(client.blob.upload(body, { accountId })).rejects.toMatchObject({
         name: "HttpError",
         message: "Blob too large",
         status: 413,
@@ -1099,7 +1099,7 @@ describe(JsonMetaClient, () => {
           .query({ type: "text/plain", name: "file" })
           .reply(404, payload);
         const error = await client.blob
-          .download({ blobId: "blob", type: "text/plain", name: "file" })
+          .download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
           .catch((error: unknown) => error);
         expect(error).toBeInstanceOf(HttpError);
         if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
@@ -1121,7 +1121,7 @@ describe(JsonMetaClient, () => {
       await client.session;
       vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(error));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toBe(error);
     });
 
@@ -1130,7 +1130,7 @@ describe(JsonMetaClient, () => {
       const cause = new TypeError("download disconnected");
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toMatchObject({
         name: "NetworkError",
         cause,

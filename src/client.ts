@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { SetOptional, SetRequired } from "type-fest";
+import type { SetRequired } from "type-fest";
 
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { DEFAULT_CAPABILITIES, getCapabilitiesForBuiltIns } from "./built-ins.ts";
@@ -130,13 +130,10 @@ export class JsonMetaClient<
     /**
      * Upload a blob
      */
-    upload: async (
-      body: BodyInit,
-      params: SetOptional<FileUpload.Params, "accountId"> = {},
-    ): Promise<FileUpload.Result> => {
+    upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
       const session = await this.session;
       const url = expandURITemplate(session.uploadUrl, {
-        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
+        accountId: params.accountId,
       });
       const data = await this.#fetchJson<FileUpload.Result>(url, {
         method: "POST",
@@ -147,12 +144,9 @@ export class JsonMetaClient<
     /**
      * Download a blob
      */
-    download: async (params: SetOptional<FileDownload.Params, "accountId">): Promise<Response> => {
+    download: async (params: FileDownload.Params): Promise<Response> => {
       const session = await this.session;
-      const url = expandURITemplate(session.downloadUrl, {
-        ...params,
-        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
-      });
+      const url = expandURITemplate(session.downloadUrl, { ...params });
       const { response } = await this.#fetch(url, { method: "GET" });
       return response;
     },

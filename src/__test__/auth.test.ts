@@ -131,10 +131,10 @@ describe("authentication", () => {
     await expect(client.api.Core.echo({ hello: "world" }, { id: "0" })).resolves.toEqual({
       hello: "world",
     });
-    await client.blob.upload("upload");
+    await client.blob.upload("upload", { accountId });
     expect(
       await (
-        await client.blob.download({ blobId: "blob", type: "text/plain", name: "file" })
+        await client.blob.download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
       ).text(),
     ).toBe("download");
     expect(scope.isDone()).toBe(true);
