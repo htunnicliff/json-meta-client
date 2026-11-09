@@ -17,10 +17,11 @@ import type { Flush } from "./batch.ts";
 import { Batch } from "./batch.ts";
 import { MethodCall } from "./method-call.ts";
 import { addRefMethod } from "./ref.ts";
-import type { AugmentedOptions, Middleware } from "./types.ts";
+import type { AugmentedOptions, MethodMiddleware, Middleware } from "./types.ts";
 
 interface ApiOptions {
   processMethodCalls: Flush<MethodCall<object>>;
+  builtInMiddleware: ReadonlyArray<MethodMiddleware>;
   middleware: ReadonlyArray<Middleware>;
   /**
    * Whether any capability declares the entity
@@ -31,14 +32,18 @@ interface ApiOptions {
 
 export function createApi<T extends object>({
   processMethodCalls,
+  builtInMiddleware,
   middleware,
   isKnownEntity,
   signal,
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): object => {
+  const applyMiddleware = (payload: JsonObject, method: string): object => {
     let transformed: JsonValue = payload;
+    for (const fn of builtInMiddleware) {
+      transformed = fn(transformed, method);
+    }
     for (const fn of middleware) {
       transformed = fn(transformed);
     }
@@ -73,7 +78,7 @@ export function createApi<T extends object>({
                 // and are never enqueued, so they are never sent
                 const methodCall = new MethodCall({
                   method: `${entity}/${method}`,
-                  args: known ? applyMiddleware(args) : args,
+                  args: known ? applyMiddleware(args, `${entity}/${method}`) : args,
                   id: options?.id,
                 });
 

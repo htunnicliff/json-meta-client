@@ -560,7 +560,6 @@ describe(JsonMetaClient, () => {
 
       it.each([
         ["Core", "echo", { hello: "world" }],
-        ["Blob", "copy", {}],
         ["PushSubscription", "get", {}],
         ["PushSubscription", "set", {}],
       ])("allows %s.%s without listing core", async (entity, method, args) => {
@@ -572,6 +571,17 @@ describe(JsonMetaClient, () => {
             methodCalls: [[`${entity}/${method}`, { accountId, ...args }, call.$id]],
           },
           { methodResponses: [[`${entity}/${method}`, {}, call.$id]], sessionState },
+        );
+        await expect(call).resolves.toEqual({});
+        expect(scope.isDone()).toBe(true);
+      });
+
+      it("sends Blob.copy without filling in accountId", async () => {
+        const args = { fromAccountId: "other", blobIds: ["blob"] };
+        const call = untyped(client.api).Blob.copy(args);
+        const scope = mockApi(
+          { using: [core.urn], methodCalls: [["Blob/copy", args, call.$id]] },
+          { methodResponses: [["Blob/copy", {}, call.$id]], sessionState },
         );
         await expect(call).resolves.toEqual({});
         expect(scope.isDone()).toBe(true);

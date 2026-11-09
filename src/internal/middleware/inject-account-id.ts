@@ -10,12 +10,16 @@
 
 import { mail } from "../../capabilities/mail.ts";
 import type { Session } from "../../rfc-types/core/index.ts";
-import type { Middleware } from "../types.ts";
+import type { MethodMiddleware } from "../types.ts";
 
-export function injectAccountId(getSession: () => Session): Middleware {
-  return (args) => {
+// `accountId` names the destination account, which the client can't infer
+const METHODS_REQUIRING_ACCOUNT_ID = new Set(["Blob/copy"]);
+
+export function injectAccountId(getSession: () => Session): MethodMiddleware {
+  return (args, method) => {
     // Add `accountId` if not set
     if (
+      !METHODS_REQUIRING_ACCOUNT_ID.has(method) &&
       typeof args === "object" &&
       args !== null &&
       !Array.isArray(args) &&

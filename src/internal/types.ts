@@ -103,6 +103,9 @@ export type PointerPaths<T> =
 
 export type Middleware = (payload: JsonValue) => JsonValue;
 
+/** Built-in middleware, which also sees the `Entity/method` name being called. */
+export type MethodMiddleware = (payload: JsonValue, method: string) => JsonValue;
+
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.
  * Used by the proxy API so callers may pass `resultRef(...)` in place of concrete args.

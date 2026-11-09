@@ -32,6 +32,7 @@ import { MethodCallResult } from "./internal/method-call-result.ts";
 import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type { MethodMiddleware } from "./internal/types.ts";
 import type {
   FileDownload,
   FileUpload,
@@ -63,15 +64,15 @@ export class JsonMetaClient<
       sessionUrl: options.sessionUrl,
       capabilities: getCapabilitiesForBuiltIns(options.capabilities),
       hooks: options.hooks,
-      middleware: [
-        replaceNestedResultRefKeys,
-        injectAccountId(() => {
-          if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
-          return this.#sessionSync;
-        }),
-        ...(options.middleware ?? []),
-      ],
+      middleware: options.middleware ?? [],
     };
+    this.#builtInMiddleware = [
+      replaceNestedResultRefKeys,
+      injectAccountId(() => {
+        if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
+        return this.#sessionSync;
+      }),
+    ];
 
     // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
@@ -243,6 +244,11 @@ export class JsonMetaClient<
   readonly #config: SetRequired<Config<ReadonlyArray<Capability>>, "middleware">;
 
   /**
+   * Request transformations applied before any user-supplied middleware
+   */
+  readonly #builtInMiddleware: ReadonlyArray<MethodMiddleware>;
+
+  /**
    * A mapping of every entity name to their respective capability URNs
    */
   readonly #entityToUrn: Record<string, string[]>;
@@ -295,6 +301,7 @@ export class JsonMetaClient<
   #setupApi({ signal }: { signal: AbortSignal }): API {
     return createApi<API>({
       processMethodCalls: this.#processQueuedMethodCalls,
+      builtInMiddleware: this.#builtInMiddleware,
       middleware: this.#config.middleware,
       isKnownEntity: (entity) => this.#knownEntities.has(entity),
       signal,
