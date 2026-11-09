@@ -12,6 +12,7 @@
 
 import type { JsonObject, JsonValue } from "type-fest";
 
+import { UnknownEntityError } from "../errors.ts";
 import type { Flush } from "./batch.ts";
 import { Batch } from "./batch.ts";
 import { MethodCall } from "./method-call.ts";
@@ -21,12 +22,17 @@ import type { AugmentedOptions, Middleware } from "./types.ts";
 interface ApiOptions {
   processMethodCalls: Flush<MethodCall<object>>;
   middleware: ReadonlyArray<Middleware>;
+  /**
+   * Whether any capability declares the entity
+   */
+  isKnownEntity: (entity: string) => boolean;
   signal?: AbortSignal;
 }
 
 export function createApi<T extends object>({
   processMethodCalls,
   middleware,
+  isKnownEntity,
   signal,
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
@@ -47,7 +53,7 @@ export function createApi<T extends object>({
   // TODO: Enforce strict linkage between this proxy type and Augment<T>
   return new Proxy<T>(Object.create(null), {
     get(_, entity) {
-      if (typeof entity !== "string") {
+      if (typeof entity !== "string" || ["then", "catch", "finally"].includes(entity)) {
         return undefined;
       }
 
@@ -61,13 +67,19 @@ export function createApi<T extends object>({
               }
 
               const fn = (args: JsonObject, options?: AugmentedOptions) => {
+                const known = isKnownEntity(entity);
+
+                // Unknown entities skip middleware (no account ID injection)
+                // and are never enqueued, so they are never sent
                 const methodCall = new MethodCall({
                   method: `${entity}/${method}`,
-                  args: applyMiddleware(args),
+                  args: known ? applyMiddleware(args) : args,
                   id: options?.id,
                 });
 
-                const pendingResult = batch.enqueue(methodCall);
+                const pendingResult = known
+                  ? batch.enqueue(methodCall)
+                  : Promise.reject(new UnknownEntityError({ entity, method }));
 
                 const withRefMethod = addRefMethod(pendingResult, {
                   name: methodCall.method,

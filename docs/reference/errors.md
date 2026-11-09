@@ -4,7 +4,7 @@
 
 :::warning TODO
 - Base class `JsonMetaError`
-- Subclasses: `ConfigurationError` (and its subclass `CapabilityConfigurationError`),
+- Subclasses: `ConfigurationError` (and its subclasses `CapabilityConfigurationError` and `UnknownEntityError`),
   `HttpError`, `NetworkError`, `JmapError`, `MethodCallError`, `CancellationError`,
   `StateChangeError`, `InvalidUriTemplateError`, `UnknownError`
 :::
@@ -21,6 +21,8 @@
     `methodCall`, plus static `isProblemDetails`
   - `MethodCallError`: `methodCall`, `responseData`
   - `CapabilityConfigurationError`: `givenCapability`, `availableBuiltIns`
+  - `UnknownEntityError`: `entity`, `method`; the returned promise rejects when an API call
+    names an entity no capability declares, and the call is never sent
   - `InvalidUriTemplateError`: `uriTemplate`, `givenParameters`, `availableParameters`
 :::
 

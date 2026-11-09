@@ -76,6 +76,12 @@ export class JsonMetaClient<
     // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
 
+    // Default capabilities are always included, so their entities are always known
+    this.#knownEntities = new Set([
+      ...Object.keys(this.#entityToUrn),
+      ...DEFAULT_CAPABILITIES.flatMap((capability) => capability.entities),
+    ]);
+
     // Initialize API proxy
     const controller = new AbortController();
     this.api = this.#setupApi(controller);
@@ -248,6 +254,11 @@ export class JsonMetaClient<
   readonly #entityToUrn: Record<string, string[]>;
 
   /**
+   * Entities declared by a configured or default capability
+   */
+  readonly #knownEntities: ReadonlySet<string>;
+
+  /**
    * A reference to a promise that is used to access
    * the {@link ClientSession} synchronously
    */
@@ -291,6 +302,7 @@ export class JsonMetaClient<
     return createApi<API>({
       processMethodCalls: this.#processQueuedMethodCalls,
       middleware: this.#config.middleware,
+      isKnownEntity: (entity) => this.#knownEntities.has(entity),
       signal,
     });
   }
