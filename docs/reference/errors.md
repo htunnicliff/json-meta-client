@@ -6,7 +6,7 @@
 - Base class `JsonMetaError`
 - Subclasses: `ConfigurationError` (and its subclass `CapabilityConfigurationError`),
   `HttpError`, `NetworkError`, `JmapError`, `MethodCallError`, `CancellationError`,
-  `StateChangeError`, `InvalidUriTemplateError`, `UnknownError`
+  `StateChangeError`, `InvalidUriTemplateError`, `UnknownEntityError`, `UnknownError`
 :::
 
 ## One section per class
@@ -21,6 +21,8 @@
     `methodCall`, plus static `isProblemDetails`
   - `MethodCallError`: `methodCall`, `responseData`
   - `CapabilityConfigurationError`: `givenCapability`, `availableBuiltIns`
+  - `UnknownEntityError`: `entity`, `method`; the returned promise rejects when an API call
+    names an entity no capability declares, and the call is never sent
   - `InvalidUriTemplateError`: `uriTemplate`, `givenParameters`, `availableParameters`
 :::
 

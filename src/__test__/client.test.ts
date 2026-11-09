@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { isDeepStrictEqual } from "node:util";
+import { inspect, isDeepStrictEqual } from "node:util";
 
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,6 +26,7 @@ import {
   JsonMetaError,
   MethodCallError,
   NetworkError,
+  UnknownEntityError,
   UnknownError,
 } from "../errors.ts";
 import type { Middleware } from "../internal/types.ts";
@@ -51,6 +52,13 @@ const apiUrlPath = new URL(apiUrl).pathname;
 const uploadUrl = `${host}/upload/{accountId}`;
 const downloadUrl = `${host}/download/{accountId}/{blobId}?type={type}&name={name}`;
 const sessionState = "<opaque-session-state>";
+
+type UntypedApi = Record<string | symbol, any>;
+
+/** Views the API as untyped, as untyped JavaScript callers would */
+function untyped(api: object): UntypedApi {
+  return api;
+}
 
 const example = defineCapability({
   urn: "urn:example:test",
@@ -518,6 +526,83 @@ describe(JsonMetaClient, () => {
   });
 
   describe("api", () => {
+    describe("unknown entities", () => {
+      it("rejects calls on entities no capability owns without sending them", async () => {
+        const api = untyped(client.api);
+        const call = api.Foo.bar({});
+        expect(call.$method).toBe("Foo/bar");
+        expect(call.$args).toEqual({});
+        expect(call.$id).toEqual(expect.stringMatching(/^Foo\/bar::/));
+        await expect(call).rejects.toBeInstanceOf(UnknownEntityError);
+        await expect(call).rejects.toBeInstanceOf(JsonMetaError);
+        await expect(call).rejects.toMatchObject({
+          entity: "Foo",
+          method: "bar",
+          message: expect.stringMatching(/Foo\/bar.*defineCapability/s),
+        });
+      });
+
+      it("leaves other calls in the batch unaffected", async () => {
+        const api = untyped(client.api);
+        const unknown = api.Foo.bar({});
+        const query = client.api.Mailbox.query({ limit: 1 });
+        const scope = mockApi(
+          {
+            using: [core.urn, mail.urn],
+            methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
+          },
+          { methodResponses: [["Mailbox/query", { ids: [] }, query.$id]], sessionState },
+        );
+        await expect(unknown).rejects.toBeInstanceOf(UnknownEntityError);
+        await expect(query).resolves.toEqual({ ids: [] });
+        expect(scope.isDone()).toBe(true);
+      });
+
+      it.each([
+        ["Core", "echo", { hello: "world" }],
+        ["Blob", "copy", {}],
+        ["PushSubscription", "get", {}],
+        ["PushSubscription", "set", {}],
+      ])("allows %s.%s without listing core", async (entity, method, args) => {
+        const api = untyped(client.api);
+        const call = api[entity][method](args);
+        const scope = mockApi(
+          {
+            using: [core.urn],
+            methodCalls: [[`${entity}/${method}`, { accountId, ...args }, call.$id]],
+          },
+          { methodResponses: [[`${entity}/${method}`, {}, call.$id]], sessionState },
+        );
+        await expect(call).resolves.toEqual({});
+        expect(scope.isDone()).toBe(true);
+      });
+
+      it("allows entities from untyped custom capabilities", async () => {
+        const widget = defineCapability({ urn: "urn:example:untyped", entities: ["Widget"] });
+        const custom = new JsonMetaClient({ sessionUrl, auth: token, capabilities: [widget] });
+        const call = untyped(custom.api).Widget.get({});
+        const scope = mockApi(
+          {
+            using: [core.urn, widget.urn],
+            methodCalls: [["Widget/get", { accountId }, call.$id]],
+          },
+          { methodResponses: [["Widget/get", {}, call.$id]], sessionState },
+        );
+        await expect(call).resolves.toEqual({});
+        expect(scope.isDone()).toBe(true);
+      });
+
+      it("does not throw when reading non-call properties", () => {
+        const api = untyped(client.api);
+        expect(api.then).toBeUndefined();
+        expect(api[Symbol.iterator]).toBeUndefined();
+        expect(() => String(Object.keys(api.Foo))).not.toThrow();
+        expect(() => inspect(api.Foo)).not.toThrow();
+        expect(api.Foo.then).toBeUndefined();
+        expect(api.Foo[Symbol.toPrimitive]).toBeUndefined();
+      });
+    });
+
     it("attaches the method call and response data to unrecognized method errors", async () => {
       const query = client.api.Mailbox.query({ limit: 1 });
       const responseData = { detail: "missing error type" };

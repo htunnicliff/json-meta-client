@@ -5,7 +5,9 @@
 :::warning TODO
 - Pattern `client.api.<Entity>.<method>(args, options?)` maps to JMAP `"Entity/method"`
 - Arguments and responses are typed by the configured capabilities
-- At runtime the API is a Proxy: any `Entity.method` name can be called; only the types limit it
+- At runtime the API is a Proxy, but only entities declared by a configured capability (or
+  `core`) can be called; any other entity rejects with `UnknownEntityError` and is never sent.
+  Method names on known entities are not validated
 :::
 
 ## Account IDs

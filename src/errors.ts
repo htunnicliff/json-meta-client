@@ -18,4 +18,5 @@ export * from "./errors/json-meta-error.ts";
 export * from "./errors/method-call-error.ts";
 export * from "./errors/network-error.ts";
 export * from "./errors/state-change-error.ts";
+export * from "./errors/unknown-entity-error.ts";
 export * from "./errors/unknown-error.ts";
