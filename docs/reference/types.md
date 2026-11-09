@@ -31,10 +31,22 @@
 - `StateChangePayload`, `OnStateChangeHandler`, `OnStateChangeOptions`
 :::
 
-## RFC data types
+## JMAP Types
 
 :::warning TODO
 - How to get `Email`, `Mailbox`, etc. today (e.g. `Awaited<ReturnType<...>>`)
 - Blocked: RFC types (and `Ref`, `ConfigurableCapability`,
   `CapabilityMethods`) are not exported from the package entry point yet
 :::
+
+### `JmapRequest`
+
+<<< ../../src/rfc-types/core/rfc8620-jmap.ts#jmap-request
+
+### `Invocation`
+
+<<< ../../src/rfc-types/core/rfc8620-jmap.ts#invocation
+
+### `JmapResponse`
+
+<<< ../../src/rfc-types/core/rfc8620-jmap.ts#jmap-response

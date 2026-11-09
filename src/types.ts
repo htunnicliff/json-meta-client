@@ -64,29 +64,41 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
   };
 }
 
-export type BeforeFetchHook = (params: { request: Request }) => Request | Promise<Request>;
+//#region hook-before-fetch
+export interface BeforeFetchHook {
+  (params: { request: Request }): Request | Promise<Request>;
+}
+//#endregion
 
-export type AfterFetchHook = (params: {
-  request: Request;
-  response: Response;
-}) => Response | Promise<Response>;
+//#region hook-after-fetch
+export interface AfterFetchHook {
+  (params: { request: Request; response: Response }): Response | Promise<Response>;
+}
+//#endregion
 
-export type BeforeJmapRequestHook = (params: {
-  request: JmapRequest;
-}) => JmapRequest | Promise<JmapRequest>;
+//#region hook-before-jmap-request
+export interface BeforeJmapRequestHook {
+  (params: { request: JmapRequest }): JmapRequest | Promise<JmapRequest>;
+}
+//#endregion
 
-export type AfterJmapResponseHook = (params: {
-  request: JmapRequest;
-  response: JmapResponse;
-}) => JmapResponse | Promise<JmapResponse>;
+//#region hook-after-jmap-response
+export interface AfterJmapResponseHook {
+  (params: { request: JmapRequest; response: JmapResponse }): JmapResponse | Promise<JmapResponse>;
+}
+//#endregion
 
-export type BeforeEventSourceConnectHook = BeforeFetchHook;
+//#region hook-before-event-source-connect
+export interface BeforeEventSourceConnectHook {
+  (params: { request: Request }): Request | Promise<Request>;
+}
+//#endregion
 
-/** Observe headers only; leave the response body available for streaming. */
-export type AfterEventSourceConnectHook = (params: {
-  request: Request;
-  response: Response;
-}) => void | Promise<void>;
+//#region hook-after-event-source-connect
+export interface AfterEventSourceConnectHook {
+  (params: { request: Request; response: Response }): void | Promise<void>;
+}
+//#endregion
 
 export type CapabilityOption = Capability | BuiltInCapabilityName;
 
