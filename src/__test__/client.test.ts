@@ -534,7 +534,7 @@ describe(JsonMetaClient, () => {
         expect(call.$args).toEqual({});
         expect(call.$id).toEqual(expect.stringMatching(/^Foo\/bar::/));
         await expect(call).rejects.toBeInstanceOf(UnknownEntityError);
-        await expect(call).rejects.toBeInstanceOf(ConfigurationError);
+        await expect(call).rejects.toBeInstanceOf(JsonMetaError);
         await expect(call).rejects.toMatchObject({
           entity: "Foo",
           method: "bar",

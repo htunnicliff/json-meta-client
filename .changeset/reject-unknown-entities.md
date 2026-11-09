@@ -3,8 +3,7 @@
 ---
 
 BREAKING: Calling a method on an entity that no capability declares, such
-as `client.api.Foo.bar({})`, now rejects with `UnknownEntityError` (a
-`ConfigurationError`) and is never sent to the server. Previously the call
+as `client.api.Foo.bar({})`, now rejects with `UnknownEntityError` and is never sent to the server. Previously the call
 was sent without a capability URN in `using`. The error names the entity
 and method; fix it by adding a capability that declares the entity, using a
 built-in capability or `defineCapability`. `Core`, `Blob` and

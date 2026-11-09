@@ -4,9 +4,9 @@
 
 :::warning TODO
 - Base class `JsonMetaError`
-- Subclasses: `ConfigurationError` (and its subclasses `CapabilityConfigurationError` and `UnknownEntityError`),
+- Subclasses: `ConfigurationError` (and its subclass `CapabilityConfigurationError`),
   `HttpError`, `NetworkError`, `JmapError`, `MethodCallError`, `CancellationError`,
-  `StateChangeError`, `InvalidUriTemplateError`, `UnknownError`
+  `StateChangeError`, `InvalidUriTemplateError`, `UnknownEntityError`, `UnknownError`
 :::
 
 ## One section per class

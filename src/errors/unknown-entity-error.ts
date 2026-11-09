@@ -8,12 +8,12 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { ConfigurationError } from "./configuration-error.ts";
+import { JsonMetaError } from "./json-meta-error.ts";
 
 /**
  * An error for an API call on an entity that no configured capability declares
  */
-export class UnknownEntityError extends ConfigurationError {
+export class UnknownEntityError extends JsonMetaError {
   override name = "UnknownEntityError";
 
   /**
