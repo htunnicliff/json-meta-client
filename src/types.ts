@@ -17,7 +17,7 @@ import type {
 } from "./built-ins.ts";
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
-import type { Augment, Middleware } from "./internal/types.ts";
+import type { Augment } from "./internal/types.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -46,10 +46,6 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    */
   capabilities: T;
   /**
-   * UNSTABLE: Synchronous transformations of individual JMAP method argument objects
-   */
-  middleware?: ReadonlyArray<Middleware>;
-  /**
    * Hooks into different client behaviors
    */
   hooks?: {
@@ -57,7 +53,7 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
     beforeFetch?: ReadonlyArray<BeforeFetchHook>;
     /** Transform each HTTP response before status validation or body parsing. */
     afterFetch?: ReadonlyArray<AfterFetchHook>;
-    /** Transform the complete batch after middleware and before serialization. */
+    /** Transform the complete batch before serialization. */
     beforeJmapRequest?: ReadonlyArray<BeforeJmapRequestHook>;
     /** Transform the parsed envelope before resolving individual method calls. */
     afterJmapResponse?: ReadonlyArray<AfterJmapResponseHook>;

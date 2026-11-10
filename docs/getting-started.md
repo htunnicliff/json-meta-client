@@ -82,7 +82,7 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 
 :::warning TODO
 - Short table of all `Config` fields: `auth`, `sessionUrl` (string or `URL`),
-  `capabilities`, `hooks`, `middleware` (mark unstable)
+  `capabilities`, `hooks`
 - `core` is always included, so empty capabilities still give `Core.echo`,
   `Blob.copy`, and `PushSubscription`
 - Constructor validates config immediately and throws `ConfigurationError` /

@@ -35,6 +35,6 @@
 
 :::warning TODO
 - How to get `Email`, `Mailbox`, etc. today (e.g. `Awaited<ReturnType<...>>`)
-- Blocked: RFC types (and `Middleware`, `Ref`, `ConfigurableCapability`,
+- Blocked: RFC types (and `Ref`, `ConfigurableCapability`,
   `CapabilityMethods`) are not exported from the package entry point yet
 :::

@@ -29,7 +29,6 @@ import {
   UnknownEntityError,
   UnknownError,
 } from "../errors.ts";
-import type { Middleware } from "../internal/types.ts";
 import type {
   FileUpload,
   Request as JMAPRequest,
@@ -163,8 +162,6 @@ describe(JsonMetaClient, () => {
       { sessionUrl: "invalid-url" },
       { capabilities: null },
       { capabilities: "mail" },
-      { middleware: "invalid" },
-      { middleware: [null] },
     ])("reports invalid options with their original values: %j", (invalidOptions) => {
       const options = {
         auth: token,
@@ -983,48 +980,6 @@ describe(JsonMetaClient, () => {
           cause: { invalidCapabilities: [archive.urn, unused.urn] },
         }),
       );
-    });
-
-    it.each([null, [], "invalid", 1, false])(
-      "rejects non-object middleware output: %j",
-      (output) => {
-        const client = new JsonMetaClient({
-          middleware: [() => output],
-          sessionUrl,
-          auth: token,
-          capabilities: [mail],
-        });
-        expect(() => client.api.Mailbox.query({})).toThrow(
-          "JMAP method arguments must be an object",
-        );
-      },
-    );
-
-    it("runs custom middleware after the built-in request transformations", async () => {
-      const mockMiddleware = vi.fn<Middleware>((_args) => {
-        return { foo: true };
-      });
-      client = new JsonMetaClient({
-        middleware: [mockMiddleware],
-        sessionUrl,
-        auth: token,
-        capabilities: [mail],
-      });
-      expect(mockMiddleware).not.toHaveBeenCalled();
-      const query = client.api.Mailbox.query({ limit: 1 });
-      const apiScope = mockApi(
-        {
-          using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { foo: true }, query.$id]],
-        },
-        { methodResponses: [["Mailbox/query", { ids: [] }, query.$id]], sessionState },
-      );
-
-      await expect(query).resolves.toEqual({ ids: [] });
-      expect(mockMiddleware).toHaveBeenCalledExactlyOnceWith({ accountId, limit: 1 });
-      expect(mockMiddleware).toHaveReturnedWith({ foo: true });
-
-      expect(apiScope.isDone()).toBe(true);
     });
   });
 
