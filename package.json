@@ -67,7 +67,7 @@
     "@changesets/cli": "3.0.3",
     "@tony.ganchev/eslint-plugin-header": "3.4.4",
     "@types/node": "26.6.6",
-    "cspell": "10.4.0",
+    "cspell": "10.4.1",
     "husky": "9.1.7",
     "nock": "15.0.6",
     "oxfmt": "0.76.0",
