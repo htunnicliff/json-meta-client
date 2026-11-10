@@ -76,7 +76,7 @@
     "pkg-pr-new": "0.0.93",
     "publint": "0.3.25",
     "testcontainers": "12.2.1",
-    "tsdown": "0.23.5",
+    "tsdown": "0.23.7",
     "typescript": "6.0.3",
     "vitepress": "2.0.0-alpha.21",
     "vitepress-plugin-group-icons": "1.8.1",
