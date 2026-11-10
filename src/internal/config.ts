@@ -16,7 +16,7 @@ import type { CapabilityOption, Config } from "../types.ts";
  * Constructor validation mechanism
  */
 export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption>>): void {
-  const { auth, capabilities: givenCapabilities, sessionUrl, middleware } = options;
+  const { auth, capabilities: givenCapabilities, sessionUrl } = options;
 
   // Authentication
   const isAuthCallback = typeof auth === "function";
@@ -79,15 +79,6 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
         "Capability entities must be an array of entity name strings",
         { capability },
       );
-    }
-  }
-
-  // Middleware
-  if (middleware) {
-    if (!Array.isArray(middleware) || !middleware.every((fn) => typeof fn === "function")) {
-      throw new ConfigurationError("`middleware` must be an array of functions", {
-        cause: { middleware },
-      });
     }
   }
 }

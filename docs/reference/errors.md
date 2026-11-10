@@ -32,7 +32,6 @@
 - Malformed JSON in a successful response rejects with a plain `SyntaxError`
 - Errors thrown by `afterFetch` hooks pass through unchanged
 - `createdRef` throws `RangeError`
-- Middleware returning a non-object throws `TypeError`
 :::
 
 ## Handling patterns

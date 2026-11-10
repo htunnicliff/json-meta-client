@@ -108,6 +108,18 @@ describe(JsonMetaClient, () => {
       expectTypeOf<BuiltInCapabilityName>().toEqualTypeOf<keyof typeof BUILT_IN_CAPABILITIES>();
     });
 
+    it("rejects a middleware option", () => {
+      expectTypeOf<Config<readonly ["mail"]>>().not.toHaveProperty("middleware");
+      const options: Config<readonly ["mail"]> = {
+        auth: token,
+        sessionUrl,
+        capabilities: ["mail"],
+        // @ts-expect-error - Middleware is internal, not a client option.
+        middleware: [],
+      };
+      expectTypeOf(options).toEqualTypeOf<Config<readonly ["mail"]>>();
+    });
+
     it("accepts readonly name arrays in separately declared options", async () => {
       const options: Config<readonly ["mail"]> = {
         auth: token,

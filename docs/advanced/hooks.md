@@ -6,7 +6,7 @@
 - Diagram or ordered list: `auth` → `beforeFetch` → `beforeEventSourceConnect`
   (streams only) → `fetch` → `afterFetch` → stream validation →
   `afterEventSourceConnect` → status check and JSON parse
-- For API calls: middleware → `beforeJmapRequest` → HTTP hooks →
+- For API calls: `beforeJmapRequest` → HTTP hooks →
   `afterJmapResponse` → resolve each call
 :::
 
@@ -52,13 +52,4 @@
 :::warning TODO
 - Logging, request IDs or tracing headers, snapshotting the request body
   (as in the find-inbox test), token refresh (point to the `auth` callback instead)
-:::
-
-## Middleware (unstable)
-
-:::warning TODO
-- Synchronous functions transforming each method's argument object,
-  `(payload: JsonValue) => JsonValue`
-- Run after the built-in ref-key rewrite and account-ID injection; must return an object
-- Note: the `Middleware` type is not exported publicly yet
 :::

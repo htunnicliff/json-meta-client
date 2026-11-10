@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { SetOptional, SetRequired } from "type-fest";
+import type { SetOptional } from "type-fest";
 
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { DEFAULT_CAPABILITIES, getCapabilitiesForBuiltIns } from "./built-ins.ts";
@@ -32,6 +32,7 @@ import { MethodCallResult } from "./internal/method-call-result.ts";
 import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import type { Middleware } from "./internal/types.ts";
 import type {
   FileDownload,
   FileUpload,
@@ -63,15 +64,16 @@ export class JsonMetaClient<
       sessionUrl: options.sessionUrl,
       capabilities: getCapabilitiesForBuiltIns(options.capabilities),
       hooks: options.hooks,
-      middleware: [
-        replaceNestedResultRefKeys,
-        injectAccountId(() => {
-          if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
-          return this.#sessionSync;
-        }),
-        ...(options.middleware ?? []),
-      ],
     };
+
+    // Built-in transformations of each method's arguments
+    this.#middleware = [
+      replaceNestedResultRefKeys,
+      injectAccountId(() => {
+        if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
+        return this.#sessionSync;
+      }),
+    ];
 
     // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
@@ -246,7 +248,12 @@ export class JsonMetaClient<
   /**
    * Parameters used to initialize the client
    */
-  readonly #config: SetRequired<Config<ReadonlyArray<Capability>>, "middleware">;
+  readonly #config: Config<ReadonlyArray<Capability>>;
+
+  /**
+   * Transformations applied to each method's arguments
+   */
+  readonly #middleware: ReadonlyArray<Middleware>;
 
   /**
    * A mapping of every entity name to their respective capability URNs
@@ -301,7 +308,7 @@ export class JsonMetaClient<
   #setupApi({ signal }: { signal: AbortSignal }): API {
     return createApi<API>({
       processMethodCalls: this.#processQueuedMethodCalls,
-      middleware: this.#config.middleware,
+      middleware: this.#middleware,
       isKnownEntity: (entity) => this.#knownEntities.has(entity),
       signal,
     });

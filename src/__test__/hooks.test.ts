@@ -87,7 +87,7 @@ describe("Fetch hooks", () => {
 });
 
 describe("JMAP envelope hooks", () => {
-  it("transforms one envelope per batch after middleware and before per-method results", async () => {
+  it("transforms one envelope per batch before per-method results", async () => {
     mockSession();
     let envelopes = 0;
     let responses = 0;
@@ -95,8 +95,8 @@ describe("JMAP envelope hooks", () => {
       .post("/special-jmap-api", {
         using: ["urn:ietf:params:jmap:core", "urn:example:extra"],
         methodCalls: [
-          ["Core/echo", { value: "first", accountId, middleware: true }, "first"],
-          ["Core/echo", { value: "second", accountId, middleware: true }, "second"],
+          ["Core/echo", { value: "first", accountId }, "first"],
+          ["Core/echo", { value: "second", accountId }, "second"],
         ],
         createdIds: { local: "remote" },
       })
@@ -111,13 +111,12 @@ describe("JMAP envelope hooks", () => {
       sessionUrl,
       auth: "token",
       capabilities: [],
-      middleware: [(args) => ({ ...Object(args), middleware: true })],
       hooks: {
         beforeJmapRequest: [
           async ({ request }) => {
             envelopes++;
             expect(request.methodCalls).toHaveLength(2);
-            expect(request.methodCalls[0]![1]).toMatchObject({ accountId, middleware: true });
+            expect(request.methodCalls[0]![1]).toMatchObject({ accountId });
             await Promise.resolve();
             return { ...request, using: [...request.using, "urn:example:extra"] };
           },
