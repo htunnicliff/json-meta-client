@@ -1,5 +1,25 @@
 # json-meta-client
 
+## 1.0.0-alpha.1
+
+### Major Changes
+
+- [#183](https://github.com/htunnicliff/json-meta-client/pull/183) [`f778665`](https://github.com/htunnicliff/json-meta-client/commit/f7786651174de5e74e03f437dd7aea759fb8da34) Thanks [@htunnicliff](https://github.com/htunnicliff)! - BREAKING: Calling a method on an entity that no capability declares, such
+  as `client.api.Foo.bar({})`, now rejects with `UnknownEntityError` and is never sent to the server. Previously the call
+  was sent without a capability URN in `using`. The error names the entity
+  and method; fix it by adding a capability that declares the entity, using a
+  built-in capability or `defineCapability`. `Core`, `Blob` and
+  `PushSubscription` stay callable without listing `core`. Callers that
+  relied on a `beforeJmapRequest` hook to add the URN for an undeclared
+  entity must declare the entity with `defineCapability` instead.
+
+- [#188](https://github.com/htunnicliff/json-meta-client/pull/188) [`88ca1cd`](https://github.com/htunnicliff/json-meta-client/commit/88ca1cd840e8d4d3622a1dd7416531edb90509b0) Thanks [@htunnicliff](https://github.com/htunnicliff)! - BREAKING: Remove the unstable `middleware` client option. Passing
+  `middleware` to `JsonMetaClient` is now a type error and the option is
+  ignored at runtime. The built-in argument transformations (result reference
+  keys and `accountId` injection) still run. To change outgoing method calls,
+  use a `beforeJmapRequest` hook, which receives the whole request envelope
+  including each call's arguments.
+
 ## 1.0.0-alpha.0
 
 ### Major Changes
