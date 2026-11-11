@@ -80,5 +80,16 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
         { capability },
       );
     }
+
+    if (
+      capability.dependsOn !== undefined &&
+      (!Array.isArray(capability.dependsOn) ||
+        !capability.dependsOn.every((urn: unknown) => typeof urn === "string"))
+    ) {
+      throw new CapabilityConfigurationError(
+        "Capability `dependsOn` must be an array of URN strings",
+        { capability },
+      );
+    }
   }
 }

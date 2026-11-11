@@ -10,7 +10,9 @@
 
 :::warning TODO
 - Built-in names as strings: `"mail"`, `"submission"`, `"blob"`, `"contacts"`,
-  `"sieve"`, `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
+  `"mdn"`, `"quota"`, `"sharing"`, `"sieve"`, `"smime"`,
+  `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
+- `smime` adds no methods; it adds its URN to `Email` calls
 - Names are case-sensitive; unknown names fail at the type level and throw
   `CapabilityConfigurationError` at runtime
 - Names can be mixed with `defineCapability` objects (link to Extending)
@@ -22,6 +24,7 @@
 :::warning TODO
 - Each request includes `core` plus URNs of entities used by the batch's calls
 - An entity in several capabilities includes all their URNs (e.g. `Blob` in `core` and `blob`)
+- A capability can also depend on other URNs (e.g. `mdn` adds the mail URN)
 - URNs are never duplicated
 :::
 

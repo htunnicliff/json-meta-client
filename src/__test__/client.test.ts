@@ -181,6 +181,8 @@ describe(JsonMetaClient, () => {
       { entities: ["Example"] },
       { urn: "urn:example", entities: "Example" },
       { urn: "urn:example", entities: [42] },
+      { urn: "urn:example", entities: ["Example"], dependsOn: "urn:other" },
+      { urn: "urn:example", entities: ["Example"], dependsOn: [42] },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
@@ -486,6 +488,58 @@ describe(JsonMetaClient, () => {
 
       await expect(query).resolves.toEqual({ ids: ["inbox"] });
       await expect(get).resolves.toEqual({ value: "hello" });
+      expect(apiScope.isDone()).toBe(true);
+    });
+
+    it("adds the URNs a capability depends on to its calls", async () => {
+      const mdnClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: ["mdn"],
+      });
+      const parsed = mdnClient.api.MDN.parse({ blobIds: ["blob"] });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, "urn:ietf:params:jmap:mdn", mail.urn],
+          methodCalls: [["MDN/parse", { accountId, blobIds: ["blob"] }, parsed.$id]],
+        },
+        {
+          methodResponses: [["MDN/parse", { notFound: ["blob"] }, parsed.$id]],
+          sessionState,
+        },
+      );
+
+      await expect(parsed).resolves.toEqual({ notFound: ["blob"] });
+      expect(apiScope.isDone()).toBe(true);
+    });
+
+    it("adds the S/MIME verification URN to Email calls only", async () => {
+      const smimeClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: ["mail", "smime"],
+      });
+      const email = smimeClient.api.Email.get({ ids: ["e1"], properties: ["smimeStatus"] });
+      const mailbox = smimeClient.api.Mailbox.get({ ids: ["inbox"] });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn, "urn:ietf:params:jmap:smimeverify"],
+          methodCalls: [
+            ["Email/get", { accountId, ids: ["e1"], properties: ["smimeStatus"] }, email.$id],
+            ["Mailbox/get", { accountId, ids: ["inbox"] }, mailbox.$id],
+          ],
+        },
+        {
+          methodResponses: [
+            ["Email/get", { list: [{ id: "e1", smimeStatus: "signed" }] }, email.$id],
+            ["Mailbox/get", { list: [] }, mailbox.$id],
+          ],
+          sessionState,
+        },
+      );
+
+      await expect(email).resolves.toEqual({ list: [{ id: "e1", smimeStatus: "signed" }] });
+      await expect(mailbox).resolves.toEqual({ list: [] });
       expect(apiScope.isDone()).toBe(true);
     });
   });

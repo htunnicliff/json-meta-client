@@ -7,6 +7,15 @@
   then pass the object in `capabilities`
 :::
 
+## Depending on other URNs
+
+:::warning TODO
+- `defineCapability({ urn, entities, dependsOn })` lists other URNs that the
+  server needs in `using` for this capability's methods
+- The client adds them whenever one of the capability's entities is called
+- Built-in example: `mdn` depends on the mail URN because `MDN/send` updates Emails
+:::
+
 ## Method contracts
 
 :::warning TODO

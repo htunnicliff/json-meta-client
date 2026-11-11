@@ -13,12 +13,6 @@
 - `core` is always enabled
 :::
 
-## Not yet provided as capabilities
-
-:::warning TODO
-- Quotas, Principals/Sharing, and MDN have types but no capability objects
-:::
-
 <script setup>
   import {data as builtIns } from './capabilities.data.ts';
 
@@ -49,13 +43,17 @@
 
 ## Built-In
 
-<section v-for="[name, { urn, entities }] in ready" :key="name">
+<section v-for="[name, { urn, entities, dependsOn }] in ready" :key="name">
   <h3><code>{{name}}</code></h3>
   <table>
     <tbody>
       <tr>
         <td>URN</td>
         <td>{{urn}}</td>
+      </tr>
+      <tr v-if="dependsOn">
+        <td>Also sends</td>
+        <td>{{dependsOn.join(", ")}}</td>
       </tr>
       <tr>
         <td>Entities</td>
