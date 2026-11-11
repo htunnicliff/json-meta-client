@@ -18,7 +18,7 @@ outline: [2, 3]
 A `string` or `URL` instance for a JMAP server session endpoint.
 
 ```ts {2}
-const client = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
   auth: "<token>",
   capabilities: ["mail"],
@@ -30,7 +30,7 @@ const client = new JsonMetaClient({
 For **bearer token** authentication: a `string` containing a bearer token.
 
 ```ts {3}
-const bearerClient = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
   auth: "<token>",
   capabilities: ["mail"],
@@ -41,7 +41,7 @@ For **basic** authentication: an object with `username` and `password`
 properties.
 
 ```ts {3-6}
-const basicClient = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
   auth: {
     username: "<username>",
@@ -55,7 +55,7 @@ For other authentication strategies: a function that modifies each
 outgoing request.
 
 ```ts {3-5}
-const customAuthClient = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
   auth: async ({ request }) => {
     request.headers.set("X-Custom", "<custom-value>");
@@ -73,7 +73,7 @@ capability in this array will make its corresponding entities and methods
 available at runtime while also enabling their types.
 
 ```ts {4-9}
-const mailClient = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
   auth: "<token>",
   capabilities: [
@@ -222,7 +222,7 @@ such as a proxy header:
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
-const proxiedClient = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   capabilities: ["mail"],
   auth: ({ request }) => {
