@@ -29,4 +29,15 @@ describe("Capability", () => {
     expect(withMethods.urn).toBe("urn:ietf:params:jmap:mail");
     expect(withMethods.entities).toEqual(["Email", "Mailbox"]);
   });
+
+  it("keeps required URNs through withMethods", () => {
+    const extension = defineCapability({
+      urn: "urn:example:extension",
+      entities: ["Email"],
+      requires: ["urn:ietf:params:jmap:mail"],
+    });
+    expect(extension.requires).toEqual(["urn:ietf:params:jmap:mail"]);
+    expect(extension.withMethods().requires).toEqual(["urn:ietf:params:jmap:mail"]);
+    expect(cap.withMethods()).not.toHaveProperty("requires");
+  });
 });

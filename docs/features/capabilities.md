@@ -24,6 +24,7 @@
 :::warning TODO
 - Each request includes `core` plus URNs of entities used by the batch's calls
 - An entity in several capabilities includes all their URNs (e.g. `Blob` in `core` and `blob`)
+- A capability can also require other URNs (e.g. `mdn` adds the mail URN)
 - URNs are never duplicated
 :::
 

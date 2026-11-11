@@ -213,6 +213,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
 export interface ConfigurableCapability<Entity extends string, Urn extends string = string> {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
+  requires?: ReadonlyArray<string>;
   withMethods<
     M extends CapabilityMethods<Entity>,
     AccountCapabilities = unknown,

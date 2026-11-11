@@ -19,6 +19,7 @@ export interface MethodContract {
  * A fully configured capability:
  * - Known entities (type and value)
  * - Known urn (value)
+ * - Other URNs its methods need in a request's `using` array (value)
  * - Known methods (type)
  * - Known account capability details (type)
  * - Known session capability details (type)
@@ -32,6 +33,12 @@ export interface Capability<
 > {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
+  /**
+   * Other capability URNs that the server needs in a request's `using`
+   * array when calling this capability's methods. The client adds them
+   * alongside {@link Capability.urn}.
+   */
+  requires?: ReadonlyArray<string>;
 }
 
 /**
@@ -59,13 +66,15 @@ export type InferMethodsFromCapability<C> =
 export function defineCapability<const Entity extends string, const Urn extends string = string>({
   urn,
   entities,
+  requires,
 }: {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
+  requires?: ReadonlyArray<string>;
 }): ConfigurableCapability<Entity, Urn> {
+  const capability = requires === undefined ? { urn, entities } : { urn, entities, requires };
   return {
-    urn,
-    entities,
-    withMethods: () => ({ urn, entities }),
+    ...capability,
+    withMethods: () => ({ ...capability }),
   };
 }

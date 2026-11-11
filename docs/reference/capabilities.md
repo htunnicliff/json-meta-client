@@ -43,13 +43,17 @@
 
 ## Built-In
 
-<section v-for="[name, { urn, entities }] in ready" :key="name">
+<section v-for="[name, { urn, entities, requires }] in ready" :key="name">
   <h3><code>{{name}}</code></h3>
   <table>
     <tbody>
       <tr>
         <td>URN</td>
         <td>{{urn}}</td>
+      </tr>
+      <tr v-if="requires">
+        <td>Also sends</td>
+        <td>{{requires.join(", ")}}</td>
       </tr>
       <tr>
         <td>Entities</td>

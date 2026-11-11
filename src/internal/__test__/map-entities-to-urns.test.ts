@@ -26,6 +26,18 @@ describe(mapEntitiesToUrns, () => {
     });
   });
 
+  it("adds required URNs after the capability's own URN", () => {
+    expect(
+      mapEntitiesToUrns([
+        { urn: "urn:foo:base", entities: ["Thing"] },
+        { urn: "urn:foo:extra", entities: ["Extra", "Thing"], requires: ["urn:foo:base"] },
+      ]),
+    ).toEqual({
+      Thing: ["urn:foo:base", "urn:foo:extra"],
+      Extra: ["urn:foo:extra", "urn:foo:base"],
+    });
+  });
+
   it("deduplicates repeated registrations of the same URN", () => {
     expect(
       mapEntitiesToUrns([

@@ -181,6 +181,8 @@ describe(JsonMetaClient, () => {
       { entities: ["Example"] },
       { urn: "urn:example", entities: "Example" },
       { urn: "urn:example", entities: [42] },
+      { urn: "urn:example", entities: ["Example"], requires: "urn:other" },
+      { urn: "urn:example", entities: ["Example"], requires: [42] },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
@@ -486,6 +488,28 @@ describe(JsonMetaClient, () => {
 
       await expect(query).resolves.toEqual({ ids: ["inbox"] });
       await expect(get).resolves.toEqual({ value: "hello" });
+      expect(apiScope.isDone()).toBe(true);
+    });
+
+    it("adds the URNs a capability requires to its calls", async () => {
+      const mdnClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: ["mdn"],
+      });
+      const parsed = mdnClient.api.MDN.parse({ blobIds: ["blob"] });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, "urn:ietf:params:jmap:mdn", mail.urn],
+          methodCalls: [["MDN/parse", { accountId, blobIds: ["blob"] }, parsed.$id]],
+        },
+        {
+          methodResponses: [["MDN/parse", { notFound: ["blob"] }, parsed.$id]],
+          sessionState,
+        },
+      );
+
+      await expect(parsed).resolves.toEqual({ notFound: ["blob"] });
       expect(apiScope.isDone()).toBe(true);
     });
 

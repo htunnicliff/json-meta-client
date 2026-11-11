@@ -23,4 +23,7 @@ export const mdn: Capability<
 > = {
   urn: "urn:ietf:params:jmap:mdn",
   entities: ["MDN"],
+  // MDN/send implicitly updates Emails and uses Identities.
+  // See https://www.rfc-editor.org/rfc/rfc9007.html#section-2.1
+  requires: ["urn:ietf:params:jmap:mail"],
 };
