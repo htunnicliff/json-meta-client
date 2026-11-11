@@ -28,9 +28,9 @@ import type { AccountCapabilities } from "../rfc-types/extensions.ts";
  *
  * @see https://www.rfc-editor.org/rfc/rfc9670.html#section-2
  */
-export type PrincipalsAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:principals"];
+export type SharingAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:principals"];
 
-export const principals: Capability<
+export const sharing: Capability<
   "Principal" | "ShareNotification",
   {
     Principal: {
@@ -49,7 +49,7 @@ export const principals: Capability<
     };
   },
   "urn:ietf:params:jmap:principals",
-  PrincipalsAccountCapabilities
+  SharingAccountCapabilities
 > = {
   urn: "urn:ietf:params:jmap:principals",
   entities: ["Principal", "ShareNotification"],

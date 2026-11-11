@@ -17,7 +17,7 @@ import type { Capability } from "../capability.ts";
  *
  * @see https://www.rfc-editor.org/rfc/rfc9219.html
  */
-export const smimeVerify: Capability<
+export const smime: Capability<
   "Email",
   {
     Email: {};

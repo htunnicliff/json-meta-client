@@ -125,7 +125,7 @@ describe("RFC capability contracts through the client", () => {
     const sharingClient = new JsonMetaClient({
       auth: "token",
       sessionUrl: "https://example.test/jmap",
-      capabilities: ["principals"],
+      capabilities: ["sharing"],
     });
     const principals = await sharingClient.api.Principal.get({ properties: ["name", "type"] });
     expectTypeOf(principals.list[0]!.type).toEqualTypeOf<
@@ -183,7 +183,7 @@ describe("RFC capability contracts through the client", () => {
     const smimeClient = new JsonMetaClient({
       auth: "token",
       sessionUrl: "https://example.test/jmap",
-      capabilities: ["mail", "smimeVerify"],
+      capabilities: ["mail", "smime"],
     });
     const mailOnly = new JsonMetaClient({
       auth: "token",

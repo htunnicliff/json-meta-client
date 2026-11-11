@@ -19,7 +19,7 @@ export { maskedEmail as "community:maskedEmail" } from "./community/masked-email
 export { blob } from "./blob.ts";
 export { contacts } from "./contacts.ts";
 export { mdn } from "./mdn.ts";
-export { principals } from "./principals.ts";
 export { quota } from "./quota.ts";
+export { sharing } from "./sharing.ts";
 export { sieve } from "./sieve.ts";
-export { smimeVerify } from "./smime-verify.ts";
+export { smime } from "./smime.ts";

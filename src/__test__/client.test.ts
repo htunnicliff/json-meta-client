@@ -493,7 +493,7 @@ describe(JsonMetaClient, () => {
       const smimeClient = new JsonMetaClient({
         auth: token,
         sessionUrl,
-        capabilities: ["mail", "smimeVerify"],
+        capabilities: ["mail", "smime"],
       });
       const email = smimeClient.api.Email.get({ ids: ["e1"], properties: ["smimeStatus"] });
       const mailbox = smimeClient.api.Mailbox.get({ ids: ["inbox"] });
