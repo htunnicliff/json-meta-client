@@ -14,6 +14,6 @@ included:
   S/MIME filters. It adds no methods; enable `mail` alongside it.
 
 Capabilities can now list other URNs that their methods need in `using`
-with an optional `requires` array, including through
-`defineCapability({ urn, entities, requires })`. The client adds those URNs
+with an optional `dependsOn` array, including through
+`defineCapability({ urn, entities, dependsOn })`. The client adds those URNs
 whenever one of the capability's entities is called.

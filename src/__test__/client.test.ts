@@ -181,8 +181,8 @@ describe(JsonMetaClient, () => {
       { entities: ["Example"] },
       { urn: "urn:example", entities: "Example" },
       { urn: "urn:example", entities: [42] },
-      { urn: "urn:example", entities: ["Example"], requires: "urn:other" },
-      { urn: "urn:example", entities: ["Example"], requires: [42] },
+      { urn: "urn:example", entities: ["Example"], dependsOn: "urn:other" },
+      { urn: "urn:example", entities: ["Example"], dependsOn: [42] },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
@@ -491,7 +491,7 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
-    it("adds the URNs a capability requires to its calls", async () => {
+    it("adds the URNs a capability depends on to its calls", async () => {
       const mdnClient = new JsonMetaClient({
         auth: token,
         sessionUrl,

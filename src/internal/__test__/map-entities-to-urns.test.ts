@@ -30,7 +30,7 @@ describe(mapEntitiesToUrns, () => {
     expect(
       mapEntitiesToUrns([
         { urn: "urn:foo:base", entities: ["Thing"] },
-        { urn: "urn:foo:extra", entities: ["Extra", "Thing"], requires: ["urn:foo:base"] },
+        { urn: "urn:foo:extra", entities: ["Extra", "Thing"], dependsOn: ["urn:foo:base"] },
       ]),
     ).toEqual({
       Thing: ["urn:foo:base", "urn:foo:extra"],

@@ -38,7 +38,7 @@ export interface Capability<
    * array when calling this capability's methods. The client adds them
    * alongside {@link Capability.urn}.
    */
-  requires?: ReadonlyArray<string>;
+  dependsOn?: ReadonlyArray<string>;
 }
 
 /**
@@ -66,13 +66,13 @@ export type InferMethodsFromCapability<C> =
 export function defineCapability<const Entity extends string, const Urn extends string = string>({
   urn,
   entities,
-  requires,
+  dependsOn,
 }: {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
-  requires?: ReadonlyArray<string>;
+  dependsOn?: ReadonlyArray<string>;
 }): ConfigurableCapability<Entity, Urn> {
-  const capability = requires === undefined ? { urn, entities } : { urn, entities, requires };
+  const capability = dependsOn === undefined ? { urn, entities } : { urn, entities, dependsOn };
   return {
     ...capability,
     withMethods: () => ({ ...capability }),

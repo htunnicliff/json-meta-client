@@ -34,10 +34,10 @@ describe("Capability", () => {
     const extension = defineCapability({
       urn: "urn:example:extension",
       entities: ["Email"],
-      requires: ["urn:ietf:params:jmap:mail"],
+      dependsOn: ["urn:ietf:params:jmap:mail"],
     });
-    expect(extension.requires).toEqual(["urn:ietf:params:jmap:mail"]);
-    expect(extension.withMethods().requires).toEqual(["urn:ietf:params:jmap:mail"]);
-    expect(cap.withMethods()).not.toHaveProperty("requires");
+    expect(extension.dependsOn).toEqual(["urn:ietf:params:jmap:mail"]);
+    expect(extension.withMethods().dependsOn).toEqual(["urn:ietf:params:jmap:mail"]);
+    expect(cap.withMethods()).not.toHaveProperty("dependsOn");
   });
 });

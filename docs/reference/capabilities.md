@@ -43,7 +43,7 @@
 
 ## Built-In
 
-<section v-for="[name, { urn, entities, requires }] in ready" :key="name">
+<section v-for="[name, { urn, entities, dependsOn }] in ready" :key="name">
   <h3><code>{{name}}</code></h3>
   <table>
     <tbody>
@@ -51,9 +51,9 @@
         <td>URN</td>
         <td>{{urn}}</td>
       </tr>
-      <tr v-if="requires">
+      <tr v-if="dependsOn">
         <td>Also sends</td>
-        <td>{{requires.join(", ")}}</td>
+        <td>{{dependsOn.join(", ")}}</td>
       </tr>
       <tr>
         <td>Entities</td>

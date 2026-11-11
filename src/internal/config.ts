@@ -82,12 +82,12 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
     }
 
     if (
-      capability.requires !== undefined &&
-      (!Array.isArray(capability.requires) ||
-        !capability.requires.every((urn: unknown) => typeof urn === "string"))
+      capability.dependsOn !== undefined &&
+      (!Array.isArray(capability.dependsOn) ||
+        !capability.dependsOn.every((urn: unknown) => typeof urn === "string"))
     ) {
       throw new CapabilityConfigurationError(
-        "Capability `requires` must be an array of URN strings",
+        "Capability `dependsOn` must be an array of URN strings",
         { capability },
       );
     }
