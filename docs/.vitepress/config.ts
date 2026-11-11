@@ -14,6 +14,7 @@ export default defineConfig({
     hostname: "https://json-meta-client.dev",
   },
   themeConfig: {
+    externalLinkIcon: true,
     search: {
       provider: "local",
     },

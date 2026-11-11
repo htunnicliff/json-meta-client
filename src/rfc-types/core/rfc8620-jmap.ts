@@ -61,25 +61,31 @@ export interface Account {
 /**
  * @see https://www.rfc-editor.org/info/rfc8620/#section-3.2
  */
+//#region invocation
 export type Invocation<T extends object = object> = [
   name: string,
   argsOrResponse: T,
   methodCallId: string,
 ];
+//#endregion
 
 /** @see https://www.rfc-editor.org/info/rfc8620/#section-3.3 */
+//#region jmap-request
 export interface Request {
   methodCalls: readonly Invocation[];
   using: readonly string[];
   createdIds?: Record<string, string>;
 }
+//#endregion
 
 /** @see https://www.rfc-editor.org/info/rfc8620/#section-3.4 */
+//#region jmap-response
 export interface Response {
   methodResponses: readonly Invocation[];
   sessionState: string;
   createdIds?: Record<string, string>;
 }
+//#endregion
 
 /** @see https://www.rfc-editor.org/info/rfc8620/#section-3.7 */
 export interface ResultReference {
