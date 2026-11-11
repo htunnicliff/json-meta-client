@@ -488,6 +488,36 @@ describe(JsonMetaClient, () => {
       await expect(get).resolves.toEqual({ value: "hello" });
       expect(apiScope.isDone()).toBe(true);
     });
+
+    it("adds the S/MIME verification URN to Email calls only", async () => {
+      const smimeClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: ["mail", "smimeVerify"],
+      });
+      const email = smimeClient.api.Email.get({ ids: ["e1"], properties: ["smimeStatus"] });
+      const mailbox = smimeClient.api.Mailbox.get({ ids: ["inbox"] });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn, "urn:ietf:params:jmap:smimeverify"],
+          methodCalls: [
+            ["Email/get", { accountId, ids: ["e1"], properties: ["smimeStatus"] }, email.$id],
+            ["Mailbox/get", { accountId, ids: ["inbox"] }, mailbox.$id],
+          ],
+        },
+        {
+          methodResponses: [
+            ["Email/get", { list: [{ id: "e1", smimeStatus: "signed" }] }, email.$id],
+            ["Mailbox/get", { list: [] }, mailbox.$id],
+          ],
+          sessionState,
+        },
+      );
+
+      await expect(email).resolves.toEqual({ list: [{ id: "e1", smimeStatus: "signed" }] });
+      await expect(mailbox).resolves.toEqual({ list: [] });
+      expect(apiScope.isDone()).toBe(true);
+    });
   });
 
   describe("session", () => {

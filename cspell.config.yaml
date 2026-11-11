@@ -17,6 +17,7 @@ words:
   - JMAP
   - jscontact
   - mattpocock
+  - mdnsent
   - microtask
   - microtasks
   - notjunk
@@ -28,6 +29,8 @@ words:
   - reqheaders
   - rocksdb
   - sammcj
+  - smime
+  - smimeverify
   - stalwartlabs
   - triaging
   - tsgolint

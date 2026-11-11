@@ -11,7 +11,8 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { JsonMetaClient } from "../index.ts";
-import type { SetError } from "../rfc-types/core/index.ts";
+import type { Quota, SetError } from "../rfc-types/core/index.ts";
+import type { MDN } from "../rfc-types/mail/index.ts";
 
 const client = new JsonMetaClient({
   auth: "token",
@@ -100,5 +101,95 @@ describe("RFC capability contracts through the client", () => {
       create: { alias: { forDomain: "example.test" } },
     });
     expectTypeOf(created.createdRef("alias")).toEqualTypeOf<"#alias">();
+  });
+
+  it("types quota methods without exposing writes", async () => {
+    const quotaClient = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["quota"],
+    });
+    const query = quotaClient.api.Quota.query({ filter: { scope: "account" } });
+    const quotas = await quotaClient.api.Quota.get({
+      ids: query.resultRef("/ids"),
+      properties: ["used", "hardLimit"],
+    });
+    expectTypeOf(quotas.list[0]!.used).toEqualTypeOf<Quota["used"]>();
+    expectTypeOf(quotas.list[0]!).not.toHaveProperty("name");
+    expectTypeOf(quotaClient.api.Quota).not.toHaveProperty("set");
+    // @ts-expect-error Quota filters do not accept unknown properties.
+    void quotaClient.api.Quota.query({ filter: { owner: "me" } });
+  });
+
+  it("types principal and share notification methods", async () => {
+    const sharingClient = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["principals"],
+    });
+    const principals = await sharingClient.api.Principal.get({ properties: ["name", "type"] });
+    expectTypeOf(principals.list[0]!.type).toEqualTypeOf<
+      "individual" | "group" | "resource" | "location" | "other"
+    >();
+    void sharingClient.api.Principal.query({ filter: { email: "ada@example.test" } });
+    const notifications = await sharingClient.api.ShareNotification.query({
+      filter: { objectType: "AddressBook" },
+    });
+    expectTypeOf(notifications.ids).toEqualTypeOf<string[]>();
+    void sharingClient.api.ShareNotification.set({ destroy: ["n1"] });
+    // @ts-expect-error Share notifications can only be destroyed.
+    void sharingClient.api.ShareNotification.set({ create: { n: {} } });
+  });
+
+  it("types MDN sending and parsing", async () => {
+    const mdnClient = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["mail", "submission", "mdn"],
+    });
+    const sent = await mdnClient.api.MDN.send({
+      identityId: "identity",
+      send: {
+        read: {
+          forEmailId: "email",
+          disposition: {
+            actionMode: "manual-action",
+            sendingMode: "mdn-sent-manually",
+            type: "displayed",
+          },
+        },
+      },
+      onSuccessUpdateEmail: { "#read": { "keywords/$mdnsent": true } },
+    });
+    expectTypeOf(sent.sent).toEqualTypeOf<Record<string, Partial<MDN>> | null | undefined>();
+    const parsed = await mdnClient.api.MDN.parse({ blobIds: ["blob"] });
+    expectTypeOf(parsed.parsed).toEqualTypeOf<Record<string, MDN> | null | undefined>();
+    void mdnClient.api.MDN.send({
+      identityId: "identity",
+      send: {
+        // @ts-expect-error An MDN must name the Email it answers.
+        read: {
+          disposition: {
+            actionMode: "manual-action",
+            sendingMode: "mdn-sent-manually",
+            type: "displayed",
+          },
+        },
+      },
+    });
+  });
+
+  it("adds no methods for S/MIME verification", () => {
+    const smimeClient = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["mail", "smimeVerify"],
+    });
+    const mailOnly = new JsonMetaClient({
+      auth: "token",
+      sessionUrl: "https://example.test/jmap",
+      capabilities: ["mail"],
+    });
+    expectTypeOf(smimeClient.api).toEqualTypeOf(mailOnly.api);
   });
 });

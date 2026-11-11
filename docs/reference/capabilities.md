@@ -13,12 +13,6 @@
 - `core` is always enabled
 :::
 
-## Not yet provided as capabilities
-
-:::warning TODO
-- Quotas, Principals/Sharing, and MDN have types but no capability objects
-:::
-
 <script setup>
   import {data as builtIns } from './capabilities.data.ts';
 

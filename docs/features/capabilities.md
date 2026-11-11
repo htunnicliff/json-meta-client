@@ -10,7 +10,9 @@
 
 :::warning TODO
 - Built-in names as strings: `"mail"`, `"submission"`, `"blob"`, `"contacts"`,
-  `"sieve"`, `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
+  `"mdn"`, `"principals"`, `"quota"`, `"sieve"`, `"smimeVerify"`,
+  `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
+- `smimeVerify` adds no methods; it adds its URN to `Email` calls
 - Names are case-sensitive; unknown names fail at the type level and throw
   `CapabilityConfigurationError` at runtime
 - Names can be mixed with `defineCapability` objects (link to Extending)
