@@ -17,9 +17,11 @@ outline: [2, 3]
 
 A `string` or `URL` instance for a JMAP server session endpoint.
 
-```ts
-const client = new JsonMetaClient({
+```ts {2}
+new JsonMetaClient({
   sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
 });
 ```
 
@@ -27,35 +29,38 @@ const client = new JsonMetaClient({
 
 For **bearer token** authentication: a `string` containing a bearer token.
 
-```ts
-const client = new JsonMetaClient({
+```ts {3}
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
   auth: "<token>",
-  // ...
+  capabilities: ["mail"],
 });
 ```
 
 For **basic** authentication: an object with `username` and `password`
 properties.
 
-```ts
-const client = new JsonMetaClient({
+```ts {3-6}
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
   auth: {
     username: "<username>",
     password: "<password>",
   },
-  // ...
+  capabilities: ["mail"],
 });
 ```
 
 For other authentication strategies: a function that modifies each
 outgoing request.
 
-```ts {2-4}
-const client = new JsonMetaClient({
+```ts {3-5}
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
   auth: async ({ request }) => {
     request.headers.set("X-Custom", "<custom-value>");
   },
-  // ...
+  capabilities: ["mail"],
 });
 ```
 
@@ -67,15 +72,16 @@ Each capability is associated with specific entities and methods. Including a
 capability in this array will make its corresponding entities and methods
 available at runtime while also enabling their types.
 
-```ts
-const client = new JsonMetaClient({
+```ts {4-9}
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
   capabilities: [
     "mail",
     "submission",
     "vacationResponse",
     "sieve",
   ],
-  // ...
 });
 ```
 
@@ -216,7 +222,7 @@ such as a proxy header:
 ```ts
 import { JsonMetaClient } from "json-meta-client";
 
-const client = new JsonMetaClient({
+new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   capabilities: ["mail"],
   auth: ({ request }) => {

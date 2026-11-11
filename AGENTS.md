@@ -28,5 +28,6 @@ Code examples in `docs/` and `README.md` show the happy path:
 - Let batching group calls, since it is a core feature of the library. Create
   the calls together and await only the results the example uses. A call that
   only feeds a result reference needs no `await`; prefix a call statement
-  whose result goes unused with `void`. Reserve `Promise.all` for examples that
-  use several results, and create the calls inline inside it.
+  whose unused result is a promise with `void`. Other unused results, such as
+  a constructed client, need no `void`. Reserve `Promise.all` for examples
+  that use several results, and create the calls inline inside it.
