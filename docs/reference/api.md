@@ -84,7 +84,7 @@ To see which capabilities are supported out of the box, refer to the
 
 ### `hooks` (optional)
 
-To learn more about how hook mechanics, refer to the [hooks guide](../advanced/hooks.md).
+To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks.md).
 
 Each hook option accepts an _array_ of one or more functions that run
 in sequence.
@@ -122,14 +122,17 @@ Use this hook to modify a [`JmapResponse`](./types.md#jmapresponse) object.
 #### `hooks.beforeEventSourceConnect`
 
 Use this hook to modify the fetch [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
-used to connect an event source before it is sent.
+used to connect an event source before it is sent. It has the same signature
+as [`hooks.beforeFetch`](#hooks-beforefetch).
 
 <<< ../../src/types.ts#hook-before-event-source-connect
 
 #### `hooks.afterEventSourceConnect`
 
-Use this hook to modify the fetch [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
-after it is received for an event source.
+Use this hook to observe the fetch [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
+received when an event source connects, such as to read its headers. The
+hook cannot replace the response, and it should leave the body unread so
+the client can stream events from it.
 
 <<< ../../src/types.ts#hook-after-event-source-connect
 

@@ -89,12 +89,11 @@ export interface AfterJmapResponseHook {
 //#endregion
 
 //#region hook-before-event-source-connect
-export interface BeforeEventSourceConnectHook {
-  (params: { request: Request }): Request | Promise<Request>;
-}
+export type BeforeEventSourceConnectHook = BeforeFetchHook;
 //#endregion
 
 //#region hook-after-event-source-connect
+/** Observe headers only; leave the response body available for streaming. */
 export interface AfterEventSourceConnectHook {
   (params: { request: Request; response: Response }): void | Promise<void>;
 }
