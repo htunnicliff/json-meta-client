@@ -8,11 +8,14 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-// oxlint-disable no-await-in-loop
-
 import { resolve } from "node:path";
 
-import { GenericContainer, Wait } from "testcontainers";
+import {
+  GenericContainer,
+  getContainerRuntimeClient,
+  RandomPortGenerator,
+  Wait,
+} from "testcontainers";
 import type { TestProject } from "vitest/node";
 
 export interface StalwartFixture {
@@ -27,49 +30,67 @@ declare module "vitest" {
   }
 }
 
+const adminCredentials = "admin:integration-admin-password";
+
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const container = await new GenericContainer("stalwartlabs/mail-server:v0.11.8")
+  // Stalwart advertises JMAP URLs from STALWART_PUBLIC_URL, which must be known
+  // before the container starts, so pick the host port up front.
+  const host = (await getContainerRuntimeClient()).info.containerRuntime.host;
+  const port = await new RandomPortGenerator().generatePort();
+  const baseUrl = `http://${host}:${port}`;
+
+  const container = await new GenericContainer("stalwartlabs/stalwart:v1.1.0")
     .withCopyFilesToContainer([
       {
-        source: resolve(import.meta.dirname, "fixtures/stalwart.toml"),
-        target: "/opt/stalwart-mail/etc/config.toml",
+        source: resolve(import.meta.dirname, "fixtures/stalwart.json"),
+        target: "/etc/stalwart/config.json",
       },
     ])
-    .withExposedPorts(8080)
+    .withEnvironment({
+      STALWART_RECOVERY_ADMIN: adminCredentials,
+      STALWART_PUBLIC_URL: baseUrl,
+    })
+    .withExposedPorts({ container: 8080, host: port })
     .withWaitStrategy(Wait.forHttp("/healthz/live", 8080).forStatusCode(200))
     .withStartupTimeout(120_000)
     .start();
 
   try {
-    const baseUrl = `http://${container.getHost()}:${container.getMappedPort(8080)}`;
     const username = "integration@example.test";
     const password = "integration-user-password";
 
     // Management API calls only provision fixtures; protocol assertions use JsonMetaClient.
-    for (const principal of [
-      { type: "domain", name: "example.test" },
-      {
-        type: "individual",
-        name: username,
-        secrets: [password],
-        emails: [username],
-        roles: ["user"],
+    const response = await fetch(`${baseUrl}/jmap/`, {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${Buffer.from(adminCredentials).toString("base64")}`,
+        "content-type": "application/json",
       },
-    ]) {
-      const response = await fetch(`${baseUrl}/api/principal`, {
-        method: "POST",
-        headers: {
-          authorization: `Basic ${Buffer.from("admin:integration-admin-password").toString("base64")}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(principal),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!response.ok) {
-        throw new Error(
-          `Stalwart fixture provisioning failed (${response.status}): ${await response.text()}`,
-        );
-      }
+      body: JSON.stringify({
+        using: ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"],
+        methodCalls: [
+          ["x:Domain/set", { create: { domain: { name: "example.test" } } }, "domain"],
+          [
+            "x:Account/set",
+            {
+              create: {
+                user: {
+                  "@type": "User",
+                  name: "integration",
+                  domainId: "#domain",
+                  credentials: { 0: { "@type": "Password", secret: password } },
+                },
+              },
+            },
+            "user",
+          ],
+        ],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = await response.text();
+    if (!response.ok || body.includes('"notCreated"') || !body.includes('"created"')) {
+      throw new Error(`Stalwart fixture provisioning failed (${response.status}): ${body}`);
     }
 
     project.provide("stalwart", {
