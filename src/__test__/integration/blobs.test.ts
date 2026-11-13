@@ -12,22 +12,32 @@ import { describe, expect, it } from "vitest";
 
 import { createClient } from "./client.ts";
 
-describe("Stalwart integration harness", () => {
-  it("discovers a session and retrieves mailboxes through the client", async () => {
+describe("blobs", () => {
+  it("uploads a blob and downloads it through the session's URL templates", async () => {
     const client = createClient("mail");
     const session = await client.session;
+    const accountId = session.primaryAccounts["urn:ietf:params:jmap:mail"]!;
+    const content = "A blob for the round trip";
 
-    expect(session.capabilities["urn:ietf:params:jmap:core"]?.maxCallsInRequest).toBeGreaterThan(0);
+    const upload = await client.blob.upload(new Blob([content], { type: "text/plain" }), {
+      accountId,
+    });
 
-    const accountId = session.primaryAccounts["urn:ietf:params:jmap:mail"];
-    expect(accountId).toBeTruthy();
+    expect(upload).toMatchObject({
+      accountId,
+      type: "text/plain",
+      size: new TextEncoder().encode(content).byteLength,
+    });
 
-    const mailboxes = await client.api.Mailbox.get({ accountId });
-    expect(mailboxes.accountId).toBe(accountId);
-    expect(mailboxes.list).toContainEqual(
-      expect.objectContaining({
-        role: "inbox",
-      }),
-    );
+    const download = await client.blob.download({
+      accountId,
+      blobId: upload.blobId,
+      name: "round trip.txt",
+      type: "text/plain",
+    });
+
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-type")).toMatch(/^text\/plain\b/);
+    await expect(download.text()).resolves.toBe(content);
   });
 });
