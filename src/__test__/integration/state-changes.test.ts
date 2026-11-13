@@ -11,42 +11,32 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { OnStateChangeHandler } from "../../index.ts";
-import { createClientWith, uniqueName } from "./client.ts";
+import { createClient, uniqueName } from "./client.ts";
 
 describe("state changes", () => {
   it("delivers a Mailbox change from the server's event stream", async () => {
-    const connected = Promise.withResolvers<void>();
-    const client = createClientWith(
-      { hooks: { afterEventSourceConnect: [() => connected.resolve()] } },
-      "mail",
-    );
+    const client = createClient("mail");
     const session = await client.session;
     const accountId = session.primaryAccounts["urn:ietf:params:jmap:mail"]!;
     const handler = vi.fn<OnStateChangeHandler>();
-    const controller = new AbortController();
 
-    try {
-      await client.onStateChange(handler, { signal: controller.signal });
-      await connected.promise;
+    using _ = await client.onStateChange(handler);
 
-      const { newState } = await client.api.Mailbox.set({
-        create: { box: { name: uniqueName("State change") } },
-      });
+    const { newState } = await client.api.Mailbox.set({
+      create: { box: { name: uniqueName("State change") } },
+    });
 
-      await vi.waitFor(
-        () => {
-          expect(handler).toHaveBeenCalledWith(null, {
-            accountId,
-            entity: "Mailbox",
-            state: newState,
-            isPrimaryAccount: true,
-          });
-        },
-        { timeout: 10_000 },
-      );
-      expect(handler).not.toHaveBeenCalledWith(expect.anything(), undefined);
-    } finally {
-      controller.abort();
-    }
+    await vi.waitFor(
+      () => {
+        expect(handler).toHaveBeenCalledWith(null, {
+          accountId,
+          entity: "Mailbox",
+          state: newState,
+          isPrimaryAccount: true,
+        });
+      },
+      { timeout: 10_000 },
+    );
+    expect(handler).not.toHaveBeenCalledWith(expect.anything(), undefined);
   });
 });
