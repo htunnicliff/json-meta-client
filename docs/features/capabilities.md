@@ -12,7 +12,11 @@
 - Built-in names as strings: `"mail"`, `"submission"`, `"blob"`, `"contacts"`,
   `"mdn"`, `"quota"`, `"sharing"`, `"sieve"`, `"smime"`,
   `"vacationResponse"`, `"community:maskedEmail"`; `core` is always on
-- `smime` adds no methods; it adds its URN to `Email` calls
+- `smime` adds no methods and requires `mail` (the constructor throws
+  `CapabilityConfigurationError` without it); it adds its URN to `Email` and
+  `SearchSnippet` calls and types the `smime*` properties of `Email/get` and
+  the `hasSmime`/`hasVerifiedSmime` filter conditions. Mail-only clients reject
+  them at the type level
 - Names are case-sensitive; unknown names fail at the type level and throw
   `CapabilityConfigurationError` at runtime
 - Names can be mixed with `defineCapability` objects (link to Extending)

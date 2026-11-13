@@ -17,7 +17,7 @@ import type {
 } from "./built-ins.ts";
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
-import type { Augment } from "./internal/types.ts";
+import type { Augment, InferContractExtensions } from "./internal/types.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -107,7 +107,18 @@ export type ResolveCapability<C> = C extends BuiltInCapabilityName
 
 export type ClientApi<T extends ReadonlyArray<CapabilityOption>> = T[number] extends never
   ? object
-  : Augment<UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>>;
+  : Augment<
+      UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>,
+      ClientContractExtensions<T>
+    >;
+
+/** The contract extensions contributed by every configured capability. */
+type ClientContractExtensions<T extends ReadonlyArray<CapabilityOption>> =
+  InferContractExtensions<ResolveCapability<T[number]>> extends infer Extensions
+    ? [Extensions] extends [never]
+      ? unknown
+      : UnionToIntersection<Extensions>
+    : never;
 
 type ResolvedClientCapability<T extends ReadonlyArray<CapabilityOption>> =
   | ResolveCapability<T[number]>

@@ -9,29 +9,16 @@
 // ----------------------------------------------------------------------- //
 
 import type { Capability } from "../capability.ts";
-import type { AccountCapabilities, SessionCapabilities } from "../rfc-types/extensions.ts";
 import type {
+  SieveAccountCapabilities,
   SieveScriptGet,
   SieveScriptQuery,
   SieveScriptSet,
   SieveScriptValidate,
+  SieveSessionCapabilities,
 } from "../rfc-types/mail/index.ts";
 
 // cspell:words enotify extlists
-
-/**
- * Server implementation advertised by the JMAP Sieve capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc9661.html#section-1.2.1
- */
-export type SieveSessionCapabilities = SessionCapabilities["urn:ietf:params:jmap:sieve"];
-
-/**
- * Account limits and extensions advertised by the JMAP Sieve capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc9661.html#section-1.2.1
- */
-export type SieveAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:sieve"];
 
 export const sieve: Capability<
   "SieveScript",

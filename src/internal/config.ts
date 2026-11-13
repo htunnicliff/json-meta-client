@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
+import { BUILT_IN_CAPABILITIES, getCapabilitiesForBuiltIns } from "../built-ins.ts";
 import { CapabilityConfigurationError, ConfigurationError } from "../errors.ts";
 import type { CapabilityOption, Config } from "../types.ts";
 
@@ -92,4 +92,26 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
       );
     }
   }
+
+  // A capability that extends another's method contracts needs that one too.
+  const resolved = getCapabilitiesForBuiltIns(givenCapabilities);
+  const urns = new Set(resolved.map(({ urn }) => urn));
+  for (const capability of resolved) {
+    if ("extends" in capability && typeof capability.extends === "string") {
+      if (!urns.has(capability.extends)) {
+        throw new CapabilityConfigurationError(
+          `The ${describeCapability(capability.urn)} capability requires ${describeCapability(capability.extends)}`,
+          { capability },
+        );
+      }
+    }
+  }
+}
+
+/** A built-in capability's name in backticks, or else its URN. */
+function describeCapability(urn: string): string {
+  const name = Object.entries(BUILT_IN_CAPABILITIES).find(
+    ([, capability]) => capability.urn === urn,
+  )?.[0];
+  return name === undefined ? urn : `\`${name}\``;
 }

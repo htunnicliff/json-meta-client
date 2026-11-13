@@ -10,27 +10,26 @@
 
 import type {
   Account,
-  MethodGet,
   MethodChanges,
-  MethodSet,
+  MethodGet,
   MethodQuery,
   MethodQueryChanges,
+  MethodSet,
 } from "./rfc8620-jmap.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:principals": {};
-  }
+/**
+ * Account details advertised by the JMAP Principals capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9670.html#section-2
+ */
+export interface PrincipalsAccountCapabilities {
+  currentUserPrincipalId: string | null;
+}
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:principals": {
-      currentUserPrincipalId: string | null;
-    };
-    "urn:ietf:params:jmap:principals:owner": {
-      accountIdForPrincipal: string;
-      principalId: string;
-    };
-  }
+/** Per-account details for `urn:ietf:params:jmap:principals:owner`. */
+export interface PrincipalsOwnerAccountCapabilities {
+  accountIdForPrincipal: string;
+  principalId: string;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc9670/#section-2 */

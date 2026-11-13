@@ -8,17 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { MethodGet, MethodChanges, MethodQuery, MethodQueryChanges } from "./rfc8620-jmap.ts";
-
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:quota": {};
-  }
-
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:quota": {};
-  }
-}
+import type { MethodChanges, MethodGet, MethodQuery, MethodQueryChanges } from "./rfc8620-jmap.ts";
 
 /** @see https://www.rfc-editor.org/info/rfc9425/#section-3.1 */
 export type QuotaScope = "account" | "domain" | "global";
