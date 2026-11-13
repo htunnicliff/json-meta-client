@@ -25,7 +25,7 @@ export type JmapRequests = ReadonlyMap<string, string>;
 interface Fence {
   lang: string;
   title: string;
-  /** Whether the info string has the `generated` attribute */
+  /** Whether the info string has the `jmap:generated` attribute */
   generated: boolean;
   content: string;
 }
@@ -43,15 +43,15 @@ const locate = ({ page, line }: OptedInExample, offset = 0) => `${page}:${line +
 function parseInfo(info: string): Pick<Fence, "lang" | "title" | "generated"> {
   const lang = info.trim().split(/[\s[{]/, 1)[0] ?? "";
   const title = (/\[(.*)\]/.exec(info)?.[1] ?? "").replaceAll(/~[^~]*~/g, "").trim();
-  const generated = /\{[^}]*\bgenerated\b[^}]*\}/.test(info);
+  const generated = /\{[^}]*(?<![\w:-])jmap:generated(?![\w:-])[^}]*\}/.test(info);
   return { lang, title, generated };
 }
 
 const isExample = ({ lang }: Pick<Fence, "lang">) => lang === "ts" || lang === "typescript";
 
 /**
- * A fence opts in with the `generated` attribute, as in
- * `json [JMAP Request] {generated}`. Its body must be empty.
+ * A fence opts in with the `jmap:generated` attribute, as in
+ * `json [JMAP Request] {jmap:generated}`. Its body must be empty.
  */
 const optsIn = ({ lang, title, generated }: Fence) =>
   lang === "json" && title === "JMAP Request" && generated;
