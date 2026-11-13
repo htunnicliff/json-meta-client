@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 
 import homeRequest from "../../snippets/home-request.md?raw";
+import type { PlaygroundEditor } from "../playground/editor.ts";
 import { firstTypeScriptFence } from "../playground/example.ts";
 import type { RunnerMessage } from "../playground/messages.ts";
 import type { RecordedRequest } from "../recorder/index.ts";
@@ -11,6 +12,9 @@ const initialCode = firstTypeScriptFence(homeRequest);
 const debounceMs = 300;
 
 const code = ref(initialCode);
+const editorContainer = ref<HTMLElement>();
+const editor = shallowRef<PlaygroundEditor>();
+const editorError = ref<string>();
 const recorded = ref<RecordedRequest[]>([]);
 const waiting = ref(false);
 const error = ref<string>();
@@ -29,6 +33,7 @@ const entries = computed(() =>
 );
 
 let debounce: ReturnType<typeof setTimeout> | undefined;
+let disposed = false;
 
 function formatBody(body: unknown): string | undefined {
   if (body === undefined) return undefined;
@@ -69,15 +74,31 @@ function start(nextCode: string): void {
   next.postMessage({ code: nextCode });
 }
 
-onMounted(() => start(code.value));
-
-watch(code, () => {
+function updateCode(next: string): void {
+  code.value = next;
   if (debounce !== undefined) clearTimeout(debounce);
-  debounce = setTimeout(() => start(code.value), debounceMs);
+  debounce = setTimeout(() => start(next), debounceMs);
+}
+
+onMounted(async () => {
+  start(code.value);
+
+  // Monaco and its workers load only once the playground mounts
+  try {
+    const { createMonacoEditor } = await import("../playground/monaco.ts");
+    if (disposed) return;
+    const created = createMonacoEditor({ container: editorContainer.value!, code: code.value });
+    created.onChange(updateCode);
+    editor.value = created;
+  } catch (failure) {
+    editorError.value = failure instanceof Error ? failure.message : String(failure);
+  }
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   if (debounce !== undefined) clearTimeout(debounce);
+  editor.value?.dispose();
   worker.value?.terminate();
 });
 </script>
@@ -85,16 +106,14 @@ onBeforeUnmount(() => {
 <template>
   <div class="playground">
     <section class="pane editor-pane">
-      <label class="pane-label" for="playground-code">TypeScript</label>
-      <textarea
-        id="playground-code"
-        v-model="code"
-        class="editor"
-        autocapitalize="off"
-        autocomplete="off"
-        autocorrect="off"
-        spellcheck="false"
-      />
+      <h2 class="pane-label">TypeScript</h2>
+      <div class="editor-frame">
+        <div ref="editorContainer" class="editor" />
+        <p v-if="!editor && !editorError" class="editor-status" aria-live="polite">
+          Loading editor…
+        </p>
+      </div>
+      <p v-if="editorError" class="editor-status" aria-live="polite">{{ editorError }}</p>
     </section>
 
     <section class="pane requests-pane">
@@ -146,24 +165,36 @@ onBeforeUnmount(() => {
   letter-spacing: 0.04em;
 }
 
+.editor-frame {
+  position: relative;
+}
+
 .editor {
-  display: block;
-  width: 100%;
-  min-height: 480px;
-  padding: 12px;
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--vp-c-text-1);
-  resize: vertical;
+  height: 480px;
+  overflow: hidden;
   background: var(--vp-c-bg);
   border: 1px solid var(--vp-c-border);
   border-radius: 6px;
 }
 
-.editor:focus {
+.editor:focus-within {
   border-color: var(--vp-c-brand-1);
   outline: 2px solid var(--vp-c-brand-soft);
+}
+
+.editor-status {
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+.editor-frame .editor-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  pointer-events: none;
 }
 
 .requests-pane {

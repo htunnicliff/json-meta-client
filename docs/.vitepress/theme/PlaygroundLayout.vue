@@ -7,8 +7,9 @@ import Playground from "./Playground.vue";
     <header class="playground-header">
       <h1 class="playground-title">Playground</h1>
       <p class="playground-lede">
-        Write TypeScript against the real library. Every request it makes appears here, and requests
-        stay pending, so the code stops where it would wait for a server response.
+        Write TypeScript against the real library, with its types for autocomplete and diagnostics.
+        Every request it makes appears here, and requests stay pending, so the code stops where it
+        would wait for a server response.
       </p>
     </header>
     <Playground />
