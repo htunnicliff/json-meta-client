@@ -6,7 +6,7 @@ export default defineConfig({
       {
         test: {
           name: "unit",
-          include: ["src/**/*.test.ts", "docs/.vitepress/recorder/**/*.test.ts"],
+          include: ["src/**/*.test.ts", "docs/**/*.test.ts"],
           exclude: ["src/__test__/integration/**"],
           environment: "node",
           typecheck: {

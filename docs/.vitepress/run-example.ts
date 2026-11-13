@@ -1,13 +1,16 @@
-// Runs one documentation example in a worker thread, with a placeholder
-// Session and a pending `fetch`, and posts back the JMAP Requests it makes
-// before it stops at a pending `await`. The worker is terminated afterwards,
-// so nothing the example scheduled can run into the next example.
+/* oxlint-disable no-await-in-loop, typescript/no-unsafe-type-assertion, unicorn/require-post-message-target-origin */
 import { parentPort, workerData } from "node:worker_threads";
 
 import { docsClientOptions } from "../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../src/index.ts";
 import { recordingFetch, seedCallIds } from "./recorder/index.ts";
 
+/**
+ * Runs one documentation example in a worker thread, with a placeholder
+ * Session and a pending `fetch`, and posts back the JMAP Requests it makes
+ * before it stops at a pending `await`. The worker is terminated afterwards, so
+ * nothing the example scheduled can run into the next example.
+ */
 export interface RunExampleInput {
   /** The example as a JavaScript module */
   code: string;
@@ -43,14 +46,12 @@ async function run({ code }: RunExampleInput): Promise<unknown[]> {
   const started = Date.now();
   let seen = -1;
   for (;;) {
-    // oxlint-disable-next-line no-await-in-loop
     await macrotask();
     if (typeof outcome === "object") throw outcome.error;
     // Stop once a macrotask passes without a new request…
     const quiet = recorder.count === seen;
     seen = recorder.count;
     if (!quiet) continue;
-    // oxlint-disable-next-line no-await-in-loop
     const made = (await recorder.settled()).some(({ kind }) => kind === "request");
     // …after the first JMAP Request, or once the example finished or gave up
     if (made || outcome === "done" || Date.now() - started > timeoutMs) break;
@@ -59,11 +60,7 @@ async function run({ code }: RunExampleInput): Promise<unknown[]> {
   return recorded.filter(({ kind }) => kind === "request").map(({ body }) => body);
 }
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion
 run(workerData as RunExampleInput).then(
-  // A worker's port takes no target origin, unlike a window's
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin
   (requests) => parentPort?.postMessage({ requests } satisfies RunExampleOutput),
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin
   (error: unknown) => parentPort?.postMessage({ error: String(error) } satisfies RunExampleOutput),
 );

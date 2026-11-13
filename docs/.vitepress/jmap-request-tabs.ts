@@ -1,13 +1,3 @@
-// Fills the "JMAP Request" tab of a docs code group from the JMAP Request its
-// TypeScript example actually produces.
-//
-// Inside a `::: code-group`, a `json` fence titled `JMAP Request` with an
-// empty body opts in: the `ts` fence before it in the same group runs against
-// a placeholder Session during the build, and its one JMAP Request fills the
-// fence. A fence with a body is hand-written and left alone.
-//
-// markdown-it renders synchronously, so the examples run in a pass before the
-// build, and the plugin looks their results up by the example's source.
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
