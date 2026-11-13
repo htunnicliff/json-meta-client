@@ -88,4 +88,24 @@ export const cases = [
     // Line 3 is in a function that was never entered, so it is NOT greyed.
     expect: { calls: { "Email/get": [9] }, pending: { 9: 1 }, notReached: [7, 10] },
   },
+  {
+    name: "several pending awaits at distinct sites at once",
+    source: [
+      /* 1 */ `async function a() {`,
+      /* 2 */ `  await client.api.Email.get({ ids: ["a"] });`,
+      /* 3 */ `}`,
+      /* 4 */ `async function b() {`,
+      /* 5 */ `  await client.api.Mailbox.get({ ids: ["b"] });`,
+      /* 6 */ `}`,
+      /* 7 */ `void a();`,
+      /* 8 */ `void b();`,
+      /* 9 */ `await new Promise(() => {});`,
+      /* 10 */ `console.log("never");`,
+    ],
+    expect: {
+      calls: { "Email/get": [2], "Mailbox/get": [5] },
+      pending: { 2: 1, 5: 1, 9: 1 },
+      notReached: [10],
+    },
+  },
 ];
