@@ -39,6 +39,11 @@ export interface Recorder {
    * Every recorded request, in the order received, once their bodies are read
    */
   settled(): Promise<RecordedRequest[]>;
+  /**
+   * Add capability URNs to every placeholder Session handed out from now on,
+   * for capabilities that are not built in
+   */
+  supportCapabilities(urns: Iterable<string>): void;
 }
 
 /**
@@ -48,6 +53,7 @@ export function recordingFetch(): Recorder {
   const entries: Promise<RecordedRequest>[] = [];
   // Placeholder Sessions handed out, so their other URLs are recognized
   const sessions: Session[] = [];
+  const extraUrns = new Set<string>();
 
   function classify(method: string, url: string): RecordedKind {
     const matches = (template: (session: Session) => string) =>
@@ -92,7 +98,7 @@ export function recordingFetch(): Recorder {
     const kind = classify(request.method, request.url);
     entries.push(record(request, kind));
     if (kind !== "session") return new Promise(() => {});
-    const session = placeholderSession(new URL(request.url).origin);
+    const session = placeholderSession(new URL(request.url).origin, [...extraUrns]);
     sessions.push(session);
     return Promise.resolve(Response.json(session));
   };
@@ -103,6 +109,9 @@ export function recordingFetch(): Recorder {
       return entries.length;
     },
     settled: () => Promise.all(entries),
+    supportCapabilities(urns) {
+      for (const urn of urns) extraUrns.add(urn);
+    },
   };
 }
 

@@ -95,6 +95,19 @@ describe(recordingFetch, () => {
   });
 });
 
+describe("custom capabilities", () => {
+  it("includes supported capability URNs in later placeholder Sessions", async () => {
+    const recorder = recordingFetch();
+    recorder.supportCapabilities(["https://example.com/jmap/notes"]);
+
+    const response = await recorder.fetch(sessionUrl);
+    const session = await response.json();
+
+    expect(Object.keys(session.capabilities)).toContain("https://example.com/jmap/notes");
+    expect(session.primaryAccounts["https://example.com/jmap/notes"]).toBe(PLACEHOLDER_ACCOUNT_ID);
+  });
+});
+
 async function recordCallIds(seed: number) {
   const restore = seedCallIds(seed);
   try {
