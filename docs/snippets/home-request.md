@@ -25,36 +25,7 @@ for (const { subject, from } of emails.list) {
 ```
 
 ```json [JMAP Request ~vscode-icons:file-type-light-json~]
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "accountId": "********",
-        "filter": { "notKeyword": "$seen" },
-        "limit": 5
-      },
-      "Email/query::3fa9c01b"
-    ],
-    [
-      "Email/get",
-      {
-        "accountId": "********",
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "Email/query::3fa9c01b",
-          "path": "/ids"
-        },
-        "properties": ["subject", "from"]
-      },
-      "Email/get::8e21d4a7"
-    ]
-  ]
-}
+
 ```
 
 :::
