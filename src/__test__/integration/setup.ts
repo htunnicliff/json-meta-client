@@ -64,7 +64,9 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const port = await new RandomPortGenerator().generatePort();
   const baseUrl = `http://${host}:${port}`;
 
-  const container = await new GenericContainer("stalwartlabs/stalwart:v1.1.0")
+  const container = await new GenericContainer(
+    "stalwartlabs/stalwart:v1.1.0@sha256:f772aa6ef8cd8018969fa491640f1436b0270eb14e2c219b5f37f1a77020837e",
+  )
     .withCopyFilesToContainer([
       {
         source: resolve(import.meta.dirname, "fixtures/stalwart.json"),
