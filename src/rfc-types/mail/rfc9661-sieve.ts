@@ -10,24 +10,28 @@
 
 import type { MethodGet, MethodQuery, MethodSet, SetError } from "../core/index.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:sieve": {
-      implementation: string;
-    };
-  }
+/**
+ * Server implementation advertised by the JMAP Sieve capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9661.html#section-1.2.1
+ */
+export interface SieveSessionCapabilities {
+  implementation: string;
+}
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:sieve": {
-      maxSizeScriptName: number;
-      maxSizeScript: number | null;
-      maxNumberScripts: number | null;
-      maxNumberRedirects: number | null;
-      sieveExtensions: string[];
-      notificationMethods: string[] | null;
-      externalLists: string[] | null;
-    };
-  }
+/**
+ * Account limits and extensions advertised by the JMAP Sieve capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9661.html#section-1.2.1
+ */
+export interface SieveAccountCapabilities {
+  maxSizeScriptName: number;
+  maxSizeScript: number | null;
+  maxNumberScripts: number | null;
+  maxNumberRedirects: number | null;
+  sieveExtensions: string[];
+  notificationMethods: string[] | null;
+  externalLists: string[] | null;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc9661/#section-2.1 */

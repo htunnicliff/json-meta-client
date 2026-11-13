@@ -12,6 +12,7 @@ import type { Capability } from "../capability.ts";
 import type {
   PrincipalChanges,
   PrincipalGet,
+  PrincipalsAccountCapabilities,
   PrincipalQuery,
   PrincipalQueryChanges,
   PrincipalSet,
@@ -21,15 +22,12 @@ import type {
   ShareNotificationQueryChanges,
   ShareNotificationSet,
 } from "../rfc-types/core/index.ts";
-import type { AccountCapabilities } from "../rfc-types/extensions.ts";
 
 /**
- * Account details advertised by the JMAP Principals capability.
+ * Principals and the notifications sent when they share data.
  *
- * @see https://www.rfc-editor.org/rfc/rfc9670.html#section-2
+ * @see https://www.rfc-editor.org/rfc/rfc9670.html
  */
-export type SharingAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:principals"];
-
 export const sharing: Capability<
   "Principal" | "ShareNotification",
   {
@@ -49,7 +47,7 @@ export const sharing: Capability<
     };
   },
   "urn:ietf:params:jmap:principals",
-  SharingAccountCapabilities
+  PrincipalsAccountCapabilities
 > = {
   urn: "urn:ietf:params:jmap:principals",
   entities: ["Principal", "ShareNotification"],

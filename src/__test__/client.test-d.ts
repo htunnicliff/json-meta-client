@@ -506,3 +506,46 @@ describe(JsonMetaClient, () => {
     });
   });
 });
+
+describe("undeclared argument properties", () => {
+  it("accepts declared properties, patch paths, references and open-ended inputs", () => {
+    const query = client.api.Mailbox.query({ filter: { role: "inbox" } });
+    assertType(
+      client.api.Mailbox.set({
+        create: { box: { name: "Box", parentId: null } },
+        update: { inbox: { name: "Inbox", isSubscribed: true } },
+        destroy: query.resultRef("/ids"),
+      }),
+    );
+    assertType(
+      client.api.Email.set({
+        update: { e1: { "keywords/$seen": true, "mailboxIds/inbox": null } },
+      }),
+    );
+    assertType(client.api.Email.get({ properties: ["header:X-Spam:asText"] }));
+    assertType(client.api.Core.echo({ anything: { nested: [1, "two"] } }));
+  });
+
+  it("rejects properties /set entries don't declare", () => {
+    const created = { box: { name: "Box", title: "Box" } };
+    const updated = { inbox: { name: "Inbox", color: "red" } };
+    // @ts-expect-error Mailboxes have no `title`.
+    assertType(client.api.Mailbox.set({ create: created }));
+    // @ts-expect-error Mailboxes have no `color`.
+    assertType(client.api.Mailbox.set({ update: updated }));
+  });
+
+  it("rejects undeclared properties at any depth", () => {
+    assertType(
+      client.api.Mailbox.query({
+        filter: {
+          operator: "AND",
+          // @ts-expect-error `rol` is not a Mailbox filter condition.
+          conditions: [{ role: "inbox" }, { rol: "trash" }],
+        },
+      }),
+    );
+    // @ts-expect-error `maximum` is not an Email/query argument.
+    assertType(client.api.Email.query({ maximum: 10 }));
+  });
+});

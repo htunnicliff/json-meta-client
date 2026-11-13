@@ -9,15 +9,12 @@
 // ----------------------------------------------------------------------- //
 
 import type { Capability } from "../capability.ts";
-import type { BlobUpload, BlobGet, BlobLookup } from "../rfc-types/core/index.ts";
-import type { AccountCapabilities } from "../rfc-types/extensions.ts";
-
-/**
- * Account limits and features advertised by the JMAP Blob capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc9404.html#section-3.1
- */
-export type BlobAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:blob"];
+import type {
+  BlobAccountCapabilities,
+  BlobGet,
+  BlobLookup,
+  BlobUpload,
+} from "../rfc-types/core/index.ts";
 
 export const blob: Capability<
   "Blob",

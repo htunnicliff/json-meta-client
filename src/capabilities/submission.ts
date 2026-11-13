@@ -9,7 +9,6 @@
 // ----------------------------------------------------------------------- //
 
 import type { Capability } from "../capability.ts";
-import type { AccountCapabilities } from "../rfc-types/extensions.ts";
 import type {
   EmailSubmissionChanges,
   EmailSubmissionGet,
@@ -19,14 +18,8 @@ import type {
   IdentityChanges,
   IdentityGet,
   IdentitySet,
+  SubmissionAccountCapabilities,
 } from "../rfc-types/mail/index.ts";
-
-/**
- * Account limits and SMTP extensions advertised by the JMAP Submission capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3.2
- */
-export type SubmissionAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:submission"];
 
 export const submission: Capability<
   "Identity" | "EmailSubmission",

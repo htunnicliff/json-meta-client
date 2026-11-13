@@ -12,7 +12,7 @@ import nock from "nock";
 
 import { BUILT_IN_CAPABILITIES } from "../built-ins.ts";
 import { core } from "../capabilities/core.ts";
-import type { CoreSessionCapabilities } from "../capabilities/core.ts";
+import type { CoreSessionCapabilities } from "../rfc-types/core/index.ts";
 import type { Response as JmapResponse, Session } from "../rfc-types/core/index.ts";
 
 export const host = "https://example.test";
