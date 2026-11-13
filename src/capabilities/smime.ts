@@ -9,8 +9,12 @@
 // ----------------------------------------------------------------------- //
 
 import type { ExtendingCapability } from "../internal/types.ts";
-import type { AccountCapabilities, SessionCapabilities } from "../rfc-types/extensions.ts";
-import type { EmailSmimeFilter, EmailSmimeProperties } from "../rfc-types/mail/index.ts";
+import type {
+  EmailSmimeFilter,
+  EmailSmimeProperties,
+  SmimeVerifyAccountCapabilities,
+  SmimeVerifySessionCapabilities,
+} from "../rfc-types/mail/index.ts";
 
 // cspell:words smime smimeverify
 
@@ -26,8 +30,8 @@ export const smime: ExtendingCapability<
   "Email" | "SearchSnippet",
   "urn:ietf:params:jmap:smimeverify",
   "urn:ietf:params:jmap:mail",
-  AccountCapabilities["urn:ietf:params:jmap:smimeverify"],
-  SessionCapabilities["urn:ietf:params:jmap:smimeverify"],
+  SmimeVerifyAccountCapabilities,
+  SmimeVerifySessionCapabilities,
   {
     Email: {
       properties: EmailSmimeProperties;

@@ -8,17 +8,14 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
+import type { EmptyCapabilityDetails } from "../core/index.ts";
 // cspell:words smime smimeverify
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:smimeverify": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:smimeverify`. */
+export type SmimeVerifySessionCapabilities = EmptyCapabilityDetails;
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:smimeverify": {};
-  }
-}
+/** Per-account details for `urn:ietf:params:jmap:smimeverify`. */
+export type SmimeVerifyAccountCapabilities = EmptyCapabilityDetails;
 
 /**
  * Servers may return additional status tokens defined by future extensions.

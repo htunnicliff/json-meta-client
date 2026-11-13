@@ -10,13 +10,10 @@
 
 import type { Request, Response, ProblemDetails, StateChange } from "./rfc8620-jmap.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:websocket": {
-      url: string;
-      supportsPush: boolean;
-    };
-  }
+/** Server-wide details for `urn:ietf:params:jmap:websocket`. */
+export interface WebSocketSessionCapabilities {
+  url: string;
+  supportsPush: boolean;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc8887/#section-4.3.2 */

@@ -8,21 +8,21 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { FileUpload, SetError } from "./rfc8620-jmap.ts";
+import type { EmptyCapabilityDetails, FileUpload, SetError } from "./rfc8620-jmap.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:blob": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:blob`. */
+export type BlobSessionCapabilities = EmptyCapabilityDetails;
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:blob": {
-      maxSizeBlobSet: number | null;
-      maxDataSources: number;
-      supportedTypeNames: string[];
-      supportedDigestAlgorithms: string[];
-    };
-  }
+/**
+ * Account limits and features advertised by the JMAP Blob capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9404.html#section-3.1
+ */
+export interface BlobAccountCapabilities {
+  maxSizeBlobSet: number | null;
+  maxDataSources: number;
+  supportedTypeNames: string[];
+  supportedDigestAlgorithms: string[];
 }
 
 /** @see https://www.rfc-editor.org/info/rfc9404/#section-4.1 */

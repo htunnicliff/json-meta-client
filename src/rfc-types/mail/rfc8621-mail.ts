@@ -10,6 +10,7 @@
 
 import type {
   Comparator,
+  EmptyCapabilityDetails,
   MethodChanges,
   MethodCopy,
   MethodGet,
@@ -23,29 +24,41 @@ import type {
 
 // TODO: Finish mail types
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:mail": {};
-    "urn:ietf:params:jmap:submission": {};
-    "urn:ietf:params:jmap:vacationresponse": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:mail`. */
+export type MailSessionCapabilities = EmptyCapabilityDetails;
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:mail": {
-      maxMailboxesPerEmail: number | null;
-      maxMailboxDepth: number | null;
-      maxSizeMailboxName: number;
-      maxSizeAttachmentsPerEmail: number;
-      emailQuerySortOptions: string[];
-      mayCreateTopLevelMailbox: boolean;
-    };
-    "urn:ietf:params:jmap:submission": {
-      maxDelayedSend: number;
-      submissionExtensions: Record<string, string[]>;
-    };
-    "urn:ietf:params:jmap:vacationresponse": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:submission`. */
+export type SubmissionSessionCapabilities = EmptyCapabilityDetails;
+
+/** Server-wide details for `urn:ietf:params:jmap:vacationresponse`. */
+export type VacationResponseSessionCapabilities = EmptyCapabilityDetails;
+
+/**
+ * Account limits and features advertised by the JMAP Mail capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3
+ */
+export interface MailAccountCapabilities {
+  maxMailboxesPerEmail: number | null;
+  maxMailboxDepth: number | null;
+  maxSizeMailboxName: number;
+  maxSizeAttachmentsPerEmail: number;
+  emailQuerySortOptions: string[];
+  mayCreateTopLevelMailbox: boolean;
 }
+
+/**
+ * Account limits and SMTP extensions advertised by the JMAP Submission capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3.2
+ */
+export interface SubmissionAccountCapabilities {
+  maxDelayedSend: number;
+  submissionExtensions: Record<string, string[]>;
+}
+
+/** Per-account details for `urn:ietf:params:jmap:vacationresponse`. */
+export type VacationResponseAccountCapabilities = EmptyCapabilityDetails;
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-2 */
 export interface Mailbox {

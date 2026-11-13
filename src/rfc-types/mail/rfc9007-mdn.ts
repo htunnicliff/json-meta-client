@@ -8,18 +8,14 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { PatchObject, SetError } from "../core/index.ts";
+import type { EmptyCapabilityDetails, PatchObject, SetError } from "../core/index.ts";
 import type { EmailUpdate } from "./rfc8621-mail.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:mdn": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:mdn`. */
+export type MdnSessionCapabilities = EmptyCapabilityDetails;
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:mdn": {};
-  }
-}
+/** Per-account details for `urn:ietf:params:jmap:mdn`. */
+export type MdnAccountCapabilities = EmptyCapabilityDetails;
 
 /** @see https://www.rfc-editor.org/info/rfc9007/#section-2 */
 export interface Disposition {

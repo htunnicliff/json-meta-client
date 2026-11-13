@@ -10,24 +10,32 @@
 
 import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:core": {
-      maxSizeUpload: number;
-      maxConcurrentUpload: number;
-      maxSizeRequest: number;
-      maxConcurrentRequests: number;
-      maxCallsInRequest: number;
-      maxObjectsInGet: number;
-      maxObjectsInSet: number;
-      collationAlgorithms: string[];
-    };
-  }
+/**
+ * Details for a capability whose RFC defines none. It aliases `{}` rather
+ * than being an empty interface so that it disappears when intersected with
+ * the details a custom capability adds to the same URN.
+ */
+// oxlint-disable-next-line typescript/consistent-type-definitions
+export type EmptyCapabilityDetails = {};
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:core": {};
-  }
+/**
+ * Server-wide limits and features advertised by the JMAP Core capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8620.html#section-2
+ */
+export interface CoreSessionCapabilities {
+  maxSizeUpload: number;
+  maxConcurrentUpload: number;
+  maxSizeRequest: number;
+  maxConcurrentRequests: number;
+  maxCallsInRequest: number;
+  maxObjectsInGet: number;
+  maxObjectsInSet: number;
+  collationAlgorithms: string[];
 }
+
+/** Per-account details for `urn:ietf:params:jmap:core`. */
+export type CoreAccountCapabilities = EmptyCapabilityDetails;
 
 /**
  * @see https://www.rfc-editor.org/info/rfc8620/#section-2

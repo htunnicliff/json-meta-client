@@ -18,6 +18,13 @@ The client's owner of batches: it collects method calls into a batch, sends it,
 and settles each method call from the Response.
 _Avoid_: request pipeline, exchange, call queue, flush
 
+**Capability details**:
+The data a server advertises for a capability URN, server-wide in the
+Session's `capabilities` or per account in `accountCapabilities`. Each RFC file
+exports the details it defines, and `src/rfc-types/extensions.ts` maps every
+known URN to them.
+_Avoid_: capability extensions, metadata registry
+
 **Contract extension**:
 Properties or filter conditions that one capability adds to another
 capability's method contracts, such as S/MIME's `smime*` properties on

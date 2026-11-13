@@ -12,6 +12,7 @@ import type { DistributedOmit } from "type-fest";
 
 import type {
   Comparator,
+  EmptyCapabilityDetails,
   MethodChanges,
   MethodCopy,
   MethodGet,
@@ -21,17 +22,17 @@ import type {
 } from "../core/rfc8620-jmap.ts";
 import type { Card, Media } from "../formats/rfc9553-jscontact.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:contacts": {};
-  }
+/** Server-wide details for `urn:ietf:params:jmap:contacts`. */
+export type ContactsSessionCapabilities = EmptyCapabilityDetails;
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:contacts": {
-      maxAddressBooksPerCard: number | null;
-      mayCreateAddressBook: boolean;
-    };
-  }
+/**
+ * Account limits and permissions advertised by the JMAP Contacts capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9610.html#section-1.4.1
+ */
+export interface ContactsAccountCapabilities {
+  maxAddressBooksPerCard: number | null;
+  mayCreateAddressBook: boolean;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc9610/#section-2 */

@@ -9,7 +9,6 @@
 // ----------------------------------------------------------------------- //
 
 import type { Capability } from "../capability.ts";
-import type { AccountCapabilities } from "../rfc-types/extensions.ts";
 import type {
   EmailChanges,
   EmailCopy,
@@ -19,6 +18,7 @@ import type {
   EmailQuery,
   EmailQueryChanges,
   EmailSet,
+  MailAccountCapabilities,
   MailboxChanges,
   MailboxGet,
   MailboxQuery,
@@ -28,13 +28,6 @@ import type {
   ThreadChanges,
   ThreadGet,
 } from "../rfc-types/mail/index.ts";
-
-/**
- * Account limits and features advertised by the JMAP Mail capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3
- */
-export type MailAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:mail"];
 
 export const mail: Capability<
   "Mailbox" | "Thread" | "Email" | "SearchSnippet",
