@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>PROTOTYPE #201</title>
+<script>
+  // Fresh worker per case, so the crypto.getRandomValues patch never stacks.
+  window.runCase = (source) =>
+    new Promise((resolve) => {
+      const w = new Worker("/dist/worker.js", { type: "module" });
+      w.onmessage = (e) => {
+        if (e.data.ready) return w.postMessage({ source });
+        w.terminate();
+        resolve(e.data);
+      };
+      w.onerror = (e) => {
+        w.terminate();
+        resolve({ ok: false, error: "worker error: " + e.message });
+      };
+    });
+</script>

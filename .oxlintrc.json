@@ -15,6 +15,7 @@
     "vitest/prefer-describe-function-title": "error",
     "vitest/valid-title": ["error", { "ignoreTypeOfDescribeName": true }]
   },
+  "ignorePatterns": ["prototypes/**"],
   "env": {
     "builtin": true
   },
