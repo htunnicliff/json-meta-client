@@ -15,10 +15,10 @@ import type { Middleware } from "../types.ts";
 
 export function injectAccountId(getSession: () => Session): Middleware {
   const withoutDefault: ReadonlySet<string> = new Set(METHODS_WITHOUT_DEFAULT_ACCOUNT_ID);
-  return (args, { method }) => {
+  return (args, { name }) => {
     // Add `accountId` if not set
     if (
-      !withoutDefault.has(method) &&
+      !withoutDefault.has(name) &&
       typeof args === "object" &&
       args !== null &&
       !Array.isArray(args) &&

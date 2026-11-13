@@ -34,10 +34,10 @@ export function createApi<T extends object>({
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject, method: string): object => {
+  const applyMiddleware = (payload: JsonObject, name: string): object => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
-      transformed = fn(transformed, { method });
+      transformed = fn(transformed, { name });
     }
     if (typeof transformed !== "object" || transformed === null || Array.isArray(transformed)) {
       throw new TypeError("JMAP method arguments must be an object");

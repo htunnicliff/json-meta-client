@@ -107,7 +107,7 @@ export type PointerPaths<T> =
 /**
  * Transforms a method call's arguments before it is sent.
  */
-export type Middleware = (payload: JsonValue, call: { method: string }) => JsonValue;
+export type Middleware = (payload: JsonValue, call: { name: string }) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.
@@ -168,7 +168,6 @@ export type Augment<T extends CapabilityMethods<string>, ContractExtensions = un
       T[Entity][Method] extends { extensions: unknown }
         ? T[Entity][Method] & { extensions: ContractExtensions }
         : T[Entity][Method],
-      Method & string,
       `${Entity & string}/${Method & string}`
     >;
   };
@@ -295,11 +294,7 @@ export interface AugmentedOptions {
   id?: string;
 }
 
-export type AugmentMethod<
-  Contract extends MethodContract,
-  Method extends string = string,
-  Name extends string = string,
-> = <
+export type AugmentMethod<Contract extends MethodContract, Name extends string = string> = <
   Args extends MethodArguments<Contract, Name>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
@@ -312,7 +307,7 @@ export type AugmentMethod<
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;
-} & (Method extends "set"
+} & (Name extends `${string}/set`
     ? {
         /**
          * Reference an object created by this /set call using its creation ID.
