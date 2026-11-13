@@ -22,6 +22,7 @@ import type {
 } from "type-fest";
 
 import type { Capability, MethodContract } from "../capability.ts";
+import type { MethodWithoutDefaultAccountId } from "./middleware/inject-account-id.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
@@ -164,7 +165,8 @@ export type Augment<T extends CapabilityMethods<string>, ContractExtensions = un
       T[Entity][Method] extends { extensions: unknown }
         ? T[Entity][Method] & { extensions: ContractExtensions }
         : T[Entity][Method],
-      Method & string
+      Method & string,
+      `${Entity & string}/${Method & string}`
     >;
   };
 };
@@ -221,11 +223,18 @@ type AcceptedInput<Contract extends MethodContract> = Contract extends {
   ? Input
   : Contract["input"];
 
-export type MethodArguments<Contract extends MethodContract> = {
+/**
+ * The arguments a caller passes for a method call. `accountId` is optional
+ * because the client fills it in, except for methods listed in
+ * {@link MethodWithoutDefaultAccountId}.
+ */
+export type MethodArguments<Contract extends MethodContract, Name extends string = string> = {
   [Key in keyof AcceptedInput<Contract>]: AllowRefs<AcceptedInput<Contract>[Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
-    ? SetOptional<Args, "accountId">
+    ? Name extends MethodWithoutDefaultAccountId
+      ? Args
+      : SetOptional<Args, "accountId">
     : Args
   : never;
 
@@ -283,8 +292,12 @@ export interface AugmentedOptions {
   id?: string;
 }
 
-export type AugmentMethod<Contract extends MethodContract, Method extends string = string> = <
-  Args extends MethodArguments<Contract>,
+export type AugmentMethod<
+  Contract extends MethodContract,
+  Method extends string = string,
+  Name extends string = string,
+> = <
+  Args extends MethodArguments<Contract, Name>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
     EffectiveMethodInput<Contract, Args>
