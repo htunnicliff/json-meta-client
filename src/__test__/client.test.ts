@@ -864,7 +864,7 @@ describe(JsonMetaClient, () => {
           }),
         );
         vi.stubGlobal("fetch", fetchMock);
-        await expect(client.blob.upload(body)).resolves.toEqual(responseData);
+        await expect(client.blob.upload(body, { accountId })).resolves.toEqual(responseData);
         expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(Request));
         const request = fetchMock.mock.calls[0]![0];
         if (!(request instanceof Request)) throw new Error("Expected Request");
@@ -882,7 +882,7 @@ describe(JsonMetaClient, () => {
       const scope = nock(host)
         .post(`/upload/${encodeURIComponent(accountId)}`)
         .reply(413, { type: "tooLarge", detail: "Blob too large" });
-      await expect(client.blob.upload(body)).rejects.toMatchObject({
+      await expect(client.blob.upload(body, { accountId })).rejects.toMatchObject({
         name: "HttpError",
         message: "Blob too large",
         status: 413,
@@ -890,21 +890,22 @@ describe(JsonMetaClient, () => {
       });
       expect(scope.isDone()).toBe(true);
     });
-    it("posts body to correct url", async () => {
+    it("posts body to the given account's upload url, not the mail primary's", async () => {
+      const otherAccountId = "<other-account-id>";
       const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
 
       const providedResponse: FileUpload.Result = {
-        accountId,
+        accountId: otherAccountId,
         blobId: crypto.randomUUID(),
         size: blob.size,
         type: blob.type,
       };
 
       const scope = nock(host)
-        .post(`/upload/${encodeURIComponent(accountId)}`)
+        .post(`/upload/${encodeURIComponent(otherAccountId)}`)
         .reply(200, providedResponse);
 
-      const response = await client.blob.upload(blob, { accountId });
+      const response = await client.blob.upload(blob, { accountId: otherAccountId });
 
       expect(response).toStrictEqual(providedResponse);
 
@@ -921,7 +922,7 @@ describe(JsonMetaClient, () => {
           .query({ type: "text/plain", name: "file" })
           .reply(404, payload);
         const error = await client.blob
-          .download({ blobId: "blob", type: "text/plain", name: "file" })
+          .download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
           .catch((error: unknown) => error);
         expect(error).toBeInstanceOf(HttpError);
         if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
@@ -943,7 +944,7 @@ describe(JsonMetaClient, () => {
       await client.session;
       vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(error));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toBe(error);
     });
 
@@ -952,7 +953,7 @@ describe(JsonMetaClient, () => {
       const cause = new TypeError("download disconnected");
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toMatchObject({
         name: "NetworkError",
         cause,
@@ -962,13 +963,14 @@ describe(JsonMetaClient, () => {
         }),
       });
     });
-    it("issues get request to correct url", async () => {
+    it("issues get request to the given account's download url, not the mail primary's", async () => {
+      const otherAccountId = "<other-account-id>";
       const blobId = crypto.randomUUID();
       const name = "Some $up3r@ special name!";
 
       const scope = nock(host)
         .get(
-          `/download/${encodeURIComponent(accountId)}/${encodeURIComponent(blobId)}?type=${encodeURIComponent("application/json")}&name=${encodeURIComponent(name)}`,
+          `/download/${encodeURIComponent(otherAccountId)}/${encodeURIComponent(blobId)}?type=${encodeURIComponent("application/json")}&name=${encodeURIComponent(name)}`,
         )
         .reply(200, {
           a: ["very", "special", "blob"],
@@ -978,7 +980,7 @@ describe(JsonMetaClient, () => {
         blobId,
         name,
         type: "application/json",
-        accountId,
+        accountId: otherAccountId,
       });
 
       await expect(response.json()).resolves.toStrictEqual({

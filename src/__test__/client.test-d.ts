@@ -505,4 +505,27 @@ describe(JsonMetaClient, () => {
       });
     });
   });
+
+  describe("blob", () => {
+    it("requires accountId to upload a blob", () => {
+      expectTypeOf(client.blob.upload).parameter(1).toEqualTypeOf<{ accountId: string }>();
+      void client.blob.upload("data", { accountId: "account" });
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.upload("data", {});
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.upload("data");
+    });
+
+    it("requires accountId to download a blob", () => {
+      expectTypeOf(client.blob.download).parameter(0).toHaveProperty("accountId").toBeString();
+      void client.blob.download({
+        accountId: "account",
+        blobId: "blob",
+        name: "file",
+        type: "text/plain",
+      });
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.download({ blobId: "blob", name: "file", type: "text/plain" });
+    });
+  });
 });
