@@ -1,5 +1,61 @@
 # json-meta-client
 
+## 1.0.0-alpha.2
+
+### Major Changes
+
+- [#214](https://github.com/htunnicliff/json-meta-client/pull/214) [`e6cd57d`](https://github.com/htunnicliff/json-meta-client/commit/e6cd57dd80269fadd121bed2d25d6f6451d388e7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** method arguments now reject properties that the method doesn't
+  declare, at any depth: in `/set` `create` and `update` entries, in filter
+  conditions inside `AND`, `OR` and `NOT`, and at the top level. A misspelled
+  property, a server-set property, or a filter condition from a capability the
+  client doesn't configure previously compiled, because TypeScript skips its
+  excess property check for inferred arguments. Arguments that a method leaves
+  open, such as `Core/echo`, and result references are not checked.
+
+- [#214](https://github.com/htunnicliff/json-meta-client/pull/214) [`e6cd57d`](https://github.com/htunnicliff/json-meta-client/commit/e6cd57dd80269fadd121bed2d25d6f6451d388e7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** the published package now ships one bundled entry point.
+  `dist/index.mjs` and `dist/index.d.mts` replace the per-file `dist/**/*.js`
+  and `.d.ts` output. Imports from `json-meta-client` are unchanged; deep
+  imports into `dist/` no longer resolve.
+
+- [#214](https://github.com/htunnicliff/json-meta-client/pull/214) [`e6cd57d`](https://github.com/htunnicliff/json-meta-client/commit/e6cd57dd80269fadd121bed2d25d6f6451d388e7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** S/MIME types now need the `smime` capability. A client
+  configured with `["mail"]` no longer accepts the `smime*` properties in
+  `Email/get` or the `hasSmime` and `hasVerifiedSmime` filter conditions in
+  `Email/query`, `Email/queryChanges` and `SearchSnippet/get`. Configure
+  `["mail", "smime"]` to use them. Configuring `smime` without `mail` now throws
+  `CapabilityConfigurationError`, and `SearchSnippet` calls on an S/MIME client
+  also send `urn:ietf:params:jmap:smimeverify`.
+
+### Minor Changes
+
+- [#192](https://github.com/htunnicliff/json-meta-client/pull/192) [`f9c8e39`](https://github.com/htunnicliff/json-meta-client/commit/f9c8e3981114343b37f932eb550f214419769061) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add built-in capabilities for JMAP extensions whose types were already
+  included:
+
+  - `quota` (RFC 9425): `Quota/get`, `changes`, `query`, and `queryChanges`
+  - `sharing` (RFC 9670): `Principal` and `ShareNotification` methods
+  - `mdn` (RFC 9007): `MDN/send` and `MDN/parse`. Requests also include
+    `urn:ietf:params:jmap:mail`, which RFC 9007 requires for `MDN/send`
+  - `smime` (RFC 9219): adds `urn:ietf:params:jmap:smimeverify` to
+    `Email` calls so servers return the `smime*` properties and accept the
+    S/MIME filters. It adds no methods; enable `mail` alongside it.
+
+  Capabilities can now list other URNs that their methods need in `using`
+  with an optional `dependsOn` array, including through
+  `defineCapability({ urn, entities, dependsOn })`. The client adds those URNs
+  whenever one of the capability's entities is called.
+
+### Patch Changes
+
+- [#200](https://github.com/htunnicliff/json-meta-client/pull/200) [`19565de`](https://github.com/htunnicliff/json-meta-client/commit/19565def0d5ad9a4d0fab4a5ae18c192b0485a33) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Stop warning about a configured capability when the server lists it only in
+  an account's `accountCapabilities`. The client now warns only when a URN is
+  missing from both the session's `capabilities` and every account's
+  `accountCapabilities`. Some servers, such as Stalwart with its
+  `urn:stalwart:jmap` management capability, advertise a capability only on the
+  accounts that can use it.
+
+- [#197](https://github.com/htunnicliff/json-meta-client/pull/197) [`c172281`](https://github.com/htunnicliff/json-meta-client/commit/c1722814ffe5b93a102a454ff9905fdf680ef1b4) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Fix `cancelBatch()`, and the `cancel` that `isolated()` passes to its callback,
+  only working the first time. Every call now rejects the method calls waiting in
+  the current batch with a `CancellationError`.
+
 ## 1.0.0-alpha.1
 
 ### Major Changes
