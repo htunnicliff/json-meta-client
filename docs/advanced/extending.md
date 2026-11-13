@@ -2,10 +2,42 @@
 
 ## Defining a capability
 
-:::warning TODO
-- `defineCapability({ urn, entities }).withMethods<Methods, AccountCaps?, SessionCaps?>()`,
-  then pass the object in `capabilities`
-:::
+Describe a capability with `defineCapability`, then declare the methods its
+entities expose with `withMethods`. Pass the result in the client's
+`capabilities`; calls on the capability's entities get typed methods.
+
+```ts
+import {
+  JsonMetaClient,
+  defineCapability,
+} from "json-meta-client";
+
+const notes = defineCapability({
+  urn: "urn:example:notes",
+  entities: ["Note"],
+}).withMethods<{
+  Note: {
+    get: {
+      input: { accountId: string; ids: string[] };
+      output: { list: { id: string; title: string }[] };
+    };
+  };
+}>();
+
+const client = new JsonMetaClient({
+  auth: "********",
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  capabilities: [notes],
+});
+
+const notesResult = await client.api.Note.get({
+  ids: ["note-1"],
+});
+
+for (const note of notesResult.list) {
+  console.log(note.title);
+}
+```
 
 ## Depending on other URNs
 

@@ -23,28 +23,28 @@ import type {
 
 // TODO: Finish mail types
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:mail": {};
-    "urn:ietf:params:jmap:submission": {};
-    "urn:ietf:params:jmap:vacationresponse": {};
-  }
+/**
+ * Account limits and features advertised by the JMAP Mail capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3
+ */
+export interface MailAccountCapabilities {
+  maxMailboxesPerEmail: number | null;
+  maxMailboxDepth: number | null;
+  maxSizeMailboxName: number;
+  maxSizeAttachmentsPerEmail: number;
+  emailQuerySortOptions: string[];
+  mayCreateTopLevelMailbox: boolean;
+}
 
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:mail": {
-      maxMailboxesPerEmail: number | null;
-      maxMailboxDepth: number | null;
-      maxSizeMailboxName: number;
-      maxSizeAttachmentsPerEmail: number;
-      emailQuerySortOptions: string[];
-      mayCreateTopLevelMailbox: boolean;
-    };
-    "urn:ietf:params:jmap:submission": {
-      maxDelayedSend: number;
-      submissionExtensions: Record<string, string[]>;
-    };
-    "urn:ietf:params:jmap:vacationresponse": {};
-  }
+/**
+ * Account limits and SMTP extensions advertised by the JMAP Submission capability.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc8621.html#section-1.3.2
+ */
+export interface SubmissionAccountCapabilities {
+  maxDelayedSend: number;
+  submissionExtensions: Record<string, string[]>;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-2 */
@@ -353,6 +353,20 @@ export type EmailForArgs<Args> = Omit<ReadableEmail, keyof EmailComputedFields> 
   preview: string;
 };
 
+/**
+ * What other capabilities add to `Email`, read from a contract's
+ * `extensions` field: extra `properties` for `Email/get`, or extra `filter`
+ * conditions for queries. The client fills `extensions` from its configured
+ * capabilities. A contract that reads it accepts arguments through
+ * `acceptedInput`, so that its plain `input` stays free of `this` and the
+ * client can intersect `input` with the actual arguments.
+ */
+export type EmailExtension<Extensions, Part extends "properties" | "filter"> = Extensions extends {
+  Email: { [Key in Part]: infer Extension extends object };
+}
+  ? Extension
+  : {};
+
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.2 */
 export type EmailGetDefaultProperties =
   | Exclude<keyof EmailBase, "headers">
@@ -360,17 +374,22 @@ export type EmailGetDefaultProperties =
 
 export namespace EmailGet {
   /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.2 */
-  export interface Input extends MethodGet.Input<ReadableEmail> {
+  export interface Input<ExtraProperties extends object = {}> extends MethodGet.Input<
+    ReadableEmail & ExtraProperties
+  > {
     bodyProperties?: readonly (keyof EmailBodyPart)[];
     fetchTextBodyValues?: boolean;
     fetchHTMLBodyValues?: boolean;
     fetchAllBodyValues?: boolean;
     maxBodyValueBytes?: number;
   }
-  export interface Output<Args> extends Omit<MethodGet.Output<ReadableEmail, Args>, "list"> {
+  export interface Output<Args, ExtraProperties extends object = {}> extends Omit<
+    MethodGet.Output<ReadableEmail, Args>,
+    "list"
+  > {
     list: ReadonlyArray<
       PickPropertiesForEntity<
-        EmailForArgs<Args>,
+        EmailForArgs<Args> & ExtraProperties,
         Args,
         { defaultProperties: EmailGetDefaultProperties }
       > &
@@ -378,8 +397,10 @@ export namespace EmailGet {
     >;
   }
   export interface Contract {
+    extensions: unknown;
     input: Input;
-    output: Output<this["input"]>;
+    acceptedInput: Input<EmailExtension<this["extensions"], "properties">>;
+    output: Output<this["input"], EmailExtension<this["extensions"], "properties">>;
   }
 }
 
@@ -429,21 +450,26 @@ export type EmailComparator =
 
 export namespace EmailQuery {
   /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.4 */
-  export interface Input extends Omit<MethodQuery.Input<ReadableEmail, EmailFilter>, "sort"> {
+  export interface Input<ExtraFilter extends object = {}> extends Omit<
+    MethodQuery.Input<ReadableEmail, EmailFilter & ExtraFilter>,
+    "sort"
+  > {
     sort?: readonly EmailComparator[] | null;
     collapseThreads?: boolean;
   }
   export interface Output extends MethodQuery.Output {}
   export interface Contract {
+    extensions: unknown;
     input: Input;
+    acceptedInput: Input<EmailExtension<this["extensions"], "filter">>;
     output: Output;
   }
 }
 
 export namespace EmailQueryChanges {
   /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.5 */
-  export interface Input extends Omit<
-    MethodQueryChanges.Input<ReadableEmail, EmailFilter>,
+  export interface Input<ExtraFilter extends object = {}> extends Omit<
+    MethodQueryChanges.Input<ReadableEmail, EmailFilter & ExtraFilter>,
     "sort"
   > {
     sort?: readonly EmailComparator[] | null;
@@ -451,7 +477,9 @@ export namespace EmailQueryChanges {
   }
   export interface Output extends MethodQueryChanges.Output {}
   export interface Contract {
+    extensions: unknown;
     input: Input;
+    acceptedInput: Input<EmailExtension<this["extensions"], "filter">>;
     output: Output;
   }
 }
@@ -582,9 +610,12 @@ export interface SearchSnippet {
 
 export namespace SearchSnippetGet {
   /** @see https://www.rfc-editor.org/info/rfc8621/#section-5.1 */
-  type BaseInput = Pick<MethodQuery.Input<ReadableEmail, EmailFilter>, "accountId" | "filter">;
+  type BaseInput<ExtraFilter extends object> = Pick<
+    MethodQuery.Input<ReadableEmail, EmailFilter & ExtraFilter>,
+    "accountId" | "filter"
+  >;
 
-  export interface Input extends BaseInput {
+  export interface Input<ExtraFilter extends object = {}> extends BaseInput<ExtraFilter> {
     emailIds: string[];
   }
   export interface Output {
@@ -593,7 +624,9 @@ export namespace SearchSnippetGet {
     notFound?: string[] | null;
   }
   export interface Contract {
+    extensions: unknown;
     input: Input;
+    acceptedInput: Input<EmailExtension<this["extensions"], "filter">>;
     output: Output;
   }
 }

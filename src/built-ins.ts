@@ -8,12 +8,54 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { core } from "./capabilities/core.ts";
-import * as BUILT_IN_CAPABILITIES from "./capabilities/index.ts";
+import {
+  blob,
+  "community:maskedEmail" as maskedEmail,
+  contacts,
+  core,
+  mail,
+  mdn,
+  quota,
+  sharing,
+  sieve,
+  smime,
+  submission,
+  vacationResponse,
+} from "./capabilities/index.ts";
 import type { Capability } from "./capability.ts";
 import { CapabilityConfigurationError } from "./errors.ts";
 
-export { BUILT_IN_CAPABILITIES };
+/**
+ * Built-in capabilities by the names that configure them. A plain object
+ * rather than a module namespace, so the bundle needs no namespace helper.
+ */
+export const BUILT_IN_CAPABILITIES: {
+  readonly blob: typeof blob;
+  readonly contacts: typeof contacts;
+  readonly core: typeof core;
+  readonly mail: typeof mail;
+  readonly mdn: typeof mdn;
+  readonly quota: typeof quota;
+  readonly sharing: typeof sharing;
+  readonly sieve: typeof sieve;
+  readonly smime: typeof smime;
+  readonly submission: typeof submission;
+  readonly vacationResponse: typeof vacationResponse;
+  readonly "community:maskedEmail": typeof maskedEmail;
+} = Object.freeze({
+  blob,
+  contacts,
+  core,
+  mail,
+  mdn,
+  quota,
+  sharing,
+  sieve,
+  smime,
+  submission,
+  vacationResponse,
+  "community:maskedEmail": maskedEmail,
+});
 
 /**
  * Keys that can be used to reference built-in capabilities

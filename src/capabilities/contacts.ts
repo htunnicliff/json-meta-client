@@ -13,6 +13,7 @@ import type {
   AddressBookGet,
   AddressBookChanges,
   AddressBookSet,
+  ContactsAccountCapabilities,
   ContactCardGet,
   ContactCardChanges,
   ContactCardQuery,
@@ -20,14 +21,6 @@ import type {
   ContactCardSet,
   ContactCardCopy,
 } from "../rfc-types/contacts/index.ts";
-import type { AccountCapabilities } from "../rfc-types/extensions.ts";
-
-/**
- * Account limits and permissions advertised by the JMAP Contacts capability.
- *
- * @see https://www.rfc-editor.org/rfc/rfc9610.html#section-1.4.1
- */
-export type ContactsAccountCapabilities = AccountCapabilities["urn:ietf:params:jmap:contacts"];
 
 export const contacts: Capability<
   "AddressBook" | "ContactCard",

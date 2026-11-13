@@ -15,6 +15,8 @@ import type {
   Disposition,
   EmailGet,
   EmailQuery,
+  EmailSmimeFilter,
+  EmailSmimeProperties,
   EmailQueryChanges,
   MDN,
   MDNParse,
@@ -110,18 +112,26 @@ describe("RFC 9007 MDN types", () => {
 
 describe("RFC 9219 S/MIME types", () => {
   it("returns explicitly requested signature properties with their nullable types", () => {
-    assertType<EmailGet.Input>({
+    assertType<EmailGet.Input<EmailSmimeProperties>>({
       accountId: "account",
       properties: ["smimeStatus", "smimeStatusAtDelivery", "smimeErrors", "smimeVerifiedAt"],
     });
-    type Email = EmailGet.Output<{
-      properties: readonly [
-        "smimeStatus",
-        "smimeStatusAtDelivery",
-        "smimeErrors",
-        "smimeVerifiedAt",
-      ];
-    }>["list"][number];
+    assertType<EmailGet.Input>({
+      accountId: "account",
+      // @ts-expect-error Base Email/get input has no S/MIME properties.
+      properties: ["smimeStatus"],
+    });
+    type Email = EmailGet.Output<
+      {
+        properties: readonly [
+          "smimeStatus",
+          "smimeStatusAtDelivery",
+          "smimeErrors",
+          "smimeVerifiedAt",
+        ];
+      },
+      EmailSmimeProperties
+    >["list"][number];
     expectTypeOf<Email>().toMatchObjectType<{
       id: string;
       smimeStatus: SmimeStatus | null;
@@ -139,17 +149,24 @@ describe("RFC 9219 S/MIME types", () => {
   });
 
   it("excludes signature properties from default Email/get results", () => {
-    type Email = EmailGet.Output<{}>["list"][number];
+    type Email = EmailGet.Output<{}, EmailSmimeProperties>["list"][number];
     expectTypeOf<Email>().not.toHaveProperty("smimeStatus");
     expectTypeOf<Email>().not.toHaveProperty("smimeStatusAtDelivery");
     expectTypeOf<Email>().not.toHaveProperty("smimeErrors");
     expectTypeOf<Email>().not.toHaveProperty("smimeVerifiedAt");
-    expectTypeOf<EmailGet.Output<{ properties: null }>["list"][number]>().toEqualTypeOf<Email>();
+    expectTypeOf<
+      EmailGet.Output<{ properties: null }, EmailSmimeProperties>["list"][number]
+    >().toEqualTypeOf<Email>();
   });
 
   it("accepts signature conditions in email queries and nested query filters", () => {
+    assertType<EmailQuery.Input<EmailSmimeFilter>>({
+      accountId: "account",
+      filter: { hasSmime: false },
+    });
+    // @ts-expect-error Base Email/query input has no S/MIME filter conditions.
     assertType<EmailQuery.Input>({ accountId: "account", filter: { hasSmime: false } });
-    assertType<EmailQueryChanges.Input>({
+    assertType<EmailQueryChanges.Input<EmailSmimeFilter>>({
       accountId: "account",
       sinceQueryState: "state",
       filter: {

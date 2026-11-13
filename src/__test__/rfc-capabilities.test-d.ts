@@ -178,18 +178,4 @@ describe("RFC capability contracts through the client", () => {
       },
     });
   });
-
-  it("adds no methods for S/MIME verification", () => {
-    const smimeClient = new JsonMetaClient({
-      auth: "token",
-      sessionUrl: "https://example.test/jmap",
-      capabilities: ["mail", "smime"],
-    });
-    const mailOnly = new JsonMetaClient({
-      auth: "token",
-      sessionUrl: "https://example.test/jmap",
-      capabilities: ["mail"],
-    });
-    expectTypeOf(smimeClient.api).toEqualTypeOf(mailOnly.api);
-  });
 });

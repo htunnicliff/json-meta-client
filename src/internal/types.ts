@@ -9,8 +9,10 @@
 // ----------------------------------------------------------------------- //
 
 import type {
+  ArrayElement,
   IsUnknown,
   JsonValue,
+  KeysOfUnion,
   Paths,
   Primitive,
   Replace,
@@ -150,14 +152,77 @@ export type CapabilityMethods<Entity extends string> = {
   };
 };
 
-export type Augment<T extends CapabilityMethods<string>> = {
+/**
+ * Builds the client's methods from its capabilities' contracts. A contract
+ * that declares an `extensions` field receives `ContractExtensions` there,
+ * which it can read as `this["extensions"]` in the same way it reads
+ * `this["input"]`. Other contracts are used as they are.
+ */
+export type Augment<T extends CapabilityMethods<string>, ContractExtensions = unknown> = {
   [Entity in keyof T]: {
-    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method], Method & string>;
+    [Method in keyof T[Entity]]: AugmentMethod<
+      T[Entity][Method] extends { extensions: unknown }
+        ? T[Entity][Method] & { extensions: ContractExtensions }
+        : T[Entity][Method],
+      Method & string
+    >;
   };
 };
 
+declare const contractExtensions: unique symbol;
+
+/**
+ * A built-in capability that adds no methods of its own. Instead it adds
+ * properties or filter conditions to the method contracts of the capability
+ * it {@link ExtendingCapability.extends | extends}, such as S/MIME adding
+ * `smime*` properties to `Email/get`. Those contract extensions exist only as
+ * a type; the client requires the extended capability alongside it.
+ */
+export interface ExtendingCapability<
+  Options extends {
+    /** The entities the capability's URN is sent with. */
+    entity: string;
+    urn: string;
+    /** The URN of the capability whose method contracts this one extends. */
+    extendedUrn: string;
+    accountCapabilities: unknown;
+    sessionCapabilities: unknown;
+    /** Properties and filter conditions added to the extended contracts. */
+    contractExtensions: unknown;
+  },
+> extends Capability<
+  Options["entity"],
+  { [Name in Options["entity"]]: {} },
+  Options["urn"],
+  Options["accountCapabilities"],
+  Options["sessionCapabilities"]
+> {
+  /** The URN of the capability whose method contracts this one extends. */
+  extends: Options["extendedUrn"];
+  readonly [contractExtensions]?: Options["contractExtensions"];
+}
+
+/** Extracts the contract extensions of an {@link ExtendingCapability}, or `never`. */
+export type InferContractExtensions<C> = C extends unknown
+  ? typeof contractExtensions extends keyof C
+    ? NonNullable<C[typeof contractExtensions]>
+    : never
+  : never;
+
+/**
+ * The arguments a contract accepts: its `acceptedInput` field when it has
+ * one, otherwise its `input` field. A contract that reads contract extensions
+ * declares `acceptedInput`, because the client intersects `input` with the
+ * actual arguments, and `input` can't also depend on `this` there.
+ */
+type AcceptedInput<Contract extends MethodContract> = Contract extends {
+  acceptedInput: infer Input;
+}
+  ? Input
+  : Contract["input"];
+
 export type MethodArguments<Contract extends MethodContract> = {
-  [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
+  [Key in keyof AcceptedInput<Contract>]: AllowRefs<AcceptedInput<Contract>[Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
     ? SetOptional<Args, "accountId">
@@ -173,6 +238,47 @@ export type EffectiveMethodInput<Contract extends MethodContract, Args> =
         : Input
     : never;
 
+/** A property key as JavaScript stores it: numeric keys become strings. */
+type StoredKey<Key> = Key extends number ? `${Key}` : Key;
+
+/** The type of `Key` in each member of a union that declares it. */
+type PropertyOfUnion<T, Key> = T extends unknown
+  ? Key extends keyof T
+    ? T[Key]
+    : StoredKey<Key> extends keyof T
+      ? T[StoredKey<Key>]
+      : never
+  : never;
+
+/**
+ * Marks every property of `Given` that `Accepted` doesn't declare as
+ * `never`, at any depth. Inferred arguments skip TypeScript's excess property
+ * check, so without this a misspelled property, or a property that needs a
+ * capability the client doesn't have, would compile. Values that `Accepted`
+ * leaves open (`unknown`, `object` or an index signature) and result
+ * references are not inspected.
+ */
+export type UnknownProperties<Given, Accepted> = [Given] extends [never]
+  ? unknown
+  : [Extract<Given, Ref>] extends [never]
+    ? CheckUnknownProperties<Given, Accepted>
+    : unknown;
+
+type CheckUnknownProperties<Given, Accepted> = [Given] extends [ReadonlyArray<unknown>]
+  ? { [Index in keyof Given]: UnknownProperties<Given[Index], ArrayElement<Accepted>> }
+  : [Given] extends [object]
+    ? [KeysOfUnion<NonNullable<Accepted>>] extends [never]
+      ? unknown
+      : {
+          [Key in KeysOfUnion<Given>]?: StoredKey<Key> extends KeysOfUnion<NonNullable<Accepted>>
+            ? UnknownProperties<
+                NonNullable<PropertyOfUnion<Given, Key>>,
+                PropertyOfUnion<NonNullable<Accepted>, Key>
+              >
+            : never;
+        }
+    : unknown;
+
 export interface AugmentedOptions {
   id?: string;
 }
@@ -184,7 +290,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
     EffectiveMethodInput<Contract, Args>
   >,
 >(
-  args: Args,
+  args: Args & NoInfer<UnknownProperties<Args, AcceptedInput<Contract>>>,
   options?: AugmentedOptions,
 ) => WithResultRefFn<Promise<Output>, Output> & {
   readonly $id: string;

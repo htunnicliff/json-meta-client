@@ -11,16 +11,6 @@
 import type { PatchObject, SetError } from "../core/index.ts";
 import type { EmailUpdate } from "./rfc8621-mail.ts";
 
-declare module "../extensions.js" {
-  export interface SessionCapabilities {
-    "urn:ietf:params:jmap:mdn": {};
-  }
-
-  export interface AccountCapabilities {
-    "urn:ietf:params:jmap:mdn": {};
-  }
-}
-
 /** @see https://www.rfc-editor.org/info/rfc9007/#section-2 */
 export interface Disposition {
   actionMode: "manual-action" | "automatic-action";
