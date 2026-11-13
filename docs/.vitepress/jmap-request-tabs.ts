@@ -11,27 +11,21 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 
 import ts from "typescript";
 import type { MarkdownRenderer } from "vitepress";
 
-import { recordingFetch, seedCallIds } from "./recorder/index.ts";
+import type { RunExampleInput, RunExampleOutput } from "./run-example.ts";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const docs = path.join(root, "docs");
 // Examples import the package from source, so the docs build does not depend
 // on `pnpm build`.
-const library = pathToFileURL(path.join(root, "src", "index.ts")).href;
-
-const callIdSeed = 1;
-// Matches docs-client.ts, with a URL the client accepts.
-const ambientClientOptions = {
-  auth: "<token>",
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  capabilities: ["mail", "submission"],
-};
-// How long an example may take to make its first JMAP Request
-const timeoutMs = 5_000;
+const librarySource = path.join(root, "src", "index.ts");
+const runner = new URL("./run-example.ts", import.meta.url);
+// How long a worker may run an example before it is stopped
+const workerTimeoutMs = 15_000;
 
 /**
  * Pretty-printed JMAP Requests, keyed by the example that produces them
@@ -45,10 +39,14 @@ interface Fence {
 }
 
 interface OptedInExample {
-  /** `page:line` of the example's fence */
-  location: string;
+  /** The page, relative to the repository root */
+  page: string;
+  /** The 1-based line of the example's opening fence */
+  line: number;
   source: string;
 }
+
+const locate = ({ page, line }: OptedInExample, offset = 0) => `${page}:${line + offset}`;
 
 function parseInfo(info: string): Pick<Fence, "lang" | "title"> {
   const lang = info.trim().split(/[\s[{]/, 1)[0] ?? "";
@@ -99,7 +97,7 @@ function findOptedInExamples(page: string, markdown: string): OptedInExample[] {
     if (!inGroup) continue;
     const fence = { ...parseInfo(info), content: body.join("\n") };
     if (isExample(fence)) {
-      example = { location: `${page}:${index + 1}`, source: fence.content };
+      example = { page, line: index + 1, source: fence.content };
     } else if (optsIn(fence)) {
       if (!example) {
         throw new Error(`${page}:${index + 1}: a JMAP Request fence needs an example before it`);
@@ -111,10 +109,54 @@ function findOptedInExamples(page: string, markdown: string): OptedInExample[] {
 }
 
 /**
+ * Type-check each example on its own, with only the ambient `client` of
+ * docs-client.ts declared, so an undeclared name fails wherever it appears
+ */
+function typeCheck(examples: readonly OptedInExample[]): string[] {
+  const virtual = new Map(
+    examples.map((example, index) => [
+      path.join(root, ".temp", "jmap-request-tabs", `example-${index}.ts`),
+      example,
+    ]),
+  );
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    moduleDetection: ts.ModuleDetectionKind.Force,
+    paths: { "json-meta-client": [librarySource] },
+    allowImportingTsExtensions: true,
+    strict: true,
+    noUncheckedIndexedAccess: true,
+    noEmit: true,
+    skipLibCheck: true,
+    types: ["node"],
+  };
+  const host = ts.createCompilerHost(options);
+  const fileExists = host.fileExists.bind(host);
+  const readFile = host.readFile.bind(host);
+  host.fileExists = (file) => virtual.has(file) || fileExists(file);
+  host.readFile = (file) => virtual.get(file)?.source ?? readFile(file);
+  const program = ts.createProgram(
+    [path.join(root, "scripts", "docs-client.ts"), ...virtual.keys()],
+    options,
+    host,
+  );
+  return ts.getPreEmitDiagnostics(program).flatMap((diagnostic) => {
+    const example = diagnostic.file && virtual.get(diagnostic.file.fileName);
+    if (!example || diagnostic.start === undefined) return [];
+    const { line } = diagnostic.file!.getLineAndCharacterOfPosition(diagnostic.start);
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+    // The example's first line follows its opening fence
+    return [`${locate(example, line + 1)}: TS${diagnostic.code}: ${message}`];
+  });
+}
+
+/**
  * Turn an example into a module that imports the package from source
  */
-function toModule({ location, source }: OptedInExample, nonce: number): string {
-  const { outputText } = ts.transpileModule(source, {
+function toModule(example: OptedInExample): string {
+  const { outputText } = ts.transpileModule(example.source, {
     fileName: "example.ts",
     compilerOptions: {
       target: ts.ScriptTarget.ESNext,
@@ -122,55 +164,41 @@ function toModule({ location, source }: OptedInExample, nonce: number): string {
       verbatimModuleSyntax: false,
     },
   });
+  const library = JSON.stringify(pathToFileURL(librarySource).href);
   const code = outputText.replaceAll(
     /(\bfrom\s*|\bimport\s*\(\s*)(["'])json-meta-client\2/g,
-    (_, prefix: string) => `${prefix}${JSON.stringify(library)}`,
+    (_, prefix: string) => `${prefix}${library}`,
   );
-  // The nonce gives every run its own module instead of a cached one.
-  return `${code}\n//# sourceURL=${location}?run=${nonce}\n`;
+  return `${code}\n//# sourceURL=${locate(example)}\n`;
 }
 
-let moduleNonce = 0;
-const macrotask = () => new Promise((resolve) => setTimeout(resolve, 0));
-
 /**
- * Run an example alone, with a placeholder Session and a pending `fetch`, and
- * return the JMAP Requests it makes before it stops at a pending `await`
+ * Run an example alone in a worker and return the JMAP Requests it makes
+ * before it stops at a pending `await`
  */
 async function runExample(example: OptedInExample): Promise<unknown[]> {
-  const { JsonMetaClient } = await import(library);
-  const recorder = recordingFetch();
-  const scope = globalThis as { fetch: typeof fetch; client?: unknown };
-  const originalFetch = scope.fetch;
-  const restoreCallIds = seedCallIds(callIdSeed);
-  scope.fetch = recorder.fetch;
-  // The ambient `client` of docs-client.ts; an example's own `client` shadows it.
-  scope.client = new JsonMetaClient(ambientClientOptions);
+  const worker = new Worker(runner, {
+    workerData: { code: toModule(example) } satisfies RunExampleInput,
+  });
   try {
-    let outcome: { error: unknown } | "done" | undefined;
-    import(`data:text/javascript,${encodeURIComponent(toModule(example, ++moduleNonce))}`).then(
-      () => (outcome = "done"),
-      (error: unknown) => (outcome = { error }),
-    );
-    const started = Date.now();
-    let seen = -1;
-    for (;;) {
-      // oxlint-disable-next-line no-await-in-loop
-      await macrotask();
-      if (typeof outcome === "object") throw outcome.error;
-      const quiet = recorder.count === seen;
-      seen = recorder.count;
-      if (!quiet) continue;
-      // oxlint-disable-next-line no-await-in-loop
-      const made = (await recorder.settled()).some(({ kind }) => kind === "request");
-      if (made || outcome === "done" || Date.now() - started > timeoutMs) break;
-    }
-    const recorded = await recorder.settled();
-    return recorded.filter(({ kind }) => kind === "request").map(({ body }) => body);
+    const output = await new Promise<RunExampleOutput>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error(`timed out after ${workerTimeoutMs} ms`)),
+        workerTimeoutMs,
+      );
+      worker.once("message", (message: RunExampleOutput) => {
+        clearTimeout(timeout);
+        resolve(message);
+      });
+      worker.once("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+    if ("error" in output) throw new Error(output.error);
+    return output.requests;
   } finally {
-    scope.fetch = originalFetch;
-    delete scope.client;
-    restoreCallIds();
+    await worker.terminate();
   }
 }
 
@@ -188,27 +216,30 @@ async function markdownFiles(directory: string): Promise<string[]> {
  * exactly one JMAP Request.
  */
 export async function recordJmapRequests(): Promise<JmapRequests> {
-  const results = new Map<string, string>();
-  const failures: string[] = [];
+  const examples: OptedInExample[] = [];
   for (const file of await markdownFiles(docs)) {
-    const page = path.relative(root, file);
     // oxlint-disable-next-line no-await-in-loop
-    for (const example of findOptedInExamples(page, await readFile(file, "utf8"))) {
+    const markdown = await readFile(file, "utf8");
+    examples.push(...findOptedInExamples(path.relative(root, file), markdown));
+  }
+  const results = new Map<string, string>();
+  const runFailures = await Promise.all(
+    examples.map(async (example): Promise<string[]> => {
       try {
-        // oxlint-disable-next-line no-await-in-loop
         const requests = await runExample(example);
         if (requests.length !== 1) {
-          failures.push(
-            `${example.location}: expected the example to make exactly one JMAP Request, but it made ${requests.length}`,
-          );
-          continue;
+          return [
+            `${locate(example)}: expected the example to make exactly one JMAP Request, but it made ${requests.length}`,
+          ];
         }
         results.set(keyOf(example.source), JSON.stringify(requests[0], null, 2));
+        return [];
       } catch (error) {
-        failures.push(`${example.location}: the example failed: ${String(error)}`);
+        return [`${locate(example)}: the example failed: ${String(error)}`];
       }
-    }
-  }
+    }),
+  );
+  const failures = [...typeCheck(examples), ...runFailures.flat()];
   if (failures.length) {
     throw new Error(`Could not generate JMAP Request tabs:\n${failures.join("\n")}`);
   }
