@@ -20,7 +20,7 @@ import type {
 } from "type-fest";
 
 import type { Capability, MethodContract } from "../capability.ts";
-import type { MethodWithoutDefaultAccountId } from "./middleware/inject-account-id.ts";
+import type { MethodWithoutDefaultAccountId } from "./default-account-id.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
