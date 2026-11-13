@@ -1,10 +1,10 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
-import { jmapRequestTabs, recordJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
+import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
 
-// Examples run before the build because markdown-it renders synchronously.
-const jmapRequests = await recordJmapRequests();
+// Fails when a generated JMAP Request fence is out of date
+await syncJmapRequests({ write: false });
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -91,7 +91,6 @@ export default defineConfig({
   markdown: {
     config(md) {
       md.use(groupIconMdPlugin);
-      md.use(jmapRequestTabs(jmapRequests));
     },
   },
   vite: {

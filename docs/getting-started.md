@@ -126,7 +126,7 @@ const mailboxes = await client.api.Mailbox.query({
 const inboxId = mailboxes.ids[0]!;
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -136,11 +136,13 @@ const inboxId = mailboxes.ids[0]!;
     [
       "Mailbox/query",
       {
-        "filter": { "role": "inbox" },
+        "filter": {
+          "role": "inbox"
+        },
         "limit": 1,
-        "accountId": "<accountId>"
+        "accountId": "<account-id>"
       },
-      "Mailbox/query::e64dc905"
+      "Mailbox/query::c9f3fdeb"
     ]
   ]
 }
@@ -168,7 +170,7 @@ for (const email of emails.list) {
 }
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -178,18 +180,20 @@ for (const email of emails.list) {
     [
       "Email/query",
       {
-        "filter": { "inMailbox": "<inboxId>" },
+        "filter": {
+          "inMailbox": "<inboxId>"
+        },
         "limit": 10,
-        "accountId": "<accountId>"
+        "accountId": "<account-id>"
       },
-      "Email/query::d1ca7ea5"
+      "Email/query::c9f3fdeb"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::d1ca7ea5",
+          "resultOf": "Email/query::c9f3fdeb",
           "path": "/ids"
         },
         "properties": [
@@ -199,9 +203,9 @@ for (const email of emails.list) {
           "subject",
           "sentAt"
         ],
-        "accountId": "<accountId>"
+        "accountId": "<account-id>"
       },
-      "Email/get::a4f7a29b"
+      "Email/get::16cac814"
     ]
   ]
 }

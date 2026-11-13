@@ -1,10 +1,10 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { Worker } from "node:worker_threads";
 
 import ts from "typescript";
-import type { MarkdownRenderer } from "vitepress";
 
 import type { RunExampleInput, RunExampleOutput } from "./run-example.ts";
 
@@ -16,11 +16,6 @@ const librarySource = path.join(root, "src", "index.ts");
 const runner = new URL("./run-example.ts", import.meta.url);
 // How long a worker may run an example before it is stopped
 const workerTimeoutMs = 15_000;
-
-/**
- * Pretty-printed JMAP Requests, keyed by the example that produces them
- */
-export type JmapRequests = ReadonlyMap<string, string>;
 
 interface Fence {
   lang: string;
@@ -36,6 +31,24 @@ interface OptedInExample {
   /** The 1-based line of the example's opening fence */
   line: number;
   source: string;
+  /** Top-level names that earlier examples on the page declared */
+  inherited: string[];
+  /** The generated fence, once the page has one after the example */
+  target?: Target;
+}
+
+/**
+ * The body of a generated fence in a Markdown page
+ */
+interface Target {
+  /** The 0-based line of the first body line */
+  start: number;
+  /** The 0-based line of the closing fence */
+  end: number;
+  /** The fence's indentation */
+  indent: string;
+  /** What the fence holds now */
+  content: string;
 }
 
 const locate = ({ page, line }: OptedInExample, offset = 0) => `${page}:${line + offset}`;
@@ -51,23 +64,40 @@ const isExample = ({ lang }: Pick<Fence, "lang">) => lang === "ts" || lang === "
 
 /**
  * A fence opts in with the `jmap:generated` attribute, as in
- * `json [JMAP Request] {jmap:generated}`. Its body must be empty.
+ * `json [JMAP Request] {jmap:generated}`. Its body is written by
+ * `pnpm docs:generate` and checked by the docs build.
  */
 const optsIn = ({ lang, title, generated }: Fence) =>
   lang === "json" && title === "JMAP Request" && generated;
 
 /**
- * The key an example's result is stored under, insensitive to trailing
- * whitespace
+ * The names an example declares at the top level
  */
-const keyOf = (source: string) => source.trimEnd();
+function declaredNames(source: string): string[] {
+  const file = ts.createSourceFile("example.ts", source, ts.ScriptTarget.ESNext);
+  const names: string[] = [];
+  const collect = (name: ts.BindingName) => {
+    if (ts.isIdentifier(name)) names.push(name.text);
+    else name.elements.forEach((element) => ts.isBindingElement(element) && collect(element.name));
+  };
+  for (const statement of file.statements) {
+    if (ts.isVariableStatement(statement)) {
+      statement.declarationList.declarations.forEach(({ name }) => collect(name));
+    } else if (ts.isFunctionDeclaration(statement) && statement.name) {
+      names.push(statement.name.text);
+    }
+  }
+  return names;
+}
 
 /**
- * Find the opted-in examples of a Markdown page
+ * Find the opted-in examples of a Markdown page. An example may use names that
+ * earlier examples on the page declared, as the page reads top to bottom.
  */
 function findOptedInExamples(page: string, markdown: string): OptedInExample[] {
   const lines = markdown.split("\n").entries();
   const examples: OptedInExample[] = [];
+  const declared = new Set<string>();
   let inGroup = false;
   let example: OptedInExample | undefined;
   for (const [index, line] of lines) {
@@ -94,18 +124,37 @@ function findOptedInExamples(page: string, markdown: string): OptedInExample[] {
     if (!inGroup) continue;
     const fence = { ...parseInfo(info), content: body.join("\n") };
     if (isExample(fence)) {
-      example = { page, line: index + 1, source: fence.content };
+      const own = new Set(declaredNames(fence.content));
+      example = {
+        page,
+        line: index + 1,
+        source: fence.content,
+        inherited: [...declared].filter((name) => !own.has(name)),
+      };
+      own.forEach((name) => declared.add(name));
     } else if (optsIn(fence)) {
-      if (fence.content.trim() !== "") {
-        throw new Error(`${page}:${index + 1}: a generated JMAP Request fence must be empty`);
-      }
       if (!example) {
         throw new Error(`${page}:${index + 1}: a JMAP Request fence needs an example before it`);
       }
+      example.target = {
+        start: index + 1,
+        end: index + 1 + body.length,
+        indent,
+        content: fence.content,
+      };
       examples.push(example);
     }
   }
   return examples;
+}
+
+/**
+ * The example's source, preceded on its first line by the names it uses from
+ * earlier examples, each standing for itself, as in `"<inboxId>"`
+ */
+function withInherited({ source, inherited }: OptedInExample): string {
+  const declarations = inherited.map((name) => `const ${name}: any = "<${name}>";`);
+  return `${declarations.join(" ")}${declarations.length ? " " : ""}${source}`;
 }
 
 /**
@@ -136,7 +185,10 @@ function typeCheck(examples: readonly OptedInExample[]): string[] {
   const fileExists = host.fileExists.bind(host);
   const readFile = host.readFile.bind(host);
   host.fileExists = (file) => virtual.has(file) || fileExists(file);
-  host.readFile = (file) => virtual.get(file)?.source ?? readFile(file);
+  host.readFile = (file) => {
+    const example = virtual.get(file);
+    return example ? withInherited(example) : readFile(file);
+  };
   const program = ts.createProgram(
     [path.join(root, "scripts", "docs-client.ts"), ...virtual.keys()],
     options,
@@ -156,7 +208,7 @@ function typeCheck(examples: readonly OptedInExample[]): string[] {
  * Turn an example into a module that imports the package from source
  */
 function toModule(example: OptedInExample): string {
-  const { outputText } = ts.transpileModule(example.source, {
+  const { outputText } = ts.transpileModule(withInherited(example), {
     fileName: "example.ts",
     compilerOptions: {
       target: ts.ScriptTarget.ESNext,
@@ -211,18 +263,23 @@ async function markdownFiles(directory: string): Promise<string[]> {
 }
 
 /**
- * Run every opted-in example under `docs/` and collect its JMAP Request.
- * Fails, naming each page and line, when an example errors or does not make
- * exactly one JMAP Request.
+ * What the generated fences of `docs/` should hold, by page
  */
-export async function recordJmapRequests(): Promise<JmapRequests> {
+async function generate(): Promise<{
+  files: Map<string, { markdown: string; stale: OptedInExample[] }>;
+  failures: string[];
+}> {
   const examples: OptedInExample[] = [];
+  const files = new Map<string, { markdown: string; stale: OptedInExample[] }>();
   for (const file of await markdownFiles(docs)) {
     // oxlint-disable-next-line no-await-in-loop
     const markdown = await readFile(file, "utf8");
-    examples.push(...findOptedInExamples(path.relative(root, file), markdown));
+    const page = path.relative(root, file);
+    const found = findOptedInExamples(page, markdown);
+    if (found.length) files.set(file, { markdown, stale: [] });
+    examples.push(...found);
   }
-  const results = new Map<string, string>();
+  const results = new Map<OptedInExample, string>();
   const runFailures = await Promise.all(
     examples.map(async (example): Promise<string[]> => {
       try {
@@ -232,7 +289,7 @@ export async function recordJmapRequests(): Promise<JmapRequests> {
             `${locate(example)}: expected the example to make exactly one JMAP Request, but it made ${requests.length}`,
           ];
         }
-        results.set(keyOf(example.source), JSON.stringify(requests[0], null, 2));
+        results.set(example, JSON.stringify(requests[0], null, 2));
         return [];
       } catch (error) {
         return [`${locate(example)}: the example failed: ${String(error)}`];
@@ -240,43 +297,62 @@ export async function recordJmapRequests(): Promise<JmapRequests> {
     }),
   );
   const failures = [...typeCheck(examples), ...runFailures.flat()];
-  if (failures.length) {
-    throw new Error(`Could not generate JMAP Request tabs:\n${failures.join("\n")}`);
+  const byPage = Map.groupBy(examples, ({ page }) => page);
+  for (const [file, entry] of files) {
+    const pageExamples = byPage.get(path.relative(root, file)) ?? [];
+    const lines = entry.markdown.split("\n");
+    // From the last fence up, so earlier line numbers stay valid
+    for (const example of pageExamples.toReversed()) {
+      const json = results.get(example);
+      const { target } = example;
+      if (json === undefined || !target) continue;
+      if (!sameJson(target.content, json)) {
+        entry.stale.push(example);
+        const body = json.split("\n").map((line) => `${target.indent}${line}`);
+        lines.splice(target.start, target.end - target.start, ...body);
+      }
+    }
+    entry.markdown = lines.join("\n");
   }
-  return results;
+  return { files, failures };
 }
 
 /**
- * A markdown-it plugin that fills each opted-in fence from `requests`
+ * Whether the JSON is the same, whatever its formatting
  */
-export function jmapRequestTabs(requests: JmapRequests) {
-  return (md: MarkdownRenderer): void => {
-    md.core.ruler.push("jmap_request_tabs", (state) => {
-      let inGroup = false;
-      let example: string | undefined;
-      for (const token of state.tokens) {
-        if (token.type === "container_code-group_open") {
-          inGroup = true;
-          example = undefined;
-        } else if (token.type === "container_code-group_close") {
-          inGroup = false;
-        } else if (inGroup && token.type === "fence") {
-          const fence = { ...parseInfo(token.info), content: token.content };
-          if (isExample(fence)) {
-            example = token.content;
-          } else if (optsIn(fence)) {
-            const json = example === undefined ? undefined : requests.get(keyOf(example));
-            if (json === undefined) {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-              const page = (state.env as { relativePath?: string }).relativePath ?? "a page";
-              throw new Error(
-                `${page}:${(token.map?.[0] ?? 0) + 1}: no JMAP Request was recorded for this example; restart the docs server after changing it`,
-              );
-            }
-            token.content = `${json}\n`;
-          }
-        }
-      }
-    });
-  };
+function sameJson(a: string, b: string): boolean {
+  try {
+    return isDeepStrictEqual(JSON.parse(a), JSON.parse(b));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Run every opted-in example under `docs/` and compare its JMAP Request with
+ * the fence that follows it. With `write`, stale fences are rewritten;
+ * otherwise they fail the build. Fails, naming each page and line, when an
+ * example errors or does not make exactly one JMAP Request.
+ */
+export async function syncJmapRequests({ write }: { write: boolean }): Promise<void> {
+  const { files, failures } = await generate();
+  const stale = [...files.values()].flatMap((entry) => entry.stale);
+  if (!failures.length && write) {
+    await Promise.all(
+      [...files]
+        .filter(([, { stale }]) => stale.length)
+        .map(([file, { markdown }]) => writeFile(file, markdown)),
+    );
+    return;
+  }
+  if (!write) {
+    failures.push(
+      ...stale.map((example) => `${locate(example)}: the JMAP Request fence is out of date`),
+    );
+  }
+  if (failures.length) {
+    throw new Error(
+      `Could not check JMAP Requests:\n${failures.join("\n")}${write ? "" : "\nRun `pnpm docs:generate` to update them."}`,
+    );
+  }
 }
