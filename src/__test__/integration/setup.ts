@@ -18,6 +18,9 @@ import {
 } from "testcontainers";
 import type { TestProject } from "vitest/node";
 
+import { defineCapability, JsonMetaClient } from "../../index.ts";
+import type { MethodSet } from "../../rfc-types/core/index.ts";
+
 export interface StalwartFixture {
   sessionUrl: string;
   username: string;
@@ -30,7 +33,29 @@ declare module "vitest" {
   }
 }
 
-const adminCredentials = "admin:integration-admin-password";
+interface Domain {
+  id: string;
+  name: string;
+}
+
+interface Account {
+  id: string;
+  "@type": "User";
+  name: string;
+  domainId: string;
+  credentials: Record<string, { "@type": "Password"; secret: string }>;
+}
+
+/** The parts of Stalwart's management API that provisioning uses */
+const stalwartManagement = defineCapability({
+  urn: "urn:stalwart:jmap",
+  entities: ["x:Domain", "x:Account"],
+}).withMethods<{
+  "x:Domain": { set: { input: MethodSet.Input<Domain>; output: MethodSet.Output<Domain> } };
+  "x:Account": { set: { input: MethodSet.Input<Account>; output: MethodSet.Output<Account> } };
+}>();
+
+const admin = { username: "admin", password: "integration-admin-password" };
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   // Stalwart advertises JMAP URLs from STALWART_PUBLIC_URL, which must be known
@@ -47,7 +72,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
       },
     ])
     .withEnvironment({
-      STALWART_RECOVERY_ADMIN: adminCredentials,
+      STALWART_RECOVERY_ADMIN: `${admin.username}:${admin.password}`,
       STALWART_PUBLIC_URL: baseUrl,
     })
     .withExposedPorts({ container: 8080, host: port })
@@ -59,38 +84,31 @@ export default async function setup(project: TestProject): Promise<() => Promise
     const username = "integration@example.test";
     const password = "integration-user-password";
 
-    // Management API calls only provision fixtures; protocol assertions use JsonMetaClient.
-    const response = await fetch(`${baseUrl}/jmap/`, {
-      method: "POST",
-      headers: {
-        authorization: `Basic ${Buffer.from(adminCredentials).toString("base64")}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        using: ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"],
-        methodCalls: [
-          ["x:Domain/set", { create: { domain: { name: "example.test" } } }, "domain"],
-          [
-            "x:Account/set",
-            {
-              create: {
-                user: {
-                  "@type": "User",
-                  name: "integration",
-                  domainId: "#domain",
-                  credentials: { 0: { "@type": "Password", secret: password } },
-                },
-              },
-            },
-            "user",
-          ],
-        ],
-      }),
-      signal: AbortSignal.timeout(30_000),
+    // Management calls only provision fixtures; protocol assertions live in the tests.
+    const client = new JsonMetaClient({
+      sessionUrl: `${baseUrl}/.well-known/jmap`,
+      capabilities: [stalwartManagement],
+      auth: admin,
     });
-    const body = await response.text();
-    if (!response.ok || body.includes('"notCreated"') || !body.includes('"created"')) {
-      throw new Error(`Stalwart fixture provisioning failed (${response.status}): ${body}`);
+    const domains = client.api["x:Domain"].set({
+      create: { domain: { name: "example.test" } },
+    });
+    const accounts = client.api["x:Account"].set({
+      create: {
+        user: {
+          "@type": "User",
+          name: "integration",
+          domainId: domains.createdRef("domain"),
+          credentials: { 0: { "@type": "Password", secret: password } },
+        },
+      },
+    });
+    for (const result of await Promise.all([domains, accounts])) {
+      if (result.notCreated) {
+        throw new Error(
+          `Stalwart fixture provisioning failed: ${JSON.stringify(result.notCreated)}`,
+        );
+      }
     }
 
     project.provide("stalwart", {
