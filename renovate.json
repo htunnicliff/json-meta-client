@@ -1,4 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>htunnicliff/renovate"]
+  "extends": ["github>htunnicliff/renovate"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Testcontainers images in the integration suite",
+      "managerFilePatterns": ["/^src/__test__/integration/.+\\.ts$/"],
+      "matchStrings": [
+        "new GenericContainer\\(\\s*\"(?<depName>[^:@\"]+):(?<currentValue>[^@\"]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\"\\s*\\)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
 }
