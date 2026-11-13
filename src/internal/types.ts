@@ -102,7 +102,10 @@ export type PointerPaths<T> =
       : never
     : never;
 
-export type Middleware = (payload: JsonValue) => JsonValue;
+/**
+ * Transforms a method call's arguments before it is sent.
+ */
+export type Middleware = (payload: JsonValue, call: { method: string }) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.

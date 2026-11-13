@@ -23,9 +23,11 @@ export const METHODS_WITHOUT_DEFAULT_ACCOUNT_ID = ["Blob/copy"] as const;
 export type MethodWithoutDefaultAccountId = (typeof METHODS_WITHOUT_DEFAULT_ACCOUNT_ID)[number];
 
 export function injectAccountId(getSession: () => Session): Middleware {
-  return (args) => {
+  const withoutDefault: ReadonlySet<string> = new Set(METHODS_WITHOUT_DEFAULT_ACCOUNT_ID);
+  return (args, { method }) => {
     // Add `accountId` if not set
     if (
+      !withoutDefault.has(method) &&
       typeof args === "object" &&
       args !== null &&
       !Array.isArray(args) &&
