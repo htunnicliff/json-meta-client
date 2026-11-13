@@ -198,6 +198,17 @@ describe(JsonMetaClient, () => {
         }),
       );
     });
+
+    it("requires mail alongside smime", () => {
+      expect(
+        () => new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["smime"] }),
+      ).toThrow(
+        expect.objectContaining({
+          name: "CapabilityConfigurationError",
+          message: "The `smime` capability requires `mail`",
+        }),
+      );
+    });
   });
 
   describe("request errors", () => {
@@ -415,8 +426,9 @@ describe(JsonMetaClient, () => {
         const namedClient = new JsonMetaClient({
           auth: token,
           sessionUrl,
+          // `smime` requires `mail`, which the session already advertises.
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-          capabilities: [name as keyof typeof BUILT_IN_CAPABILITIES],
+          capabilities: [name as keyof typeof BUILT_IN_CAPABILITIES, "mail"],
         });
 
         await namedClient.session;
@@ -529,6 +541,37 @@ describe(JsonMetaClient, () => {
 
       await expect(email).resolves.toEqual({ list: [{ id: "e1", smimeStatus: "signed" }] });
       await expect(mailbox).resolves.toEqual({ list: [] });
+      expect(apiScope.isDone()).toBe(true);
+    });
+
+    it("adds the S/MIME verification URN to SearchSnippet calls", async () => {
+      const smimeClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: ["mail", "smime"],
+      });
+      const snippets = smimeClient.api.SearchSnippet.get({
+        emailIds: ["e1"],
+        filter: { hasSmime: true },
+      });
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn, "urn:ietf:params:jmap:smimeverify"],
+          methodCalls: [
+            [
+              "SearchSnippet/get",
+              { accountId, emailIds: ["e1"], filter: { hasSmime: true } },
+              snippets.$id,
+            ],
+          ],
+        },
+        {
+          methodResponses: [["SearchSnippet/get", { list: [] }, snippets.$id]],
+          sessionState,
+        },
+      );
+
+      await expect(snippets).resolves.toEqual({ list: [] });
       expect(apiScope.isDone()).toBe(true);
     });
   });

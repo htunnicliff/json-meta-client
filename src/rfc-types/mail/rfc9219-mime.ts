@@ -41,13 +41,8 @@ export interface EmailSmimeProperties {
   smimeVerifiedAt: string | null;
 }
 
-declare module "./rfc8621-mail.js" {
-  // These server-set properties are returned only when explicitly requested.
-  export interface ReadableEmail extends EmailSmimeProperties {}
-
-  /** @see https://www.rfc-editor.org/info/rfc9219/#section-4.2 */
-  export interface EmailFilter {
-    hasSmime?: boolean;
-    hasVerifiedSmime?: boolean;
-  }
+/** @see https://www.rfc-editor.org/info/rfc9219/#section-4.2 */
+export interface EmailSmimeFilter {
+  hasSmime?: boolean;
+  hasVerifiedSmime?: boolean;
 }

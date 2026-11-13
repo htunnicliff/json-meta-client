@@ -150,14 +150,72 @@ export type CapabilityMethods<Entity extends string> = {
   };
 };
 
-export type Augment<T extends CapabilityMethods<string>> = {
+/**
+ * Builds the client's methods from its capabilities' contracts. A contract
+ * that declares an `extensions` field receives `ContractExtensions` there,
+ * which it can read as `this["extensions"]` in the same way it reads
+ * `this["input"]`. Other contracts are used as they are.
+ */
+export type Augment<T extends CapabilityMethods<string>, ContractExtensions = unknown> = {
   [Entity in keyof T]: {
-    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method], Method & string>;
+    [Method in keyof T[Entity]]: AugmentMethod<
+      T[Entity][Method] extends { extensions: unknown }
+        ? T[Entity][Method] & { extensions: ContractExtensions }
+        : T[Entity][Method],
+      Method & string
+    >;
   };
 };
 
+declare const contractExtensions: unique symbol;
+
+/**
+ * A built-in capability that adds no methods of its own. Instead it adds
+ * properties or filter conditions to the method contracts of the capability
+ * it {@link ExtendingCapability.extends | extends}, such as S/MIME adding
+ * `smime*` properties to `Email/get`. Those contract extensions exist only as
+ * a type; the client requires the extended capability alongside it.
+ */
+export interface ExtendingCapability<
+  Entity extends string,
+  Urn extends string,
+  ExtendedUrn extends string,
+  AccountCapabilities,
+  SessionCapabilities,
+  ContractExtensions,
+> extends Capability<
+  Entity,
+  { [Name in Entity]: {} },
+  Urn,
+  AccountCapabilities,
+  SessionCapabilities
+> {
+  /** The URN of the capability whose method contracts this one extends. */
+  extends: ExtendedUrn;
+  readonly [contractExtensions]?: ContractExtensions;
+}
+
+/** Extracts the contract extensions of an {@link ExtendingCapability}, or `never`. */
+export type InferContractExtensions<C> = C extends unknown
+  ? typeof contractExtensions extends keyof C
+    ? NonNullable<C[typeof contractExtensions]>
+    : never
+  : never;
+
+/**
+ * The arguments a contract accepts: its `acceptedInput` field when it has
+ * one, otherwise its `input` field. A contract that reads contract extensions
+ * declares `acceptedInput`, because the client intersects `input` with the
+ * actual arguments, and `input` can't also depend on `this` there.
+ */
+type AcceptedInput<Contract extends MethodContract> = Contract extends {
+  acceptedInput: infer Input;
+}
+  ? Input
+  : Contract["input"];
+
 export type MethodArguments<Contract extends MethodContract> = {
-  [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
+  [Key in keyof AcceptedInput<Contract>]: AllowRefs<AcceptedInput<Contract>[Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
     ? SetOptional<Args, "accountId">
@@ -231,7 +289,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
     EffectiveMethodInput<Contract, Args>
   >,
 >(
-  args: Args & NoInfer<UnknownProperties<Args, Contract["input"]>>,
+  args: Args & NoInfer<UnknownProperties<Args, AcceptedInput<Contract>>>,
   options?: AugmentedOptions,
 ) => WithResultRefFn<Promise<Output>, Output> & {
   readonly $id: string;

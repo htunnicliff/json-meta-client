@@ -8,22 +8,34 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { Capability } from "../capability.ts";
+import type { ExtendingCapability } from "../internal/types.ts";
+import type { AccountCapabilities, SessionCapabilities } from "../rfc-types/extensions.ts";
+import type { EmailSmimeFilter, EmailSmimeProperties } from "../rfc-types/mail/index.ts";
+
+// cspell:words smime smimeverify
 
 /**
- * Adds the S/MIME verification URN to every `Email` request so the server
- * returns the `smime*` properties and accepts the `hasSmime` and
- * `hasVerifiedSmime` filters. It adds no methods: enable `mail` for those.
+ * Adds the S/MIME verification URN to every `Email` and `SearchSnippet`
+ * request, and types the `smime*` properties of `Email/get` and the
+ * `hasSmime` and `hasVerifiedSmime` filter conditions. It adds no methods
+ * and extends `mail`, which the client requires alongside it.
  *
  * @see https://www.rfc-editor.org/rfc/rfc9219.html
  */
-export const smime: Capability<
-  "Email",
+export const smime: ExtendingCapability<
+  "Email" | "SearchSnippet",
+  "urn:ietf:params:jmap:smimeverify",
+  "urn:ietf:params:jmap:mail",
+  AccountCapabilities["urn:ietf:params:jmap:smimeverify"],
+  SessionCapabilities["urn:ietf:params:jmap:smimeverify"],
   {
-    Email: {};
-  },
-  "urn:ietf:params:jmap:smimeverify"
+    Email: {
+      properties: EmailSmimeProperties;
+      filter: EmailSmimeFilter;
+    };
+  }
 > = {
   urn: "urn:ietf:params:jmap:smimeverify",
-  entities: ["Email"],
+  entities: ["Email", "SearchSnippet"],
+  extends: "urn:ietf:params:jmap:mail",
 };
