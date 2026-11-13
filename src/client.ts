@@ -130,10 +130,14 @@ export class JsonMetaClient<
     return this.#session;
   };
 
+  /**
+   * Upload and download blobs. Each call names its account: the client does
+   * not choose a default, because the right one depends on what the blob is
+   * for.
+   */
   blob = {
     /**
-     * Upload a blob to the given account. The client does not choose a default
-     * account, because the right one depends on what the blob is for.
+     * Upload a blob to the given account
      */
     upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
       const session = await this.session;
@@ -145,8 +149,7 @@ export class JsonMetaClient<
       return data;
     },
     /**
-     * Download a blob from the given account. The client does not choose a
-     * default account, because the right one depends on what the blob is for.
+     * Download a blob from the given account
      */
     download: async (params: FileDownload.Params): Promise<Response> => {
       const session = await this.session;
