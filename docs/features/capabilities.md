@@ -31,8 +31,11 @@
 ## Checking server support
 
 :::warning TODO
-- On first session load, configured URNs missing from `session.capabilities`
-  produce a `console.warn` with a `ConfigurationError`; this does not throw
+- On first session load, configured URNs missing from both `session.capabilities`
+  and every account's `accountCapabilities` produce a `console.warn` with a
+  `ConfigurationError`; this does not throw
+- Some servers (e.g. Stalwart's `urn:stalwart:jmap`) advertise a capability only
+  on accounts, so either location counts
 :::
 
 ## Reading capability details

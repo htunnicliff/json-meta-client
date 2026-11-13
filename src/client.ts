@@ -288,12 +288,19 @@ export class JsonMetaClient<
    * the actual capabilities exposed by the JMAP server
    * in its {@link ClientSession} object.
    *
-   * Any of the configured capabilities that are not found in
-   * the session will be logged as a warning
+   * Any of the configured capabilities that are found neither in
+   * the session's capabilities nor in any account's capabilities
+   * will be logged as a warning. Some servers advertise a capability
+   * only on the accounts that can use it.
    */
   #validateSessionCapabilities(session: ClientSession<GivenCapabilities>): void {
     const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
-    const availableUrns = new Set(Object.keys(session.capabilities));
+    const availableUrns = new Set([
+      ...Object.keys(session.capabilities),
+      ...Object.values(session.accounts ?? {}).flatMap((account) =>
+        Object.keys(account.accountCapabilities ?? {}),
+      ),
+    ]);
 
     const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
     if (configuredButNotAvailable.length > 0) {

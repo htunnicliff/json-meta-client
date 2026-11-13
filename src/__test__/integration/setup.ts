@@ -8,12 +8,18 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-// oxlint-disable no-await-in-loop
-
 import { resolve } from "node:path";
 
-import { GenericContainer, Wait } from "testcontainers";
+import {
+  GenericContainer,
+  getContainerRuntimeClient,
+  RandomPortGenerator,
+  Wait,
+} from "testcontainers";
 import type { TestProject } from "vitest/node";
+
+import { defineCapability, JsonMetaClient } from "../../index.ts";
+import type { MethodSet } from "../../rfc-types/core/index.ts";
 
 export interface StalwartFixture {
   sessionUrl: string;
@@ -27,47 +33,80 @@ declare module "vitest" {
   }
 }
 
+interface Domain {
+  id: string;
+  name: string;
+}
+
+interface Account {
+  id: string;
+  "@type": "User";
+  name: string;
+  domainId: string;
+  credentials: Record<string, { "@type": "Password"; secret: string }>;
+}
+
+/** The parts of Stalwart's management API that provisioning uses */
+const stalwartManagement = defineCapability({
+  urn: "urn:stalwart:jmap",
+  entities: ["x:Domain", "x:Account"],
+}).withMethods<{
+  "x:Domain": { set: { input: MethodSet.Input<Domain>; output: MethodSet.Output<Domain> } };
+  "x:Account": { set: { input: MethodSet.Input<Account>; output: MethodSet.Output<Account> } };
+}>();
+
+const admin = { username: "admin", password: "integration-admin-password" };
+
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const container = await new GenericContainer("stalwartlabs/mail-server:v0.11.8")
+  // Stalwart advertises JMAP URLs from STALWART_PUBLIC_URL, which must be known
+  // before the container starts, so pick the host port up front.
+  const host = (await getContainerRuntimeClient()).info.containerRuntime.host;
+  const port = await new RandomPortGenerator().generatePort();
+  const baseUrl = `http://${host}:${port}`;
+
+  const container = await new GenericContainer("stalwartlabs/stalwart:v1.1.0")
     .withCopyFilesToContainer([
       {
-        source: resolve(import.meta.dirname, "fixtures/stalwart.toml"),
-        target: "/opt/stalwart-mail/etc/config.toml",
+        source: resolve(import.meta.dirname, "fixtures/stalwart.json"),
+        target: "/etc/stalwart/config.json",
       },
     ])
-    .withExposedPorts(8080)
+    .withEnvironment({
+      STALWART_RECOVERY_ADMIN: `${admin.username}:${admin.password}`,
+      STALWART_PUBLIC_URL: baseUrl,
+    })
+    .withExposedPorts({ container: 8080, host: port })
     .withWaitStrategy(Wait.forHttp("/healthz/live", 8080).forStatusCode(200))
     .withStartupTimeout(120_000)
     .start();
 
   try {
-    const baseUrl = `http://${container.getHost()}:${container.getMappedPort(8080)}`;
     const username = "integration@example.test";
     const password = "integration-user-password";
 
-    // Management API calls only provision fixtures; protocol assertions use JsonMetaClient.
-    for (const principal of [
-      { type: "domain", name: "example.test" },
-      {
-        type: "individual",
-        name: username,
-        secrets: [password],
-        emails: [username],
-        roles: ["user"],
-      },
-    ]) {
-      const response = await fetch(`${baseUrl}/api/principal`, {
-        method: "POST",
-        headers: {
-          authorization: `Basic ${Buffer.from("admin:integration-admin-password").toString("base64")}`,
-          "content-type": "application/json",
+    // Management calls only provision fixtures; protocol assertions live in the tests.
+    const client = new JsonMetaClient({
+      sessionUrl: `${baseUrl}/.well-known/jmap`,
+      capabilities: [stalwartManagement],
+      auth: admin,
+    });
+    const domains = client.api["x:Domain"].set({
+      create: { domain: { name: "example.test" } },
+    });
+    const accounts = client.api["x:Account"].set({
+      create: {
+        user: {
+          "@type": "User",
+          name: "integration",
+          domainId: domains.createdRef("domain"),
+          credentials: { 0: { "@type": "Password", secret: password } },
         },
-        body: JSON.stringify(principal),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!response.ok) {
+      },
+    });
+    for (const result of await Promise.all([domains, accounts])) {
+      if (result.notCreated) {
         throw new Error(
-          `Stalwart fixture provisioning failed (${response.status}): ${await response.text()}`,
+          `Stalwart fixture provisioning failed: ${JSON.stringify(result.notCreated)}`,
         );
       }
     }
