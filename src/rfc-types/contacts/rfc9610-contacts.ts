@@ -12,7 +12,6 @@ import type { DistributedOmit } from "type-fest";
 
 import type {
   Comparator,
-  EmptyCapabilityDetails,
   MethodChanges,
   MethodCopy,
   MethodGet,
@@ -21,9 +20,6 @@ import type {
   MethodSet,
 } from "../core/rfc8620-jmap.ts";
 import type { Card, Media } from "../formats/rfc9553-jscontact.ts";
-
-/** Server-wide details for `urn:ietf:params:jmap:contacts`. */
-export type ContactsSessionCapabilities = EmptyCapabilityDetails;
 
 /**
  * Account limits and permissions advertised by the JMAP Contacts capability.

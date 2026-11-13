@@ -8,14 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { EmptyCapabilityDetails } from "../core/index.ts";
 // cspell:words smime smimeverify
-
-/** Server-wide details for `urn:ietf:params:jmap:smimeverify`. */
-export type SmimeVerifySessionCapabilities = EmptyCapabilityDetails;
-
-/** Per-account details for `urn:ietf:params:jmap:smimeverify`. */
-export type SmimeVerifyAccountCapabilities = EmptyCapabilityDetails;
 
 /**
  * Servers may return additional status tokens defined by future extensions.

@@ -10,7 +10,6 @@
 
 import type {
   Comparator,
-  EmptyCapabilityDetails,
   MethodChanges,
   MethodCopy,
   MethodGet,
@@ -23,15 +22,6 @@ import type {
 } from "../core/index.ts";
 
 // TODO: Finish mail types
-
-/** Server-wide details for `urn:ietf:params:jmap:mail`. */
-export type MailSessionCapabilities = EmptyCapabilityDetails;
-
-/** Server-wide details for `urn:ietf:params:jmap:submission`. */
-export type SubmissionSessionCapabilities = EmptyCapabilityDetails;
-
-/** Server-wide details for `urn:ietf:params:jmap:vacationresponse`. */
-export type VacationResponseSessionCapabilities = EmptyCapabilityDetails;
 
 /**
  * Account limits and features advertised by the JMAP Mail capability.
@@ -56,9 +46,6 @@ export interface SubmissionAccountCapabilities {
   maxDelayedSend: number;
   submissionExtensions: Record<string, string[]>;
 }
-
-/** Per-account details for `urn:ietf:params:jmap:vacationresponse`. */
-export type VacationResponseAccountCapabilities = EmptyCapabilityDetails;
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-2 */
 export interface Mailbox {

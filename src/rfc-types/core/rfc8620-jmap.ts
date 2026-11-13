@@ -34,9 +34,6 @@ export interface CoreSessionCapabilities {
   collationAlgorithms: string[];
 }
 
-/** Per-account details for `urn:ietf:params:jmap:core`. */
-export type CoreAccountCapabilities = EmptyCapabilityDetails;
-
 /**
  * @see https://www.rfc-editor.org/info/rfc8620/#section-2
  */

@@ -177,22 +177,27 @@ declare const contractExtensions: unique symbol;
  * a type; the client requires the extended capability alongside it.
  */
 export interface ExtendingCapability<
-  Entity extends string,
-  Urn extends string,
-  ExtendedUrn extends string,
-  AccountCapabilities,
-  SessionCapabilities,
-  ContractExtensions,
+  Options extends {
+    /** The entities the capability's URN is sent with. */
+    entity: string;
+    urn: string;
+    /** The URN of the capability whose method contracts this one extends. */
+    extendedUrn: string;
+    accountCapabilities: unknown;
+    sessionCapabilities: unknown;
+    /** Properties and filter conditions added to the extended contracts. */
+    contractExtensions: unknown;
+  },
 > extends Capability<
-  Entity,
-  { [Name in Entity]: {} },
-  Urn,
-  AccountCapabilities,
-  SessionCapabilities
+  Options["entity"],
+  { [Name in Options["entity"]]: {} },
+  Options["urn"],
+  Options["accountCapabilities"],
+  Options["sessionCapabilities"]
 > {
   /** The URN of the capability whose method contracts this one extends. */
-  extends: ExtendedUrn;
-  readonly [contractExtensions]?: ContractExtensions;
+  extends: Options["extendedUrn"];
+  readonly [contractExtensions]?: Options["contractExtensions"];
 }
 
 /** Extracts the contract extensions of an {@link ExtendingCapability}, or `never`. */

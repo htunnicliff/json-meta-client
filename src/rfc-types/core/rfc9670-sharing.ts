@@ -10,16 +10,12 @@
 
 import type {
   Account,
-  EmptyCapabilityDetails,
   MethodChanges,
   MethodGet,
   MethodQuery,
   MethodQueryChanges,
   MethodSet,
 } from "./rfc8620-jmap.ts";
-
-/** Server-wide details for `urn:ietf:params:jmap:principals`. */
-export type PrincipalsSessionCapabilities = EmptyCapabilityDetails;
 
 /**
  * Account details advertised by the JMAP Principals capability.

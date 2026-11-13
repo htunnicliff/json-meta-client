@@ -8,14 +8,8 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { EmptyCapabilityDetails, PatchObject, SetError } from "../core/index.ts";
+import type { PatchObject, SetError } from "../core/index.ts";
 import type { EmailUpdate } from "./rfc8621-mail.ts";
-
-/** Server-wide details for `urn:ietf:params:jmap:mdn`. */
-export type MdnSessionCapabilities = EmptyCapabilityDetails;
-
-/** Per-account details for `urn:ietf:params:jmap:mdn`. */
-export type MdnAccountCapabilities = EmptyCapabilityDetails;
 
 /** @see https://www.rfc-editor.org/info/rfc9007/#section-2 */
 export interface Disposition {

@@ -8,19 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type {
-  EmptyCapabilityDetails,
-  MethodChanges,
-  MethodGet,
-  MethodQuery,
-  MethodQueryChanges,
-} from "./rfc8620-jmap.ts";
-
-/** Server-wide details for `urn:ietf:params:jmap:quota`. */
-export type QuotaSessionCapabilities = EmptyCapabilityDetails;
-
-/** Per-account details for `urn:ietf:params:jmap:quota`. */
-export type QuotaAccountCapabilities = EmptyCapabilityDetails;
+import type { MethodChanges, MethodGet, MethodQuery, MethodQueryChanges } from "./rfc8620-jmap.ts";
 
 /** @see https://www.rfc-editor.org/info/rfc9425/#section-3.1 */
 export type QuotaScope = "account" | "domain" | "global";

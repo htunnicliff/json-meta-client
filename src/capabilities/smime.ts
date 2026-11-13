@@ -9,12 +9,8 @@
 // ----------------------------------------------------------------------- //
 
 import type { ExtendingCapability } from "../internal/types.ts";
-import type {
-  EmailSmimeFilter,
-  EmailSmimeProperties,
-  SmimeVerifyAccountCapabilities,
-  SmimeVerifySessionCapabilities,
-} from "../rfc-types/mail/index.ts";
+import type { EmptyCapabilityDetails } from "../rfc-types/core/index.ts";
+import type { EmailSmimeFilter, EmailSmimeProperties } from "../rfc-types/mail/index.ts";
 
 // cspell:words smime smimeverify
 
@@ -26,19 +22,19 @@ import type {
  *
  * @see https://www.rfc-editor.org/rfc/rfc9219.html
  */
-export const smime: ExtendingCapability<
-  "Email" | "SearchSnippet",
-  "urn:ietf:params:jmap:smimeverify",
-  "urn:ietf:params:jmap:mail",
-  SmimeVerifyAccountCapabilities,
-  SmimeVerifySessionCapabilities,
-  {
+export const smime: ExtendingCapability<{
+  entity: "Email" | "SearchSnippet";
+  urn: "urn:ietf:params:jmap:smimeverify";
+  extendedUrn: "urn:ietf:params:jmap:mail";
+  accountCapabilities: EmptyCapabilityDetails;
+  sessionCapabilities: EmptyCapabilityDetails;
+  contractExtensions: {
     Email: {
       properties: EmailSmimeProperties;
       filter: EmailSmimeFilter;
     };
-  }
-> = {
+  };
+}> = {
   urn: "urn:ietf:params:jmap:smimeverify",
   entities: ["Email", "SearchSnippet"],
   extends: "urn:ietf:params:jmap:mail",

@@ -8,10 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { EmptyCapabilityDetails, FileUpload, SetError } from "./rfc8620-jmap.ts";
-
-/** Server-wide details for `urn:ietf:params:jmap:blob`. */
-export type BlobSessionCapabilities = EmptyCapabilityDetails;
+import type { FileUpload, SetError } from "./rfc8620-jmap.ts";
 
 /**
  * Account limits and features advertised by the JMAP Blob capability.
