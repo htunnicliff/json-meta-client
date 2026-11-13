@@ -13,27 +13,24 @@
 import type { JsonObject, JsonValue } from "type-fest";
 
 import { UnknownEntityError } from "../errors.ts";
-import type { Flush } from "./batch.ts";
-import { Batch } from "./batch.ts";
+import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
 import { addRefMethod } from "./ref.ts";
 import type { AugmentedOptions, Middleware } from "./types.ts";
 
 interface ApiOptions {
-  processMethodCalls: Flush<MethodCall<object>>;
+  dispatcher: Dispatcher;
   middleware: ReadonlyArray<Middleware>;
   /**
    * Whether any capability declares the entity
    */
   isKnownEntity: (entity: string) => boolean;
-  signal?: AbortSignal;
 }
 
 export function createApi<T extends object>({
-  processMethodCalls,
+  dispatcher,
   middleware,
   isKnownEntity,
-  signal,
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
@@ -47,8 +44,6 @@ export function createApi<T extends object>({
     }
     return transformed;
   };
-
-  const batch = new Batch(processMethodCalls, { signal });
 
   // TODO: Enforce strict linkage between this proxy type and Augment<T>
   return new Proxy<T>(Object.create(null), {
@@ -70,7 +65,7 @@ export function createApi<T extends object>({
                 const known = isKnownEntity(entity);
 
                 // Unknown entities skip middleware (no account ID injection)
-                // and are never enqueued, so they are never sent
+                // and never reach the dispatcher, so they are never sent
                 const methodCall = new MethodCall({
                   method: `${entity}/${method}`,
                   args: known ? applyMiddleware(args) : args,
@@ -78,7 +73,7 @@ export function createApi<T extends object>({
                 });
 
                 const pendingResult = known
-                  ? batch.enqueue(methodCall)
+                  ? dispatcher.send(methodCall)
                   : Promise.reject(new UnknownEntityError({ entity, method }));
 
                 const withRefMethod = addRefMethod(pendingResult, {

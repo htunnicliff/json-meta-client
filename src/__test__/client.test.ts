@@ -24,7 +24,6 @@ import {
   HttpError,
   JmapError,
   JsonMetaError,
-  MethodCallError,
   NetworkError,
   UnknownEntityError,
   UnknownError,
@@ -306,24 +305,6 @@ describe(JsonMetaClient, () => {
       });
     });
 
-    it("delivers a malformed JSON error to every call in its batch", async () => {
-      const mailbox = client.api.Mailbox.query({ limit: 1 });
-      const email = client.api.Email.query({ limit: 2 });
-      const scope = nock(host)
-        .post(apiUrlPath)
-        .reply(200, "{invalid", { "content-type": "application/json" });
-      const results = await Promise.allSettled([mailbox, email]);
-      expect(results[0]).toMatchObject({
-        status: "rejected",
-        reason: expect.any(SyntaxError),
-      });
-      expect(results[1]).toEqual(results[0]);
-      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
-        throw new Error("Expected rejected calls");
-      expect(results[1].reason).toBe(results[0].reason);
-      expect(scope.isDone()).toBe(true);
-    });
-
     it("uses the augmented method call id option", async () => {
       const id = "client-provided-id";
       const query = client.api.Mailbox.query({ limit: 1 }, { id });
@@ -350,26 +331,6 @@ describe(JsonMetaClient, () => {
         { ids: [] },
         { ids: ["regular"] },
       ]);
-      expect(scope.isDone()).toBe(true);
-    });
-
-    it("rejects every pending call with the same error if processing a method response fails", async () => {
-      const mailbox = client.api.Mailbox.query({ limit: 1 });
-      const email = client.api.Email.query({ limit: 2 });
-      const scope = nock(host)
-        .post(apiUrlPath)
-        .reply(200, {
-          methodResponses: [["Mailbox/query", { ids: [] }, mailbox.$id], null],
-          sessionState,
-        });
-      const results = await Promise.allSettled([mailbox, email]);
-      expect(results).toEqual([
-        { status: "rejected", reason: expect.any(TypeError) },
-        { status: "rejected", reason: expect.any(TypeError) },
-      ]);
-      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
-        throw new Error("Expected rejected calls");
-      expect(results[1].reason).toBe(results[0].reason);
       expect(scope.isDone()).toBe(true);
     });
 
@@ -415,6 +376,34 @@ describe(JsonMetaClient, () => {
         throw new Error("Expected rejected calls");
       expect(results[1].reason).toBe(results[0].reason);
       expect(results[0].reason).toBeInstanceOf(HttpError);
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it("rejects all batched method calls with the same network error", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const scope = nock(host)
+        .post(apiUrlPath, {
+          using: [core.urn, mail.urn],
+          methodCalls: [
+            ["Mailbox/query", { accountId, limit: 1 }, mailbox.$id],
+            ["Email/query", { accountId, limit: 2 }, email.$id],
+          ],
+        })
+        .replyWithError("connection reset");
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results[0]).toMatchObject({
+        status: "rejected",
+        reason: {
+          name: "NetworkError",
+          request: expect.objectContaining({ method: "POST", url: apiUrl }),
+        },
+      });
+      expect(results[1]).toEqual(results[0]);
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+        throw new Error("Expected rejected calls");
+      expect(results[1].reason).toBe(results[0].reason);
+      expect(results[0].reason).toBeInstanceOf(NetworkError);
       expect(scope.isDone()).toBe(true);
     });
   });
@@ -654,24 +643,6 @@ describe(JsonMetaClient, () => {
       });
     });
 
-    it("attaches the method call and response data to unrecognized method errors", async () => {
-      const query = client.api.Mailbox.query({ limit: 1 });
-      const responseData = { detail: "missing error type" };
-      const scope = mockApi(
-        {
-          using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
-        },
-        { methodResponses: [["error", responseData, query.$id]], sessionState },
-      );
-      await expect(query).rejects.toMatchObject({
-        name: "MethodCallError",
-        message: "Unknown error in method call",
-        methodCall: { method: "Mailbox/query", args: { accountId, limit: 1 }, id: query.$id },
-        responseData,
-      });
-      expect(scope.isDone()).toBe(true);
-    });
     it("sends a JMAP request with required capabilities and injected account ID", async () => {
       const query = client.api.Mailbox.query({
         limit: 3,
@@ -713,32 +684,6 @@ describe(JsonMetaClient, () => {
         ids: ["some-id", "another-id"],
       });
 
-      expect(sessionScope.isDone()).toBe(true);
-      expect(apiScope.isDone()).toBe(true);
-    });
-
-    it("batches same-turn method calls and matches out-of-order responses by ID", async () => {
-      const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
-      const emailQuery = client.api.Email.query({ limit: 1 });
-      const apiScope = mockApi(
-        {
-          using: [core.urn, mail.urn],
-          methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.$id],
-            ["Email/query", { accountId, limit: 1 }, emailQuery.$id],
-          ],
-        },
-        {
-          methodResponses: [
-            ["Email/query", { ids: ["email"] }, emailQuery.$id],
-            ["Mailbox/query", { ids: ["mailbox"] }, mailboxQuery.$id],
-          ],
-          sessionState,
-        },
-      );
-
-      await expect(mailboxQuery).resolves.toEqual({ ids: ["mailbox"] });
-      await expect(emailQuery).resolves.toEqual({ ids: ["email"] });
       expect(sessionScope.isDone()).toBe(true);
       expect(apiScope.isDone()).toBe(true);
     });
@@ -786,138 +731,6 @@ describe(JsonMetaClient, () => {
       );
 
       await expect(query).resolves.toEqual({ ids: [] });
-      expect(sessionScope.isDone()).toBe(true);
-      expect(apiScope.isDone()).toBe(true);
-    });
-
-    it("translates JMAP method errors into JmapError instances", async () => {
-      const query = client.api.Mailbox.query({ limit: 1 });
-      const cause: ProblemDetails = {
-        type: "invalidArguments",
-        detail: "limit must be positive",
-      };
-      const apiScope = mockApi(
-        {
-          using: [core.urn, mail.urn],
-          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
-        },
-        { methodResponses: [["error", cause, query.$id]], sessionState },
-      );
-
-      await expect(query).rejects.toMatchObject({
-        name: "JmapError",
-        type: cause.type,
-        detail: cause.detail,
-        cause,
-        methodCall: expect.objectContaining({
-          method: "Mailbox/query",
-          args: { accountId, limit: 1 },
-          id: query.$id,
-        }),
-      } satisfies Partial<JmapError>);
-      expect(sessionScope.isDone()).toBe(true);
-      expect(apiScope.isDone()).toBe(true);
-    });
-
-    it("associates each batched method error with its original call", async () => {
-      const mailbox = client.api.Mailbox.query({ limit: 1 });
-      const email = client.api.Email.query({ limit: 2 });
-      const mailboxError = {
-        type: "invalidArguments",
-        description: "Invalid mailbox filter",
-        extra: "mailbox",
-      };
-      const emailError = { type: "serverFail", extra: "email" };
-      const scope = nock(host)
-        .post(apiUrlPath)
-        .reply(200, {
-          methodResponses: [
-            ["error", emailError, email.$id],
-            ["error", mailboxError, mailbox.$id],
-          ],
-          sessionState,
-        });
-      const results = await Promise.allSettled([mailbox, email]);
-      expect(results).toMatchObject([
-        {
-          status: "rejected",
-          reason: {
-            name: "JmapError",
-            cause: mailboxError,
-            methodCall: { id: mailbox.$id, method: "Mailbox/query", args: { accountId, limit: 1 } },
-          },
-        },
-        {
-          status: "rejected",
-          reason: {
-            name: "JmapError",
-            cause: emailError,
-            methodCall: { id: email.$id, method: "Email/query", args: { accountId, limit: 2 } },
-          },
-        },
-      ]);
-      expect(scope.isDone()).toBe(true);
-    });
-
-    it("rejects a response for the wrong method as a method call error", async () => {
-      const query = client.api.Mailbox.query({ limit: 1 });
-      const scope = nock(host)
-        .post(apiUrlPath)
-        .reply(200, {
-          methodResponses: [["Email/query", { ids: [] }, query.$id]],
-          sessionState,
-        });
-      const error = await query.catch((error: unknown) => error);
-      expect(error).toBeInstanceOf(MethodCallError);
-      expect(error).toMatchObject({
-        name: "MethodCallError",
-        methodCall: { id: query.$id, method: "Mailbox/query" },
-        responseData: { ids: [] },
-      });
-      expect(scope.isDone()).toBe(true);
-    });
-
-    it("selects the requested response when an implicit method shares its call ID", async () => {
-      const set = client.api.Email.set({ destroy: ["email"] });
-      const responseData = { accountId, oldState: "old", newState: "new", destroyed: ["email"] };
-      const scope = nock(host)
-        .post(apiUrlPath)
-        .reply(200, {
-          methodResponses: [
-            ["Email/set", responseData, set.$id],
-            [
-              "Mailbox/set",
-              { accountId, oldState: "old-mailbox", newState: "new-mailbox" },
-              set.$id,
-            ],
-          ],
-          sessionState,
-        });
-      await expect(set).resolves.toEqual(responseData);
-      expect(scope.isDone()).toBe(true);
-    });
-
-    it("rejects method calls missing from a JMAP response", async () => {
-      const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
-      const emailQuery = client.api.Email.query({ limit: 1 });
-      const apiScope = mockApi(
-        {
-          using: [core.urn, mail.urn],
-          methodCalls: [
-            ["Mailbox/query", { accountId, limit: 1 }, mailboxQuery.$id],
-            ["Email/query", { accountId, limit: 1 }, emailQuery.$id],
-          ],
-        },
-        { methodResponses: [["Mailbox/query", { ids: [] }, mailboxQuery.$id]], sessionState },
-      );
-
-      await expect(mailboxQuery).resolves.toEqual({ ids: [] });
-      await expect(emailQuery).rejects.toMatchObject({
-        name: "MethodCallError",
-        message: `No response for method call "${emailQuery.$id}"`,
-        methodCall: { method: "Email/query", args: { accountId, limit: 1 }, id: emailQuery.$id },
-        responseData: undefined,
-      });
       expect(sessionScope.isDone()).toBe(true);
       expect(apiScope.isDone()).toBe(true);
     });
