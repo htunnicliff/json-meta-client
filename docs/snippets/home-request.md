@@ -24,7 +24,7 @@ for (const { subject, from } of emails.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -34,24 +34,26 @@ for (const { subject, from } of emails.list) {
     [
       "Email/query",
       {
-        "accountId": "********",
-        "filter": { "notKeyword": "$seen" },
-        "limit": 5
+        "filter": {
+          "notKeyword": "$seen"
+        },
+        "limit": 5,
+        "accountId": "<account-id>"
       },
-      "Email/query::3fa9c01b"
+      "Email/query::c9f3fdeb"
     ],
     [
       "Email/get",
       {
-        "accountId": "********",
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::3fa9c01b",
+          "resultOf": "Email/query::c9f3fdeb",
           "path": "/ids"
         },
-        "properties": ["subject", "from"]
+        "properties": ["subject", "from"],
+        "accountId": "<account-id>"
       },
-      "Email/get::8e21d4a7"
+      "Email/get::16cac814"
     ]
   ]
 }

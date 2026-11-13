@@ -3,11 +3,9 @@
 // declares its own `client` shadows this one.
 import { JsonMetaClient } from "json-meta-client";
 
-const docsClient = new JsonMetaClient({
-  auth: "<token>",
-  sessionUrl: "<server>/.well-known/jmap",
-  capabilities: ["mail", "submission"],
-});
+import { docsClientOptions } from "./docs-client-options.ts";
+
+const docsClient = new JsonMetaClient(docsClientOptions);
 
 declare global {
   const client: typeof docsClient;

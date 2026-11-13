@@ -70,6 +70,7 @@ try {
       strict: true,
       noUncheckedIndexedAccess: true,
       noEmit: true,
+      allowImportingTsExtensions: true,
       skipLibCheck: true,
       types: ["node"],
     },

@@ -1,6 +1,11 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
+import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
+
+// Fails when a generated JMAP Request fence is out of date
+await syncJmapRequests({ write: false });
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "json-meta-client",

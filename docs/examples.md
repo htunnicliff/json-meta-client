@@ -46,7 +46,7 @@ for (const mailbox of getMailboxes.list) {
 }
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -59,22 +59,22 @@ for (const mailbox of getMailboxes.list) {
         "filter": {
           "role": "inbox"
         },
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Mailbox/query::33f05dca"
+      "Mailbox/query::c9f3fdeb"
     ],
     [
       "Mailbox/get",
       {
         "#ids": {
           "name": "Mailbox/query",
-          "resultOf": "Mailbox/query::33f05dca",
+          "resultOf": "Mailbox/query::c9f3fdeb",
           "path": "/ids"
         },
         "properties": ["id", "name"],
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Mailbox/get::8094dff8"
+      "Mailbox/get::16cac814"
     ]
   ]
 }
@@ -108,7 +108,7 @@ for (const email of getEmails.list) {
 }
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -121,27 +121,33 @@ for (const email of getEmails.list) {
         "filter": {
           "operator": "AND",
           "conditions": [
-            { "inMailbox": "P-F" },
-            { "notKeyword": "$seen" },
-            { "notKeyword": "$draft" }
+            {
+              "inMailbox": "<inboxId>"
+            },
+            {
+              "notKeyword": "$seen"
+            },
+            {
+              "notKeyword": "$draft"
+            }
           ]
         },
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Email/query::6f7adf07"
+      "Email/query::c9f3fdeb"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::6f7adf07",
+          "resultOf": "Email/query::c9f3fdeb",
           "path": "/ids"
         },
         "properties": ["from", "subject", "sentAt"],
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Email/get::c2ef5d19"
+      "Email/get::16cac814"
     ]
   ]
 }
@@ -171,7 +177,7 @@ const draftMailboxId = mailboxes.ids[0]!;
 const identity = identities.list[0]!;
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -185,16 +191,16 @@ const identity = identities.list[0]!;
         "filter": {
           "role": "drafts"
         },
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Mailbox/query::7478d066"
+      "Mailbox/query::c9f3fdeb"
     ],
     [
       "Identity/get",
       {
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Identity/get::f33ce75b"
+      "Identity/get::16cac814"
     ]
   ]
 }
@@ -266,7 +272,7 @@ await client.api.EmailSubmission.set({
 });
 ```
 
-```json [request.json]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -279,14 +285,13 @@ await client.api.EmailSubmission.set({
       {
         "create": {
           "draft": {
-            "keywords": { "$draft": true },
-            "mailboxIds": { "P2k": true },
-            "from": [
-              {
-                "name": "****",
-                "email": "****************"
-              }
-            ],
+            "keywords": {
+              "$draft": true
+            },
+            "mailboxIds": {
+              "<draftMailboxId>": true
+            },
+            "from": [{}],
             "to": [
               {
                 "name": null,
@@ -307,23 +312,22 @@ await client.api.EmailSubmission.set({
             ]
           }
         },
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "Email/set::e6af7055"
+      "Email/set::c9f3fdeb"
     ],
     [
       "EmailSubmission/set",
       {
         "create": {
           "submission": {
-            "emailId": "#draft",
-            "identityId": "123634456"
+            "emailId": "#draft"
           }
         },
         "onSuccessDestroyEmail": ["#submission"],
-        "accountId": "*********"
+        "accountId": "<account-id>"
       },
-      "EmailSubmission/set::ac3e2f7c"
+      "EmailSubmission/set::16cac814"
     ]
   ]
 }

@@ -52,6 +52,7 @@
     "version": "pnpm run build && changeset version && pnpm install",
     "release": "pnpm run build && changeset publish",
     "prepare": "husky",
+    "docs:generate": "node scripts/generate-jmap-requests.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
