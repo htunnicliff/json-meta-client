@@ -35,6 +35,8 @@ jobs:
 
       - run: pnpm build
 
+      - run: pnpm package:check
+
       - run: pnpm docs:check
 
       - run: pnpm docs:build
