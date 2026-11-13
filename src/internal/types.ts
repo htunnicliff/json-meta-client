@@ -173,6 +173,53 @@ export type EffectiveMethodInput<Contract extends MethodContract, Args> =
         : Input
     : never;
 
+/** Keys of every member of a union, unlike `keyof`, which keeps only shared keys. */
+type KeysOfUnion<T> = T extends unknown ? keyof T : never;
+
+/** A property key as JavaScript stores it: numeric keys become strings. */
+type StoredKey<Key> = Key extends number ? `${Key}` : Key;
+
+/** The type of `Key` in each member of a union that declares it. */
+type PropertyOfUnion<T, Key> = T extends unknown
+  ? Key extends keyof T
+    ? T[Key]
+    : StoredKey<Key> extends keyof T
+      ? T[StoredKey<Key>]
+      : never
+  : never;
+
+/** The element type of each array in a union. */
+type ElementOfUnion<T> = T extends ReadonlyArray<infer Element> ? Element : never;
+
+/**
+ * Marks every property of `Given` that `Accepted` doesn't declare as
+ * `never`, at any depth. Inferred arguments skip TypeScript's excess property
+ * check, so without this a misspelled property, or a property that needs a
+ * capability the client doesn't have, would compile. Values that `Accepted`
+ * leaves open (`unknown`, `object` or an index signature) and result
+ * references are not inspected.
+ */
+export type UnknownProperties<Given, Accepted> = [Given] extends [never]
+  ? unknown
+  : [Extract<Given, Ref>] extends [never]
+    ? CheckUnknownProperties<Given, Accepted>
+    : unknown;
+
+type CheckUnknownProperties<Given, Accepted> = [Given] extends [ReadonlyArray<unknown>]
+  ? { [Index in keyof Given]: UnknownProperties<Given[Index], ElementOfUnion<Accepted>> }
+  : [Given] extends [object]
+    ? [KeysOfUnion<NonNullable<Accepted>>] extends [never]
+      ? unknown
+      : {
+          [Key in KeysOfUnion<Given>]?: StoredKey<Key> extends KeysOfUnion<NonNullable<Accepted>>
+            ? UnknownProperties<
+                NonNullable<PropertyOfUnion<Given, Key>>,
+                PropertyOfUnion<NonNullable<Accepted>, Key>
+              >
+            : never;
+        }
+    : unknown;
+
 export interface AugmentedOptions {
   id?: string;
 }
@@ -184,7 +231,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
     EffectiveMethodInput<Contract, Args>
   >,
 >(
-  args: Args,
+  args: Args & NoInfer<UnknownProperties<Args, Contract["input"]>>,
   options?: AugmentedOptions,
 ) => WithResultRefFn<Promise<Output>, Output> & {
   readonly $id: string;
