@@ -62,6 +62,13 @@ function call(method: string, id: string, args: object = {}): MethodCall<object>
   return new MethodCall({ method, args, id });
 }
 
+/**
+ * The call ids of each request's method calls, one list per request
+ */
+function callIds(requests: JmapRequest[]): string[][] {
+  return requests.map(({ methodCalls }) => methodCalls.map(([, , id]) => id));
+}
+
 describe(Dispatcher, () => {
   describe("batching", () => {
     it("sends method calls made in the same tick as one request", async () => {
@@ -108,9 +115,7 @@ describe(Dispatcher, () => {
         { echo: "a" },
         { echo: "b" },
       ]);
-      expect(requests.map(({ methodCalls }) => methodCalls.map(([, , id]) => id))).toEqual([
-        ["a", "b"],
-      ]);
+      expect(callIds(requests)).toEqual([["a", "b"]]);
     });
 
     it("sends method calls made in successive microtasks after the batch closes separately", async () => {
@@ -124,10 +129,7 @@ describe(Dispatcher, () => {
       }));
 
       await Promise.all([first.result, second.result]);
-      expect(requests.map(({ methodCalls }) => methodCalls.map(([, , id]) => id))).toEqual([
-        ["a"],
-        ["b"],
-      ]);
+      expect(callIds(requests)).toEqual([["a"], ["b"]]);
     });
 
     it("sends a method call made in a later tick as a new request", async () => {
@@ -136,10 +138,7 @@ describe(Dispatcher, () => {
       await dispatcher.send(call("Core/echo", "a"));
       await dispatcher.send(call("Core/echo", "b"));
 
-      expect(requests.map(({ methodCalls }) => methodCalls.map(([, , id]) => id))).toEqual([
-        ["a"],
-        ["b"],
-      ]);
+      expect(callIds(requests)).toEqual([["a"], ["b"]]);
     });
 
     it("sends a method call made while a batch is in flight as a new request", async () => {
