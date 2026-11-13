@@ -24,7 +24,7 @@ for (const { subject, from } of emails.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~]
+```json [JMAP Request ~vscode-icons:file-type-light-json~] generated
 
 ```
 

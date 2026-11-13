@@ -8,7 +8,7 @@ import type { MarkdownRenderer } from "vitepress";
 
 import type { RunExampleInput, RunExampleOutput } from "./run-example.ts";
 
-const root = fileURLToPath(new URL("../..", import.meta.url));
+const root = fileURLToPath(new URL("../../../..", import.meta.url));
 const docs = path.join(root, "docs");
 // Examples import the package from source, so the docs build does not depend
 // on `pnpm build`.
@@ -25,6 +25,8 @@ export type JmapRequests = ReadonlyMap<string, string>;
 interface Fence {
   lang: string;
   title: string;
+  /** Whether the info string ends with the `generated` flag */
+  generated: boolean;
   content: string;
 }
 
@@ -38,16 +40,21 @@ interface OptedInExample {
 
 const locate = ({ page, line }: OptedInExample, offset = 0) => `${page}:${line + offset}`;
 
-function parseInfo(info: string): Pick<Fence, "lang" | "title"> {
+function parseInfo(info: string): Pick<Fence, "lang" | "title" | "generated"> {
   const lang = info.trim().split(/[\s[{]/, 1)[0] ?? "";
   const title = (/\[(.*)\]/.exec(info)?.[1] ?? "").replaceAll(/~[^~]*~/g, "").trim();
-  return { lang, title };
+  const generated = /\]\s+generated\s*$/.test(info);
+  return { lang, title, generated };
 }
 
 const isExample = ({ lang }: Pick<Fence, "lang">) => lang === "ts" || lang === "typescript";
 
-const optsIn = ({ lang, title, content }: Fence) =>
-  lang === "json" && title === "JMAP Request" && content.trim() === "";
+/**
+ * A fence opts in with the `generated` flag after its title, as in
+ * `json [JMAP Request] generated`. Its body must be empty.
+ */
+const optsIn = ({ lang, title, generated }: Fence) =>
+  lang === "json" && title === "JMAP Request" && generated;
 
 /**
  * The key an example's result is stored under, insensitive to trailing
@@ -89,6 +96,9 @@ function findOptedInExamples(page: string, markdown: string): OptedInExample[] {
     if (isExample(fence)) {
       example = { page, line: index + 1, source: fence.content };
     } else if (optsIn(fence)) {
+      if (fence.content.trim() !== "") {
+        throw new Error(`${page}:${index + 1}: a generated JMAP Request fence must be empty`);
+      }
       if (!example) {
         throw new Error(`${page}:${index + 1}: a JMAP Request fence needs an example before it`);
       }

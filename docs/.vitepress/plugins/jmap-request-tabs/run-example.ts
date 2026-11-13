@@ -1,9 +1,9 @@
 /* oxlint-disable no-await-in-loop, typescript/no-unsafe-type-assertion, unicorn/require-post-message-target-origin */
 import { parentPort, workerData } from "node:worker_threads";
 
-import { docsClientOptions } from "../../scripts/docs-client-options.ts";
-import { JsonMetaClient } from "../../src/index.ts";
-import { recordingFetch, seedCallIds } from "./recorder/index.ts";
+import { docsClientOptions } from "../../../../scripts/docs-client-options.ts";
+import { JsonMetaClient } from "../../../../src/index.ts";
+import { recordingFetch, seedCallIds } from "../../recorder/index.ts";
 
 /**
  * Runs one documentation example in a worker thread, with a placeholder

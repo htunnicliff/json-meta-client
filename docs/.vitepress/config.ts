@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
-import { jmapRequestTabs, recordJmapRequests } from "./jmap-request-tabs.ts";
+import { jmapRequestTabs, recordJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
 
 // Examples run before the build because markdown-it renders synchronously.
 const jmapRequests = await recordJmapRequests();
