@@ -17,19 +17,16 @@ import type { Capability } from "./capability.ts";
 import {
   ConfigurationError,
   HttpError,
-  JmapError,
   JsonMetaError,
-  MethodCallError,
   NetworkError,
   StateChangeError,
 } from "./errors.ts";
-import type { Flush } from "./internal/batch.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
+import { Dispatcher } from "./internal/dispatcher.ts";
+import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
-import { MethodCallResult } from "./internal/method-call-result.ts";
-import type { MethodCall } from "./internal/method-call.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
@@ -37,7 +34,6 @@ import type {
   FileDownload,
   FileUpload,
   EventSourceArguments,
-  Request as JMAPRequest,
   Response as JMAPResponse,
   ProblemDetails,
   StateChange,
@@ -84,10 +80,18 @@ export class JsonMetaClient<
       ...DEFAULT_CAPABILITIES.flatMap((capability) => capability.entities),
     ]);
 
+    // Everything a dispatcher needs; each API gets its own dispatcher
+    this.#dispatcherOptions = {
+      transport: this.#postJmapRequest,
+      session: () => this.session,
+      urnsForEntity: (entity) => this.#entityToUrn[entity] ?? [],
+      hooks: this.#config.hooks,
+    };
+
     // Initialize API proxy
-    const controller = new AbortController();
-    this.api = this.#setupApi(controller);
-    this.cancelBatch = () => controller.abort();
+    const dispatcher = new Dispatcher(this.#dispatcherOptions);
+    this.api = this.#setupApi(dispatcher);
+    this.cancelBatch = dispatcher.cancel;
 
     // Lock it down
     Object.freeze(this);
@@ -234,13 +238,11 @@ export class JsonMetaClient<
   readonly cancelBatch: () => void;
 
   /**
-   * Create an isolated API instance with a separate batch queue for JMAP requests
+   * Create an isolated API instance with a separate batch for JMAP requests
    */
   isolated = <R>(fn: (api: API, cancel: () => void) => R): R => {
-    const controller = new AbortController();
-    const api = this.#setupApi(controller);
-    const cancel = () => controller.abort();
-    return fn(api, cancel);
+    const dispatcher = new Dispatcher(this.#dispatcherOptions);
+    return fn(this.#setupApi(dispatcher), dispatcher.cancel);
   };
 
   // ------------------- Internals -------------------
@@ -254,6 +256,11 @@ export class JsonMetaClient<
    * Transformations applied to each method's arguments
    */
   readonly #middleware: ReadonlyArray<Middleware>;
+
+  /**
+   * Dependencies shared by the dispatcher of every API
+   */
+  readonly #dispatcherOptions: DispatcherOptions;
 
   /**
    * A mapping of every entity name to their respective capability URNs
@@ -305,112 +312,23 @@ export class JsonMetaClient<
   /**
    * Initialize a dedicated api
    */
-  #setupApi({ signal }: { signal: AbortSignal }): API {
+  #setupApi(dispatcher: Dispatcher): API {
     return createApi<API>({
-      processMethodCalls: this.#processQueuedMethodCalls,
+      dispatcher,
       middleware: this.#middleware,
       isKnownEntity: (entity) => this.#knownEntities.has(entity),
-      signal,
     });
   }
 
   /**
-   * The primary "flush" function that processes pending batch jobs
+   * Transport that posts a JMAP Request to the session's API URL
    */
-  #processQueuedMethodCalls: Flush<MethodCall<object>> = async (jobs) => {
-    try {
-      const methodCalls = jobs.map((b) => b.payload);
-
-      const urnsToUse = new Set<string>();
-
-      for (const { urn } of DEFAULT_CAPABILITIES) {
-        urnsToUse.add(urn);
-      }
-
-      for (const { method } of methodCalls) {
-        const [entity] = /^[^/]+/.exec(method)!;
-        for (const urn of this.#entityToUrn[entity] ?? []) {
-          urnsToUse.add(urn);
-        }
-      }
-
-      let request: JMAPRequest = {
-        using: [...urnsToUse],
-        methodCalls: methodCalls.map((c) => c.toInvocation()),
-      };
-
-      const session = await this.session;
-      for (const hook of this.#config.hooks?.beforeJmapRequest ?? []) {
-        // oxlint-disable-next-line no-await-in-loop
-        request = await hook({ request });
-      }
-      let response = await this.#fetchJson<JMAPResponse>(session.apiUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
-      });
-
-      for (const hook of this.#config.hooks?.afterJmapResponse ?? []) {
-        // oxlint-disable-next-line no-await-in-loop
-        response = await hook({ request, response });
-      }
-
-      const resultsById = new Map<string, MethodCallResult<object>[]>();
-      for (const invocation of response.methodResponses) {
-        const result = new MethodCallResult(invocation);
-        const results = resultsById.get(result.id);
-        if (results) {
-          results.push(result);
-        } else {
-          resultsById.set(result.id, [result]);
-        }
-      }
-
-      for (const { payload: methodCall, handle } of jobs) {
-        const results = resultsById.get(methodCall.id);
-        const result =
-          results?.find(
-            (result) => result.method === methodCall.method || result.method === "error",
-          ) ?? results?.[0];
-        if (!result) {
-          handle.reject(
-            new MethodCallError(`No response for method call "${methodCall.id}"`, { methodCall }),
-          );
-          continue;
-        }
-
-        const { data } = result;
-        if (result.method !== "error" && result.method !== methodCall.method) {
-          handle.reject(
-            new MethodCallError(
-              `Unexpected response method "${result.method}" for "${methodCall.method}"`,
-              {
-                methodCall,
-                responseData: data,
-              },
-            ),
-          );
-          continue;
-        }
-        if (result.method === "error") {
-          handle.reject(
-            JmapError.isProblemDetails(data)
-              ? new JmapError("Error in method call", data, { methodCall })
-              : new MethodCallError("Unknown error in method call", {
-                  methodCall,
-                  responseData: data,
-                }),
-          );
-        } else {
-          handle.resolve(data);
-        }
-      }
-    } catch (error) {
-      for (const { handle } of jobs) {
-        handle.reject(error);
-      }
-    }
-  };
+  #postJmapRequest: DispatcherOptions["transport"] = (request, session) =>
+    this.#fetchJson<JMAPResponse>(session.apiUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+    });
 
   /**
    * Primary fetch function

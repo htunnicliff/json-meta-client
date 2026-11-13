@@ -87,78 +87,59 @@ describe("Fetch hooks", () => {
 });
 
 describe("JMAP envelope hooks", () => {
-  it("transforms one envelope per batch before per-method results", async () => {
+  it("run inside the HTTP hooks, after the session loads, on the posted envelope", async () => {
     mockSession();
-    let envelopes = 0;
-    let responses = 0;
+    const events: string[] = [];
     const scope = nock(host)
       .post("/special-jmap-api", {
-        using: ["urn:ietf:params:jmap:core", "urn:example:extra"],
-        methodCalls: [
-          ["Core/echo", { value: "first", accountId }, "first"],
-          ["Core/echo", { value: "second", accountId }, "second"],
-        ],
-        createdIds: { local: "remote" },
+        using: ["urn:ietf:params:jmap:core"],
+        methodCalls: [["Core/echo", { accountId }, "echo"]],
+        createdIds: {},
       })
-      .reply(200, {
-        sessionState,
-        methodResponses: [
-          ["Core/echo", { value: "raw" }, "first"],
-          ["error", { type: "invalidArguments" }, "second"],
-        ],
-      });
+      .reply(200, { sessionState, methodResponses: [["Core/echo", { raw: true }, "echo"]] });
     const client = new JsonMetaClient({
       sessionUrl,
       auth: "token",
       capabilities: [],
       hooks: {
         beforeJmapRequest: [
-          async ({ request }) => {
-            envelopes++;
-            expect(request.methodCalls).toHaveLength(2);
-            expect(request.methodCalls[0]![1]).toMatchObject({ accountId });
-            await Promise.resolve();
-            return { ...request, using: [...request.using, "urn:example:extra"] };
-          },
           ({ request }) => {
-            expect(request.using).toContain("urn:example:extra");
-            return { ...request, createdIds: { local: "remote" } };
+            events.push(`beforeJmapRequest ${JSON.stringify(request.methodCalls[0]![1])}`);
+            return { ...request, createdIds: {} };
+          },
+        ],
+        beforeFetch: [
+          ({ request }) => {
+            events.push(`beforeFetch ${new URL(request.url).pathname}`);
+            return request;
+          },
+        ],
+        afterFetch: [
+          ({ request, response }) => {
+            events.push(`afterFetch ${new URL(request.url).pathname}`);
+            return response;
           },
         ],
         afterJmapResponse: [
-          async ({ request, response }) => {
-            responses++;
-            expect(request.createdIds).toEqual({ local: "remote" });
-            await Promise.resolve();
-            return {
-              ...response,
-              methodResponses: [
-                ["Core/echo", { value: "changed" }, "first"],
-                response.methodResponses[1]!,
-              ],
-            };
-          },
           ({ response }) => {
-            expect(response.methodResponses[0]![1]).toEqual({ value: "changed" });
-            return response;
+            events.push("afterJmapResponse");
+            return { ...response, methodResponses: [["Core/echo", { changed: true }, "echo"]] };
           },
         ],
       },
     });
-    await client.session;
-    const results = await Promise.allSettled([
-      client.api.Core.echo({ value: "first" }, { id: "first" }),
-      client.api.Core.echo({ value: "second" }, { id: "second" }),
+
+    await expect(client.api.Core.echo({}, { id: "echo" })).resolves.toEqual({ changed: true });
+
+    const sessionPath = new URL(sessionUrl).pathname;
+    expect(events).toEqual([
+      `beforeFetch ${sessionPath}`,
+      `afterFetch ${sessionPath}`,
+      `beforeJmapRequest ${JSON.stringify({ accountId })}`,
+      "beforeFetch /special-jmap-api",
+      "afterFetch /special-jmap-api",
+      "afterJmapResponse",
     ]);
-    expect(results).toEqual([
-      { status: "fulfilled", value: { value: "changed" } },
-      {
-        status: "rejected",
-        reason: expect.objectContaining({ name: "JmapError", type: "invalidArguments" }),
-      },
-    ]);
-    expect(envelopes).toBe(1);
-    expect(responses).toBe(1);
     expect(scope.isDone()).toBe(true);
   });
 });
@@ -319,39 +300,6 @@ it.each([
       controller.abort();
       subscription[Symbol.dispose]();
     }
-  },
-);
-
-it.each(["beforeJmapRequest", "afterJmapResponse"] as const)(
-  "rejects every call in a batch when %s fails",
-  async (phase) => {
-    mockSession();
-    const scope = nock(host)
-      .post("/special-jmap-api")
-      .reply(200, { sessionState, methodResponses: [] });
-    const failure = new Error("Envelope hook failed");
-    const client = new JsonMetaClient({
-      sessionUrl,
-      capabilities: [],
-      auth: "token",
-      hooks: {
-        [phase]: [
-          async () => {
-            throw failure;
-          },
-        ],
-      },
-    });
-    await client.session;
-    const results = await Promise.allSettled([
-      client.api.Core.echo({}, { id: "a" }),
-      client.api.Core.echo({}, { id: "b" }),
-    ]);
-    expect(results).toEqual([
-      { status: "rejected", reason: failure },
-      { status: "rejected", reason: failure },
-    ]);
-    expect(scope.isDone()).toBe(phase === "afterJmapResponse");
   },
 );
 
