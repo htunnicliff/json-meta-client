@@ -37,6 +37,7 @@ export default defineConfig({
     nav: [
       { text: "Getting Started", link: "/getting-started" },
       { text: "API Reference", link: "/reference/api" },
+      { text: "Playground", link: "/playground" },
       { text: "JMAP Standard", link: "https://jmap.io/" },
     ],
     sidebar: [
@@ -95,5 +96,9 @@ export default defineConfig({
   },
   vite: {
     plugins: [groupIconVitePlugin()],
+    // The playground worker dynamically imports the TypeScript compiler
+    worker: {
+      format: "es",
+    },
   },
 });

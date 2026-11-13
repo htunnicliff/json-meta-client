@@ -2,7 +2,7 @@
 import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme";
 // https://vitepress.dev/guide/custom-theme
-import { h } from "vue";
+import { defineAsyncComponent, h } from "vue";
 
 import HomeRequest from "./HomeRequest.vue";
 
@@ -17,7 +17,12 @@ export default {
       "home-features-after": () => h(HomeRequest),
     });
   },
-  enhanceApp(_options) {
-    // ...
+  enhanceApp({ app }) {
+    // The playground's layout and its worker load only on the page that asks
+    // for this layout
+    app.component(
+      "playground",
+      defineAsyncComponent(() => import("./PlaygroundLayout.vue")),
+    );
   },
 } satisfies Theme;
