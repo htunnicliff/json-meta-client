@@ -9,8 +9,10 @@
 // ----------------------------------------------------------------------- //
 
 import type {
+  ArrayElement,
   IsUnknown,
   JsonValue,
+  KeysOfUnion,
   Paths,
   Primitive,
   Replace,
@@ -236,9 +238,6 @@ export type EffectiveMethodInput<Contract extends MethodContract, Args> =
         : Input
     : never;
 
-/** Keys of every member of a union, unlike `keyof`, which keeps only shared keys. */
-type KeysOfUnion<T> = T extends unknown ? keyof T : never;
-
 /** A property key as JavaScript stores it: numeric keys become strings. */
 type StoredKey<Key> = Key extends number ? `${Key}` : Key;
 
@@ -250,9 +249,6 @@ type PropertyOfUnion<T, Key> = T extends unknown
       ? T[StoredKey<Key>]
       : never
   : never;
-
-/** The element type of each array in a union. */
-type ElementOfUnion<T> = T extends ReadonlyArray<infer Element> ? Element : never;
 
 /**
  * Marks every property of `Given` that `Accepted` doesn't declare as
@@ -269,7 +265,7 @@ export type UnknownProperties<Given, Accepted> = [Given] extends [never]
     : unknown;
 
 type CheckUnknownProperties<Given, Accepted> = [Given] extends [ReadonlyArray<unknown>]
-  ? { [Index in keyof Given]: UnknownProperties<Given[Index], ElementOfUnion<Accepted>> }
+  ? { [Index in keyof Given]: UnknownProperties<Given[Index], ArrayElement<Accepted>> }
   : [Given] extends [object]
     ? [KeysOfUnion<NonNullable<Accepted>>] extends [never]
       ? unknown
