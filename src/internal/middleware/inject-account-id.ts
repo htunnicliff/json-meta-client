@@ -10,17 +10,8 @@
 
 import { mail } from "../../capabilities/mail.ts";
 import type { Session } from "../../rfc-types/core/index.ts";
+import { METHODS_WITHOUT_DEFAULT_ACCOUNT_ID } from "../default-account-id.ts";
 import type { Middleware } from "../types.ts";
-
-/**
- * Methods the client never gives a default `accountId`. The caller must pass
- * one, because the client cannot tell which account the call is meant for:
- * `Blob/copy` copies blobs into `accountId`, and nothing in the call says
- * which account that should be.
- */
-export const METHODS_WITHOUT_DEFAULT_ACCOUNT_ID = ["Blob/copy"] as const;
-
-export type MethodWithoutDefaultAccountId = (typeof METHODS_WITHOUT_DEFAULT_ACCOUNT_ID)[number];
 
 export function injectAccountId(getSession: () => Session): Middleware {
   const withoutDefault: ReadonlySet<string> = new Set(METHODS_WITHOUT_DEFAULT_ACCOUNT_ID);
