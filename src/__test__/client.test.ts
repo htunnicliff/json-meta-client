@@ -735,7 +735,37 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
-    it("never gives Blob/copy a default account ID", async () => {
+    it.each([
+      ["Blob", "upload", "blob", ["urn:ietf:params:jmap:blob"], { create: {} }],
+      ["Email", "copy", "mail", [mail.urn], { fromAccountId: "account-2", create: {} }],
+      [
+        "ContactCard",
+        "copy",
+        "contacts",
+        ["urn:ietf:params:jmap:contacts"],
+        { fromAccountId: "account-2", create: {} },
+      ],
+    ] as const)(
+      "gives %s/%s a default accountId",
+      async (entity, method, capability, urns, args) => {
+        const otherClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: [capability],
+        });
+        const call = untyped(otherClient.api)[entity][method](args);
+        const name = `${entity}/${method}`;
+        const apiScope = mockApi(
+          { using: [core.urn, ...urns], methodCalls: [[name, { accountId, ...args }, call.$id]] },
+          { methodResponses: [[name, {}, call.$id]], sessionState },
+        );
+
+        await expect(call).resolves.toEqual({});
+        expect(apiScope.isDone()).toBe(true);
+      },
+    );
+
+    it("never gives Blob/copy a default accountId", async () => {
       const args = { fromAccountId: "account-2", blobIds: ["blob"] };
       const copy = untyped(client.api).Blob.copy(args);
       const apiScope = mockApi(
