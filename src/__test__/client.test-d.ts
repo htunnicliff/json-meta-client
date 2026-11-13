@@ -407,20 +407,20 @@ describe(JsonMetaClient, () => {
 
         // Allows any string for method calls
         expectTypeOf(client.api.Something).toEqualTypeOf<{
-          [x: string]: AugmentMethod<MethodContract>;
+          [x: string]: AugmentMethod<MethodContract, `Something/${string}`>;
         }>();
         expectTypeOf(client.api.AnotherThing).toEqualTypeOf<{
-          [x: string]: AugmentMethod<MethodContract>;
+          [x: string]: AugmentMethod<MethodContract, `AnotherThing/${string}`>;
         }>();
       });
 
       it("has `Augmented<MethodContract>` for all arbitrary methods", async () => {
         // The `undefined` union value is only true when `noUncheckedIndexedAccess` is enabled
         expectTypeOf(client.api.Something.someRandomMethod).toEqualTypeOf<
-          AugmentMethod<MethodContract> | undefined
+          AugmentMethod<MethodContract, `Something/${string}`> | undefined
         >();
         expectTypeOf(client.api.AnotherThing.anotherMethod).toEqualTypeOf<
-          AugmentMethod<MethodContract> | undefined
+          AugmentMethod<MethodContract, `AnotherThing/${string}`> | undefined
         >();
 
         // Args are unknown
