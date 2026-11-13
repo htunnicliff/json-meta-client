@@ -20,6 +20,7 @@ import type {
 } from "type-fest";
 
 import type { Capability, MethodContract } from "../capability.ts";
+import type { MethodWithoutDefaultAccountId } from "./default-account-id.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
@@ -101,7 +102,10 @@ export type PointerPaths<T> =
       : never
     : never;
 
-export type Middleware = (payload: JsonValue) => JsonValue;
+/**
+ * Transforms a method call's arguments before it is sent.
+ */
+export type Middleware = (payload: JsonValue, call: { name: string }) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.
@@ -152,15 +156,25 @@ export type CapabilityMethods<Entity extends string> = {
 
 export type Augment<T extends CapabilityMethods<string>> = {
   [Entity in keyof T]: {
-    [Method in keyof T[Entity]]: AugmentMethod<T[Entity][Method], Method & string>;
+    [Method in keyof T[Entity]]: AugmentMethod<
+      T[Entity][Method],
+      `${Entity & string}/${Method & string}`
+    >;
   };
 };
 
-export type MethodArguments<Contract extends MethodContract> = {
+/**
+ * The arguments a caller passes for a method call. `accountId` is optional
+ * because the client fills it in, except for methods listed in
+ * {@link MethodWithoutDefaultAccountId}.
+ */
+export type MethodArguments<Contract extends MethodContract, Name extends string = string> = {
   [Key in keyof Contract["input"]]: AllowRefs<Contract["input"][Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
-    ? SetOptional<Args, "accountId">
+    ? Name extends MethodWithoutDefaultAccountId
+      ? Args
+      : SetOptional<Args, "accountId">
     : Args
   : never;
 
@@ -177,8 +191,8 @@ export interface AugmentedOptions {
   id?: string;
 }
 
-export type AugmentMethod<Contract extends MethodContract, Method extends string = string> = <
-  Args extends MethodArguments<Contract>,
+export type AugmentMethod<Contract extends MethodContract, Name extends string = string> = <
+  Args extends MethodArguments<Contract, Name>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
     EffectiveMethodInput<Contract, Args>
@@ -190,7 +204,7 @@ export type AugmentMethod<Contract extends MethodContract, Method extends string
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;
-} & (Method extends "set"
+} & (Name extends `${string}/set`
     ? {
         /**
          * Reference an object created by this /set call using its creation ID.

@@ -41,7 +41,11 @@ describe("RFC capability contracts through the client", () => {
     });
     expectTypeOf(fetched.list[0]!["data:asText"]).toEqualTypeOf<string | null | undefined>();
     expectTypeOf(fetched).not.toHaveProperty("state");
-    const copied = await client.api.Blob.copy({ fromAccountId: "other", blobIds: ["blob"] });
+    const copied = await client.api.Blob.copy({
+      fromAccountId: "other",
+      accountId: "destination",
+      blobIds: ["blob"],
+    });
     expectTypeOf(copied.copied).toEqualTypeOf<Record<string, string> | null | undefined>();
     const found = await client.api.Blob.lookup({ ids: ["blob"], typeNames: ["Email"] });
     expectTypeOf(found.list[0]!.matchedIds).toEqualTypeOf<Record<string, string[]>>();

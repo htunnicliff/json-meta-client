@@ -334,7 +334,8 @@ await client.api.EmailSubmission.set({
 ## Send an attachment <Badge type="warning" text="To do" />
 
 :::warning TODO
-- `blob.upload`, then `Email/set` with an `attachments` part using the uploaded
+- `blob.upload(body, { accountId })` with the mail account, then `Email/set`
+  with an `attachments` part using the uploaded
   `blobId`, then `EmailSubmission/set` with `createdRef`
 :::
 
@@ -390,7 +391,7 @@ await client.api.EmailSubmission.set({
 ## Get email attachments <Badge type="warning" text="To do" />
 
 :::warning TODO
-- `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ blobId, type, name })`
+- `Email/get` with `attachments` (or `bodyProperties`), then `blob.download({ accountId, blobId, type, name })` with the mail account
 :::
 
 ::: code-group

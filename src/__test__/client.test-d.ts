@@ -407,20 +407,20 @@ describe(JsonMetaClient, () => {
 
         // Allows any string for method calls
         expectTypeOf(client.api.Something).toEqualTypeOf<{
-          [x: string]: AugmentMethod<MethodContract>;
+          [x: string]: AugmentMethod<MethodContract, `Something/${string}`>;
         }>();
         expectTypeOf(client.api.AnotherThing).toEqualTypeOf<{
-          [x: string]: AugmentMethod<MethodContract>;
+          [x: string]: AugmentMethod<MethodContract, `AnotherThing/${string}`>;
         }>();
       });
 
       it("has `Augmented<MethodContract>` for all arbitrary methods", async () => {
         // The `undefined` union value is only true when `noUncheckedIndexedAccess` is enabled
         expectTypeOf(client.api.Something.someRandomMethod).toEqualTypeOf<
-          AugmentMethod<MethodContract> | undefined
+          AugmentMethod<MethodContract, `Something/${string}`> | undefined
         >();
         expectTypeOf(client.api.AnotherThing.anotherMethod).toEqualTypeOf<
-          AugmentMethod<MethodContract> | undefined
+          AugmentMethod<MethodContract, `AnotherThing/${string}`> | undefined
         >();
 
         // Args are unknown
@@ -503,6 +503,62 @@ describe(JsonMetaClient, () => {
         // From `picnic`
         expectTypeOf(client.api.HotDog).toHaveProperty("cook");
       });
+    });
+  });
+
+  describe("blob", () => {
+    it("requires accountId to upload a blob", () => {
+      expectTypeOf(client.blob.upload).parameter(1).toEqualTypeOf<{ accountId: string }>();
+      void client.blob.upload("data", { accountId: "account" });
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.upload("data", {});
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.upload("data");
+    });
+
+    it("requires accountId to download a blob", () => {
+      expectTypeOf(client.blob.download).parameter(0).toHaveProperty("accountId").toBeString();
+      void client.blob.download({
+        accountId: "account",
+        blobId: "blob",
+        name: "file",
+        type: "text/plain",
+      });
+      // @ts-expect-error The client cannot choose the account a blob belongs to.
+      void client.blob.download({ blobId: "blob", name: "file", type: "text/plain" });
+    });
+  });
+
+  describe("copy methods", () => {
+    it("requires the destination accountId for Blob.copy", () => {
+      expectTypeOf(client.api.Blob.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string>>();
+      void client.api.Blob.copy({ fromAccountId: "from", accountId: "to", blobIds: ["blob"] });
+      // @ts-expect-error The client cannot choose the account to copy blobs into.
+      void client.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
+    });
+
+    it("lets Email.copy omit accountId", () => {
+      expectTypeOf(client.api.Email.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string> | undefined>();
+      void client.api.Email.copy({ fromAccountId: "from", create: {} });
+    });
+
+    it("lets ContactCard.copy omit accountId", () => {
+      const contactsClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: [contacts],
+      });
+      expectTypeOf(contactsClient.api.ContactCard.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string> | undefined>();
+      void contactsClient.api.ContactCard.copy({ fromAccountId: "from", create: {} });
     });
   });
 });

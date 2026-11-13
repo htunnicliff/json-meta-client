@@ -8,14 +8,15 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
+import type { JsonValue } from "type-fest";
+
 import { isRef } from "../ref.ts";
-import type { Middleware } from "../types.ts";
 
 /**
  * Recursively detect any objects containing result references,
  * updating their keys to use a # prefix
  */
-export const replaceNestedResultRefKeys: Middleware = (payload) => {
+export function replaceNestedResultRefKeys(payload: JsonValue): JsonValue {
   if (Array.isArray(payload)) {
     return payload.map((item) => replaceNestedResultRefKeys(item));
   }
@@ -33,4 +34,4 @@ export const replaceNestedResultRefKeys: Middleware = (payload) => {
   }
 
   return payload;
-};
+}
