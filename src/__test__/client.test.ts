@@ -563,6 +563,35 @@ describe(JsonMetaClient, () => {
       await expect(client.session).resolves.toEqual(DEFAULT_SESSION);
       expect(sessionScope.isDone()).toBe(true);
     });
+
+    it("does not warn about capabilities that only an account advertises", async () => {
+      nock.cleanAll();
+      const { [example.urn]: _, ...capabilities } = DEFAULT_SESSION.capabilities;
+      const scope = nock(host)
+        .get(sessionUrlPath)
+        .reply(200, {
+          ...DEFAULT_SESSION,
+          capabilities,
+          accounts: {
+            [accountId]: {
+              name: "user@example.test",
+              isPersonal: true,
+              isReadOnly: false,
+              accountCapabilities: { [mail.urn]: {}, [example.urn]: {} },
+            },
+          },
+        });
+      const customClient = new JsonMetaClient({
+        sessionUrl,
+        auth: token,
+        capabilities: [mail, example],
+      });
+
+      await customClient.session;
+
+      expect(scope.isDone()).toBe(true);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("api", () => {
