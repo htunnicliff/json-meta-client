@@ -528,4 +528,37 @@ describe(JsonMetaClient, () => {
       void client.blob.download({ blobId: "blob", name: "file", type: "text/plain" });
     });
   });
+
+  describe("copy methods", () => {
+    it("requires the destination accountId for Blob.copy", () => {
+      expectTypeOf(client.api.Blob.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string>>();
+      void client.api.Blob.copy({ fromAccountId: "from", accountId: "to", blobIds: ["blob"] });
+      // @ts-expect-error The client cannot choose the account to copy blobs into.
+      void client.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
+    });
+
+    it("lets Email.copy omit accountId", () => {
+      expectTypeOf(client.api.Email.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string> | undefined>();
+      void client.api.Email.copy({ fromAccountId: "from", create: {} });
+    });
+
+    it("lets ContactCard.copy omit accountId", () => {
+      const contactsClient = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: [contacts],
+      });
+      expectTypeOf(contactsClient.api.ContactCard.copy)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string> | undefined>();
+      void contactsClient.api.ContactCard.copy({ fromAccountId: "from", create: {} });
+    });
+  });
 });
