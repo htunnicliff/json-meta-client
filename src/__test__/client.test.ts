@@ -378,6 +378,34 @@ describe(JsonMetaClient, () => {
       expect(results[0].reason).toBeInstanceOf(HttpError);
       expect(scope.isDone()).toBe(true);
     });
+
+    it("rejects all batched method calls with the same network error", async () => {
+      const mailbox = client.api.Mailbox.query({ limit: 1 });
+      const email = client.api.Email.query({ limit: 2 });
+      const scope = nock(host)
+        .post(apiUrlPath, {
+          using: [core.urn, mail.urn],
+          methodCalls: [
+            ["Mailbox/query", { accountId, limit: 1 }, mailbox.$id],
+            ["Email/query", { accountId, limit: 2 }, email.$id],
+          ],
+        })
+        .replyWithError("connection reset");
+      const results = await Promise.allSettled([mailbox, email]);
+      expect(results[0]).toMatchObject({
+        status: "rejected",
+        reason: {
+          name: "NetworkError",
+          request: expect.objectContaining({ method: "POST", url: apiUrl }),
+        },
+      });
+      expect(results[1]).toEqual(results[0]);
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+        throw new Error("Expected rejected calls");
+      expect(results[1].reason).toBe(results[0].reason);
+      expect(results[0].reason).toBeInstanceOf(NetworkError);
+      expect(scope.isDone()).toBe(true);
+    });
   });
 
   describe("capability names", () => {
