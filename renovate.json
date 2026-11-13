@@ -9,6 +9,7 @@
       "matchStrings": [
         "new GenericContainer\\(\\s*\"(?<depName>[^:@\"]+):(?<currentValue>[^@\"]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\"\\s*\\)"
       ],
+      "autoReplaceStringTemplate": "new GenericContainer(\"{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}\")",
       "datasourceTemplate": "docker"
     }
   ]
