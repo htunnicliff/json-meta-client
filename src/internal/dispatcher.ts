@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { core } from "../capabilities/core.ts";
+import { DEFAULT_CAPABILITIES } from "../built-ins.ts";
 import { CancellationError, JmapError, MethodCallError } from "../errors.ts";
 import type {
   Invocation,
@@ -16,7 +16,7 @@ import type {
   Response as JmapResponse,
   Session,
 } from "../rfc-types/core/index.ts";
-import type { AfterJmapResponseHook, BeforeJmapRequestHook } from "../types.ts";
+import type { CapabilityOption, Config } from "../types.ts";
 import type { MethodCall } from "./method-call.ts";
 
 /**
@@ -33,15 +33,21 @@ export interface DispatcherOptions {
    * The capability URNs, including `dependsOn`, that a call on the entity needs
    */
   urnsForEntity: (entity: string) => Iterable<string>;
-  hooks?: {
-    beforeJmapRequest?: ReadonlyArray<BeforeJmapRequestHook>;
-    afterJmapResponse?: ReadonlyArray<AfterJmapResponseHook>;
-  };
+  /**
+   * The JMAP envelope hooks
+   */
+  hooks?: Pick<
+    NonNullable<Config<ReadonlyArray<CapabilityOption>>["hooks"]>,
+    "beforeJmapRequest" | "afterJmapResponse"
+  >;
 }
 
-interface Pending {
+/**
+ * A method call waiting in a batch, with the handle that settles its promise
+ */
+interface PendingMethodCall {
   methodCall: MethodCall<object>;
-  handle: PromiseWithResolvers<any>;
+  handle: PromiseWithResolvers<unknown>;
 }
 
 /**
@@ -59,14 +65,14 @@ export class Dispatcher {
   /**
    * Method calls waiting in the current batch
    */
-  #batch: Pending[] = [];
+  #batch: PendingMethodCall[] = [];
 
   /**
    * Add a method call to the current batch and get a promise for its
    * response arguments
    */
-  send = <T>(methodCall: MethodCall<object>): Promise<T> => {
-    const handle = Promise.withResolvers<T>();
+  send = (methodCall: MethodCall<object>): Promise<unknown> => {
+    const handle = Promise.withResolvers<unknown>();
     if (this.#batch.length === 0) {
       queueMicrotask(() => {
         const batch = this.#batch.splice(0);
@@ -91,12 +97,12 @@ export class Dispatcher {
    * Send a batch and settle its method calls, rejecting every method call
    * with the same error when the batch fails as a whole
    */
-  async #dispatch(batch: Pending[]): Promise<void> {
+  async #dispatch(batch: PendingMethodCall[]): Promise<void> {
     try {
-      const response = await this.#exchange(batch.map(({ methodCall }) => methodCall));
+      const response = await this.#sendBatch(batch.map(({ methodCall }) => methodCall));
       const responsesById = Map.groupBy(response.methodResponses, ([, , id]) => id);
-      for (const { methodCall, handle } of batch) {
-        settle(methodCall, handle, responsesById.get(methodCall.id));
+      for (const pending of batch) {
+        settle(pending, responsesById.get(pending.methodCall.id));
       }
     } catch (error) {
       for (const { handle } of batch) {
@@ -106,11 +112,11 @@ export class Dispatcher {
   }
 
   /**
-   * Turn method calls into a JMAP Request, send it, and return the Response,
+   * Send a batch's method calls as one JMAP Request and return the Response,
    * running the JMAP envelope hooks on each
    */
-  async #exchange(methodCalls: MethodCall<object>[]): Promise<JmapResponse> {
-    const using = new Set<string>([core.urn]);
+  async #sendBatch(methodCalls: MethodCall<object>[]): Promise<JmapResponse> {
+    const using = new Set<string>(DEFAULT_CAPABILITIES.map(({ urn }) => urn));
     for (const methodCall of methodCalls) {
       const [entity] = /^[^/]+/.exec(methodCall.method)!;
       for (const urn of this.#options.urnsForEntity(entity)) {
@@ -138,11 +144,7 @@ export class Dispatcher {
 /**
  * Settle a method call from the responses that share its call id
  */
-function settle(
-  methodCall: MethodCall<object>,
-  handle: PromiseWithResolvers<unknown>,
-  responses: Invocation[] = [],
-): void {
+function settle({ methodCall, handle }: PendingMethodCall, responses: Invocation[] = []): void {
   const response =
     responses.find(([method]) => method === methodCall.method || method === "error") ??
     responses[0];
