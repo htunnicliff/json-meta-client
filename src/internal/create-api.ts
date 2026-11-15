@@ -8,8 +8,6 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-// oxlint-disable typescript/no-unnecessary-type-parameters
-
 import type { JsonObject, JsonValue } from "type-fest";
 
 import { UnknownEntityError } from "../errors.ts";
@@ -27,89 +25,109 @@ interface ApiOptions {
   isKnownEntity: (entity: string) => boolean;
 }
 
-export function createApi<T extends object>({
-  dispatcher,
-  middleware,
-  isKnownEntity,
-}: ApiOptions): T {
-  const entityProxies = new Map<string, object>();
+/**
+ * Create the API proxy: `api.Entity.method(args)` makes a method call for
+ * any entity and method name
+ */
+// TODO: Enforce strict linkage between this proxy type and Augment<T>
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
+export function createApi<T extends object>(options: ApiOptions): T {
+  const entities = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): object => {
-    let transformed: JsonValue = payload;
-    for (const fn of middleware) {
-      transformed = fn(transformed);
-    }
-    if (typeof transformed !== "object" || transformed === null || Array.isArray(transformed)) {
-      throw new TypeError("JMAP method arguments must be an object");
-    }
-    return transformed;
-  };
-
-  // TODO: Enforce strict linkage between this proxy type and Augment<T>
   return new Proxy<T>(Object.create(null), {
     get(_, entity) {
-      if (typeof entity !== "string" || ["then", "catch", "finally"].includes(entity)) {
-        return undefined;
+      if (!isApiProperty(entity)) return undefined;
+
+      let entityProxy = entities.get(entity);
+      if (!entityProxy) {
+        entityProxy = createEntity(entity, options);
+        entities.set(entity, entityProxy);
       }
-
-      if (!entityProxies.has(entity)) {
-        entityProxies.set(
-          entity,
-          new Proxy(Object.create(null), {
-            get(__, method) {
-              if (typeof method !== "string" || ["then", "catch", "finally"].includes(method)) {
-                return undefined;
-              }
-
-              const fn = (args: JsonObject, options?: AugmentedOptions) => {
-                const known = isKnownEntity(entity);
-
-                // Unknown entities skip middleware and never reach the
-                // dispatcher, so they get no default account and are never sent
-                const methodCall = new MethodCall({
-                  method: `${entity}/${method}`,
-                  args: known ? applyMiddleware(args) : args,
-                  id: options?.id,
-                });
-
-                const pendingResult = known
-                  ? dispatcher.send(methodCall)
-                  : Promise.reject(new UnknownEntityError({ entity, method }));
-
-                const withRefMethod = addRefMethod(pendingResult, {
-                  name: methodCall.method,
-                  resultOf: methodCall.id,
-                });
-
-                const createdRef = (id: string): string => {
-                  const args = methodCall.args;
-                  const create =
-                    typeof args === "object" && args !== null
-                      ? Reflect.get(args, "create")
-                      : undefined;
-                  if (typeof create !== "object" || create === null || !Object.hasOwn(create, id)) {
-                    throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
-                  }
-                  return `#${id}`;
-                };
-
-                const withMethodCall = Object.assign(withRefMethod, {
-                  ...(method === "set" ? { createdRef } : {}),
-                  $id: methodCall.id,
-                  $args: methodCall.args,
-                  $method: methodCall.method,
-                });
-
-                return withMethodCall;
-              };
-
-              return fn;
-            },
-          }),
-        );
-      }
-
-      return entityProxies.get(entity)!;
+      return entityProxy;
     },
   });
+}
+
+/**
+ * Whether a proxy answers a read of the property. Promise methods are left
+ * undefined so that a proxy is never mistaken for a thenable.
+ */
+function isApiProperty(property: string | symbol): property is string {
+  return typeof property === "string" && !["then", "catch", "finally"].includes(property);
+}
+
+/**
+ * Create the proxy for one entity, whose properties are its methods
+ */
+function createEntity(entity: string, options: ApiOptions): object {
+  return new Proxy(Object.create(null), {
+    get(_, method) {
+      return isApiProperty(method) ? createMethod(entity, method, options) : undefined;
+    },
+  });
+}
+
+/**
+ * Create the function that makes a method call and returns its pending
+ * result, augmented with the call's details and reference helpers
+ */
+function createMethod(
+  entity: string,
+  method: string,
+  { dispatcher, middleware, isKnownEntity }: ApiOptions,
+) {
+  const name = `${entity}/${method}`;
+
+  return (args: JsonObject, options?: AugmentedOptions) => {
+    // Unknown entities skip middleware and never reach the
+    // dispatcher, so they get no default account and are never sent
+    const known = isKnownEntity(entity);
+
+    const methodCall = new MethodCall({
+      method: name,
+      args: known ? applyMiddleware(middleware, args) : args,
+      id: options?.id,
+    });
+
+    const pendingResult = known
+      ? dispatcher.send(methodCall)
+      : Promise.reject(new UnknownEntityError({ entity, method }));
+
+    const withRefMethod = addRefMethod(pendingResult, {
+      name: methodCall.method,
+      resultOf: methodCall.id,
+    });
+
+    return Object.assign(withRefMethod, {
+      ...(method === "set" ? { createdRef: (id: string) => createdRef(methodCall, id) } : {}),
+      $id: methodCall.id,
+      $args: methodCall.args,
+      $method: methodCall.method,
+    });
+  };
+}
+
+/**
+ * Run a method call's arguments through each middleware in order
+ */
+function applyMiddleware(middleware: ReadonlyArray<Middleware>, args: JsonObject): object {
+  let transformed: JsonValue = args;
+  for (const fn of middleware) {
+    transformed = fn(transformed);
+  }
+  if (typeof transformed !== "object" || transformed === null || Array.isArray(transformed)) {
+    throw new TypeError("JMAP method arguments must be an object");
+  }
+  return transformed;
+}
+
+/**
+ * Reference an object that a `/set` call creates, by its creation ID
+ */
+function createdRef(methodCall: MethodCall<object>, id: string): string {
+  const create: unknown = Reflect.get(methodCall.args, "create");
+  if (typeof create !== "object" || create === null || !Object.hasOwn(create, id)) {
+    throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
+  }
+  return `#${id}`;
 }

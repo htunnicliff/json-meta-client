@@ -8,28 +8,13 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-export function randomHex(length: number): string {
-  return Array.from(randomHexGenerator(length)).join("");
-}
-
 /**
- * Generate hexadecimal characters up to a given length
+ * Generate a string of random hexadecimal characters
  */
-function* randomHexGenerator(length: number) {
-  let yielded = 0;
-  const arr = new Uint16Array(8);
-  while (yielded < length) {
-    crypto.getRandomValues(arr);
-    for (const num of arr) {
-      for (const char of num.toString(16)) {
-        yield char;
-        yielded += 1;
-        if (yielded == length) {
-          return;
-        }
-      }
-    }
-  }
+export function randomHex(length: number): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(Math.ceil(length / 2)));
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, length);
 }
 
 if (import.meta.main) {

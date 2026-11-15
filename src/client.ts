@@ -32,7 +32,6 @@ import type { Middleware } from "./internal/types.ts";
 import type {
   FileDownload,
   FileUpload,
-  EventSourceArguments,
   Response as JMAPResponse,
   ProblemDetails,
   Session,
@@ -45,6 +44,7 @@ import type {
   Config,
   OnStateChangeHandler,
   OnStateChangeOptions,
+  StateChangePayload,
 } from "./types.ts";
 
 export class JsonMetaClient<
@@ -119,13 +119,13 @@ export class JsonMetaClient<
    */
   refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
     this.#session = this.#fetchJson<ClientSession<GivenCapabilities>>(this.#config.sessionUrl).then(
-      (result) => {
+      (session) => {
         const isFirstLoad = !this.#sessionSync;
-        this.#sessionSync = result;
+        this.#sessionSync = session;
         if (isFirstLoad) {
-          this.#validateSessionCapabilities(this.#sessionSync);
+          this.#validateSessionCapabilities(session);
         }
-        return result;
+        return session;
       },
     );
 
@@ -144,11 +144,7 @@ export class JsonMetaClient<
     upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
       const session = await this.session;
       const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
-      const data = await this.#fetchJson<FileUpload.Result>(url, {
-        method: "POST",
-        body,
-      });
-      return data;
+      return this.#fetchJson<FileUpload.Result>(url, { method: "POST", body });
     },
     /**
      * Download a blob from the given account
@@ -170,15 +166,11 @@ export class JsonMetaClient<
   ): Promise<Disposable> => {
     const { pingSeconds = 30, signal } = options;
     const session = await this.session;
-    const eventSourceArguments: EventSourceArguments = {
+    const url = expandURITemplate(session.eventSourceUrl, {
       types: "*",
       // spellchecker:disable-next-line
       closeafter: "no",
-      ping: pingSeconds,
-    };
-    const url = expandURITemplate(session.eventSourceUrl, {
-      ...eventSourceArguments,
-      ping: eventSourceArguments.ping.toFixed(0),
+      ping: pingSeconds.toFixed(0),
     });
     const { createEventSource } = await import("eventsource-client");
 
@@ -197,21 +189,11 @@ export class JsonMetaClient<
       },
       onMessage: (event) => {
         try {
-          const payload = JSON.parse(event.data);
-          if (payload["@type"] !== "StateChange") {
-            return;
-          }
-          // oxlint-disable typescript/no-unsafe-type-assertion
-          const { changed } = payload as StateChange;
-          for (const [accountId, changes] of Object.entries(changed)) {
-            for (const [entity, state] of Object.entries(changes)) {
-              handler(null, {
-                entity,
-                state,
-                accountId,
-                isPrimaryAccount: this.#isPrimaryAccount(session, entity, accountId),
-              });
-            }
+          for (const change of readStateChanges(event.data)) {
+            handler(null, {
+              ...change,
+              isPrimaryAccount: this.#isPrimaryAccount(session, change.entity, change.accountId),
+            });
           }
         } catch (error) {
           const message =
@@ -371,29 +353,22 @@ export class JsonMetaClient<
     });
 
   /**
-   * Primary fetch function
+   * Primary fetch function: authenticates the request, runs the fetch hooks,
+   * and rejects responses that aren't successful
    */
   #fetch = async (url: string | URL, options: RequestInit = {}, eventSource = false) => {
+    const hooks = this.#config.hooks ?? {};
     let request: Request | undefined;
-    let requestClone: Request | undefined;
+    let requestClone: Request;
     let response: Response;
     try {
       request = new Request(url, options);
-      const auth = this.#config.auth;
-      if (typeof auth === "function") {
-        await auth({ request });
-      } else if (typeof auth === "string") {
-        request.headers.set("authorization", `Bearer ${auth}`);
-      } else {
-        const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
-        const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
-        const encoded = btoa(binString);
-        request.headers.set("authorization", `Basic ${encoded}`);
-      }
-      for (const hook of [
-        ...(this.#config.hooks?.beforeFetch ?? []),
-        ...(eventSource ? (this.#config.hooks?.beforeEventSourceConnect ?? []) : []),
-      ]) {
+      await this.#authenticate(request);
+      const beforeHooks = [
+        ...(hooks.beforeFetch ?? []),
+        ...(eventSource ? (hooks.beforeEventSourceConnect ?? []) : []),
+      ];
+      for (const hook of beforeHooks) {
         // oxlint-disable-next-line no-await-in-loop
         request = await hook({ request });
       }
@@ -410,45 +385,26 @@ export class JsonMetaClient<
       });
     }
     try {
-      for (const hook of this.#config.hooks?.afterFetch ?? []) {
+      for (const hook of hooks.afterFetch ?? []) {
         // oxlint-disable-next-line no-await-in-loop
         response = await hook({ request: requestClone, response });
       }
       if (eventSource && response.status !== 204) {
-        const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
-        if (
-          response.status !== 200 ||
-          contentType?.toLowerCase() !== "text/event-stream" ||
-          !response.body ||
-          response.bodyUsed ||
-          response.body.locked
-        ) {
+        if (!isReadableEventStream(response)) {
           throw new HttpError("Invalid event-stream response", { request, response });
         }
-        for (const hook of this.#config.hooks?.afterEventSourceConnect ?? []) {
+        for (const hook of hooks.afterEventSourceConnect ?? []) {
           // oxlint-disable-next-line no-await-in-loop
           await hook({ request: requestClone, response });
         }
       }
       if (!response.ok) {
-        let responseData: unknown;
-        let cause: unknown;
-        try {
-          const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
-          responseData = isJsonResponse
-            ? await response.clone().json()
-            : await response.clone().text();
-        } catch (error) {
-          cause = error;
-        }
-
-        const message =
-          (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
-        throw new HttpError(message, { request, response, responseData, cause });
+        throw await createHttpError(request, response);
       }
 
       return { request, response };
     } catch (error) {
+      // Nothing will read a failed event stream, so release its connection
       if (eventSource && response.body && !response.body.locked) {
         void response.body.cancel().catch(() => {});
       }
@@ -457,15 +413,26 @@ export class JsonMetaClient<
   };
 
   /**
+   * Apply the configured authentication to a request
+   */
+  async #authenticate(request: Request): Promise<void> {
+    const auth = this.#config.auth;
+    if (typeof auth === "function") {
+      await auth({ request });
+    } else if (typeof auth === "string") {
+      request.headers.set("authorization", `Bearer ${auth}`);
+    } else {
+      request.headers.set("authorization", `Basic ${encodeBasicCredentials(auth)}`);
+    }
+  }
+
+  /**
    * Primary fetch function for responses expected to return JSON
    */
   #fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {
     const headers = new Headers(options.headers);
     headers.append("accept", "application/json");
-    const { request, response } = await this.#fetch(url, {
-      ...options,
-      headers,
-    });
+    const { request, response } = await this.#fetch(url, { ...options, headers });
     let text: string;
     try {
       text = await response.text();
@@ -475,4 +442,63 @@ export class JsonMetaClient<
     const payload: T = JSON.parse(text);
     return payload;
   };
+}
+
+/**
+ * Base64-encode a username and password for Basic authentication, as UTF-8
+ */
+function encodeBasicCredentials(auth: { username: string; password: string }): string {
+  const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
+  return btoa(Array.from(bytes, (byte) => String.fromCodePoint(byte)).join(""));
+}
+
+/**
+ * Whether a response is an event stream whose body is still unread
+ */
+function isReadableEventStream(response: Response): boolean {
+  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
+  return (
+    response.status === 200 &&
+    contentType?.toLowerCase() === "text/event-stream" &&
+    response.body !== null &&
+    !response.bodyUsed &&
+    !response.body.locked
+  );
+}
+
+/**
+ * Describe an unsuccessful response, reading its body for the error's details
+ */
+async function createHttpError(request: Request, response: Response): Promise<HttpError> {
+  let responseData: unknown;
+  let cause: unknown;
+  try {
+    const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
+    responseData = isJsonResponse ? await response.clone().json() : await response.clone().text();
+  } catch (error) {
+    cause = error;
+  }
+
+  const message =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
+  return new HttpError(message, { request, response, responseData, cause });
+}
+
+/**
+ * Read each entity's change from an event-stream message. Messages other
+ * than a `StateChange` have none.
+ */
+function* readStateChanges(data: string): Generator<Omit<StateChangePayload, "isPrimaryAccount">> {
+  const payload = JSON.parse(data);
+  if (payload["@type"] !== "StateChange") {
+    return;
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const { changed } = payload as StateChange;
+  for (const [accountId, changes] of Object.entries(changed)) {
+    for (const [entity, state] of Object.entries(changes)) {
+      yield { entity, state, accountId };
+    }
+  }
 }
