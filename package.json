@@ -1,6 +1,6 @@
 {
   "name": "json-meta-client",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "A better JMAP client",
   "keywords": [
     "api",
