@@ -9,7 +9,7 @@
 // ----------------------------------------------------------------------- //
 
 import { DEFAULT_CAPABILITIES } from "../built-ins.ts";
-import { CancellationError, JmapError, MethodCallError } from "../errors.ts";
+import { CancellationError, ConfigurationError, JmapError, MethodCallError } from "../errors.ts";
 import type {
   Invocation,
   Request as JmapRequest,
@@ -17,7 +17,9 @@ import type {
   Session,
 } from "../rfc-types/core/index.ts";
 import type { CapabilityOption, Config } from "../types.ts";
+import { resolveDefaultAccount } from "./default-account.ts";
 import type { MethodCall } from "./method-call.ts";
+import type { FindMethodOwner } from "./method-owners.ts";
 
 /**
  * Sends a JMAP Request envelope and returns the server's Response envelope
@@ -33,6 +35,10 @@ export interface DispatcherOptions {
    * The capability URNs, including `dependsOn`, that a call on the entity needs
    */
   urnsForEntity: (entity: string) => Iterable<string>;
+  /**
+   * Finds the capability that gives a method call its default account
+   */
+  findMethodOwner: FindMethodOwner;
   /**
    * The JMAP envelope hooks
    */
@@ -52,8 +58,8 @@ interface PendingMethodCall {
 
 /**
  * Owns the batch lifecycle: collects the method calls made in the same tick
- * into a batch, sends it as one JMAP Request, and settles each method call
- * from the Response
+ * into a batch, gives each its default account, sends the batch as one JMAP
+ * Request, and settles each method call from the Response
  */
 export class Dispatcher {
   constructor(options: DispatcherOptions) {
@@ -95,27 +101,66 @@ export class Dispatcher {
 
   /**
    * Send a batch and settle its method calls, rejecting every method call
-   * with the same error when the batch fails as a whole
+   * with the same error when the batch fails as a whole. A method call whose
+   * default account is ambiguous is rejected on its own and left out of the
+   * Request.
    */
   async #dispatch(batch: PendingMethodCall[]): Promise<void> {
+    let unsettled = batch;
     try {
-      const response = await this.#sendBatch(batch.map(({ methodCall }) => methodCall));
+      const session = await this.#options.session();
+      unsettled = batch.filter((pending) => this.#addDefaultAccount(pending, session));
+      if (unsettled.length === 0) return;
+
+      const response = await this.#sendBatch(
+        unsettled.map(({ methodCall }) => methodCall),
+        session,
+      );
       const responsesById = Map.groupBy(response.methodResponses, ([, , id]) => id);
-      for (const pending of batch) {
+      for (const pending of unsettled) {
         settle(pending, responsesById.get(pending.methodCall.id));
       }
     } catch (error) {
-      for (const { handle } of batch) {
+      for (const { handle } of unsettled) {
         handle.reject(error);
       }
     }
   }
 
   /**
+   * Write the default account's ID onto the arguments of a method call that
+   * doesn't pass `accountId`. Rejects the method call when the session
+   * leaves the choice between several accounts.
+   *
+   * @returns whether the method call can be sent
+   */
+  #addDefaultAccount({ methodCall, handle }: PendingMethodCall, session: Session): boolean {
+    const { method, args } = methodCall;
+    // `#accountId` is a result reference that the caller passed as `accountId`
+    if (Object.hasOwn(args, "accountId") || Object.hasOwn(args, "#accountId")) return true;
+
+    const account = resolveDefaultAccount(this.#options.findMethodOwner(method), session);
+    if (account.status === "ambiguous") {
+      handle.reject(
+        new ConfigurationError(
+          `Cannot choose a default account for ${method}: several accounts support ` +
+            `${account.urn}, and the session names no primary account for it. ` +
+            "Pass `accountId` to choose one.",
+        ),
+      );
+      return false;
+    }
+    if (account.status === "resolved") {
+      Object.assign(args, { accountId: account.accountId });
+    }
+    return true;
+  }
+
+  /**
    * Send a batch's method calls as one JMAP Request and return the Response,
    * running the JMAP envelope hooks on each
    */
-  async #sendBatch(methodCalls: MethodCall<object>[]): Promise<JmapResponse> {
+  async #sendBatch(methodCalls: MethodCall<object>[], session: Session): Promise<JmapResponse> {
     const using = new Set<string>(DEFAULT_CAPABILITIES.map(({ urn }) => urn));
     for (const methodCall of methodCalls) {
       const [entity] = /^[^/]+/.exec(methodCall.method)!;
@@ -127,7 +172,6 @@ export class Dispatcher {
       using: [...using],
       methodCalls: methodCalls.map((methodCall) => methodCall.toInvocation()),
     };
-    const session = await this.#options.session();
     for (const hook of this.#options.hooks?.beforeJmapRequest ?? []) {
       // oxlint-disable-next-line no-await-in-loop
       request = await hook({ request });

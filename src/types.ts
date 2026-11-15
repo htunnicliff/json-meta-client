@@ -182,7 +182,19 @@ export type ClientSession<T extends ReadonlyArray<CapabilityOption>> = JmapSessi
 export interface StateChangePayload {
   /** The account that the change occurred in  */
   accountId: string;
-  /** Whether the account ID is that of the primary mail account */
+  /**
+   * Whether an `Entity/get` call for the changed entity that passes no
+   * `accountId` would go to this account: the default account of the
+   * capability that owns the call. With different primary accounts for mail
+   * and contacts, an `Email` change is primary in one and a `ContactCard`
+   * change in the other.
+   *
+   * A type with no such call to resolve, such as the push-only
+   * `EmailDelivery`, is primary in an account that is the primary account of
+   * any configured capability, or that is the session's only account.
+   *
+   * It is `false` when the session leaves the default account ambiguous.
+   */
   isPrimaryAccount: boolean;
   /** The type of entity that saw a change */
   entity: string;

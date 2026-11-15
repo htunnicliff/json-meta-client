@@ -8,18 +8,20 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { coreSessionCapabilities, makeSession } from "../../__test__/fixtures.ts";
 import { core } from "../../capabilities/core.ts";
-import { CancellationError, JmapError, MethodCallError } from "../../errors.ts";
+import { CancellationError, ConfigurationError, JmapError, MethodCallError } from "../../errors.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
+  Session,
 } from "../../rfc-types/core/index.ts";
 import { Dispatcher } from "../dispatcher.ts";
 import type { DispatcherOptions } from "../dispatcher.ts";
 import { MethodCall } from "../method-call.ts";
+import type { FindMethodOwner } from "../method-owners.ts";
 
 /**
  * Answers each method call with its own call id, the way a well-behaved
@@ -53,6 +55,7 @@ function setup(options: Partial<DispatcherOptions> & { respond?: typeof echo } =
     },
     session: async () => makeSession(),
     urnsForEntity: () => [],
+    findMethodOwner: () => undefined,
     ...overrides,
   });
   return { dispatcher, requests };
@@ -67,6 +70,21 @@ function call(method: string, id: string, args: object = {}): MethodCall<object>
  */
 function callIds(requests: JmapRequest[]): string[][] {
   return requests.map(({ methodCalls }) => methodCalls.map(([, , id]) => id));
+}
+
+/** A session whose only primary account is mail's, with two contacts accounts */
+function ambiguousContactsSession(): Session {
+  const session = makeSession();
+  const account = { name: "", isPersonal: true, isReadOnly: false };
+  session.primaryAccounts = { "urn:mail": "mail-account" };
+  session.accounts = {
+    "mail-account": {
+      ...account,
+      accountCapabilities: { "urn:mail": {}, "urn:contacts": {} },
+    },
+    shared: { ...account, accountCapabilities: { "urn:contacts": {} } },
+  };
+  return session;
 }
 
 describe(Dispatcher, () => {
@@ -175,6 +193,179 @@ describe(Dispatcher, () => {
       ]);
 
       expect(requests[0]!.using).toEqual([core.urn, "urn:mdn", "urn:mail"]);
+    });
+  });
+
+  describe("default accounts", () => {
+    const urns: Record<string, string> = { Email: "urn:mail", ContactCard: "urn:contacts" };
+
+    /** Every `Email` and `ContactCard` method defaults to its capability's account */
+    const findMethodOwner: FindMethodOwner = (name) => {
+      const urn = urns[name.slice(0, name.indexOf("/"))];
+      return urn === undefined ? undefined : { urn, defaultAccount: "primary" };
+    };
+
+    function setupAccounts(options: Parameters<typeof setup>[0] = {}) {
+      return setup({
+        session: async () => ambiguousContactsSession(),
+        urnsForEntity: (entity) => [urns[entity]!],
+        findMethodOwner,
+        ...options,
+      });
+    }
+
+    it("writes the default account onto the arguments when the batch is sent", async () => {
+      const methodCall = call("Email/get", "a", { ids: ["e1"] });
+      const { dispatcher, requests } = setupAccounts();
+
+      const result = dispatcher.send(methodCall);
+      expect(methodCall.args).toEqual({ ids: ["e1"] });
+      await result;
+
+      expect(methodCall.args).toEqual({ ids: ["e1"], accountId: "mail-account" });
+      expect(requests[0]!.methodCalls).toEqual([
+        ["Email/get", { ids: ["e1"], accountId: "mail-account" }, "a"],
+      ]);
+      expect(requests[0]!.methodCalls[0]![1]).toBe(methodCall.args);
+    });
+
+    it("gives beforeJmapRequest hooks the default account", async () => {
+      const seen: unknown[] = [];
+      const { dispatcher } = setupAccounts({
+        hooks: {
+          beforeJmapRequest: [
+            ({ request }) => {
+              seen.push(structuredClone(request.methodCalls));
+              return request;
+            },
+          ],
+        },
+      });
+
+      await dispatcher.send(call("Email/get", "a"));
+
+      expect(seen).toEqual([[["Email/get", { accountId: "mail-account" }, "a"]]]);
+    });
+
+    it.each([
+      ["an accountId", { accountId: "other" }],
+      ["an undefined accountId", { accountId: undefined }],
+      ["a result reference for accountId", { "#accountId": { resultOf: "x" } }],
+    ])("keeps %s that the method call passes", async (_, args) => {
+      const { dispatcher, requests } = setupAccounts();
+
+      await dispatcher.send(call("ContactCard/get", "a", args));
+
+      expect(requests[0]!.methodCalls).toEqual([["ContactCard/get", args, "a"]]);
+      expect(Object.keys(requests[0]!.methodCalls[0]![1])).toEqual(Object.keys(args));
+    });
+
+    it("sends a method call that no capability owns without accountId", async () => {
+      const { dispatcher, requests } = setupAccounts({ urnsForEntity: () => [] });
+
+      await dispatcher.send(call("Core/echo", "a", { hello: "world" }));
+
+      expect(requests[0]!.methodCalls).toEqual([["Core/echo", { hello: "world" }, "a"]]);
+    });
+
+    it("rejects an ambiguous method call on its own and leaves it out of the request", async () => {
+      const { dispatcher, requests } = setupAccounts();
+
+      const results = await Promise.allSettled([
+        dispatcher.send(call("ContactCard/get", "a")),
+        dispatcher.send(call("Email/get", "b")),
+        dispatcher.send(call("ContactCard/query", "c")),
+      ]);
+
+      expect(results).toEqual([
+        { status: "rejected", reason: expect.any(ConfigurationError) },
+        { status: "fulfilled", value: { echo: "b" } },
+        { status: "rejected", reason: expect.any(ConfigurationError) },
+      ]);
+      expect(results[0]).toMatchObject({
+        reason: {
+          message:
+            "Cannot choose a default account for ContactCard/get: several accounts support " +
+            "urn:contacts, and the session names no primary account for it. " +
+            "Pass `accountId` to choose one.",
+        },
+      });
+      expect(requests).toEqual([
+        {
+          using: [core.urn, "urn:mail"],
+          methodCalls: [["Email/get", { accountId: "mail-account" }, "b"]],
+        },
+      ]);
+    });
+
+    it("still sends a method call that references a rejected one", async () => {
+      const reference = { name: "ContactCard/query", resultOf: "a", path: "/ids" };
+      const { dispatcher, requests } = setupAccounts({
+        respond: respondWith([["error", { type: "invalidResultReference" }, "b"]]),
+      });
+
+      const results = await Promise.allSettled([
+        dispatcher.send(call("ContactCard/query", "a")),
+        dispatcher.send(call("Email/get", "b", { "#ids": reference })),
+      ]);
+
+      expect(results).toMatchObject([
+        { status: "rejected", reason: { name: "ConfigurationError" } },
+        { status: "rejected", reason: { name: "JmapError", type: "invalidResultReference" } },
+      ]);
+      expect(requests[0]!.methodCalls).toEqual([
+        ["Email/get", { "#ids": reference, accountId: "mail-account" }, "b"],
+      ]);
+    });
+
+    it("sends no request and runs no hooks when every method call is rejected", async () => {
+      const beforeJmapRequest = vi.fn<({ request }: { request: JmapRequest }) => JmapRequest>();
+      const { dispatcher, requests } = setupAccounts({
+        hooks: { beforeJmapRequest: [beforeJmapRequest] },
+      });
+
+      const results = await Promise.allSettled([
+        dispatcher.send(call("ContactCard/get", "a")),
+        dispatcher.send(call("ContactCard/query", "b")),
+      ]);
+
+      expect(results).toEqual([
+        { status: "rejected", reason: expect.any(ConfigurationError) },
+        { status: "rejected", reason: expect.any(ConfigurationError) },
+      ]);
+      expect(requests).toEqual([]);
+      expect(beforeJmapRequest).not.toHaveBeenCalled();
+    });
+
+    it("keeps an ambiguous method call's own error when the rest of the batch fails", async () => {
+      const failure = new Error("Batch failed");
+      const { dispatcher } = setupAccounts({
+        transport: async () => {
+          throw failure;
+        },
+      });
+
+      const results = await Promise.allSettled([
+        dispatcher.send(call("ContactCard/get", "a")),
+        dispatcher.send(call("Email/get", "b")),
+      ]);
+
+      expect(results).toEqual([
+        { status: "rejected", reason: expect.any(ConfigurationError) },
+        { status: "rejected", reason: failure },
+      ]);
+    });
+
+    it("sends a later batch normally after rejecting an ambiguous method call", async () => {
+      const { dispatcher, requests } = setupAccounts();
+
+      await expect(dispatcher.send(call("ContactCard/get", "a"))).rejects.toThrow(
+        ConfigurationError,
+      );
+      await expect(
+        dispatcher.send(call("ContactCard/get", "b", { accountId: "shared" })),
+      ).resolves.toEqual({ echo: "b" });
+      expect(callIds(requests)).toEqual([["b"]]);
     });
   });
 

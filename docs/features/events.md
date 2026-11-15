@@ -12,7 +12,16 @@
 :::warning TODO
 - Called Node-style as `(error, change)`
 - Called once per entity per account with a `StateChangePayload`:
-  `accountId`, `isPrimaryAccount` (primary mail account), `entity`, `state`
+  `accountId`, `isPrimaryAccount`, `entity`, `state`
+- `isPrimaryAccount` is per entity: true when an `Entity/get` call without
+  `accountId` would go to that account (link to Account IDs). With mail primary
+  A and contacts primary B, `Email` in A and `ContactCard` in B are true;
+  `Email` in B and `ContactCard` in A are false
+- Push-only types such as `EmailDelivery` have no `/get` to resolve, so they
+  are true when the account is primary for any configured capability, or is
+  the session's only account
+- False when the default would be ambiguous (several accounts qualify and the
+  session names no primary)
 - Messages other than `StateChange` are ignored
 :::
 

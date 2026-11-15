@@ -21,8 +21,10 @@
 Most JMAP methods take an `accountId`. When a call leaves it out, the client
 fills in the session's primary account for the capability that owns the
 method: `session.primaryAccounts[urn]`. If the session lists no primary
-account for that URN, the client sends the call without `accountId`, and the
-server rejects that call.
+account for that URN, the client uses the only account whose
+`accountCapabilities` include it. When several accounts do, the call rejects
+with `ConfigurationError`; when none does, the client sends the call without
+`accountId`, and the server rejects it.
 
 Some methods have no sensible default, such as a copy whose `accountId` is
 the destination. The `defaultAccount` setting tells the client which methods
@@ -71,14 +73,14 @@ const { list } = await client.api.Task.get({
 });
 ```
 
-`Task.get` gets the primary account for `urn:example:tasks`. `Task.copy`
+`Task.get` gets the default account for `urn:example:tasks`. `Task.copy`
 gets none, so its `accountId` is required at the type level too.
 
 Each key is a method name, `Entity/method`, or `"*"`, and each value is
 `"primary"` or `null`:
 
 - A listed method belongs to this capability. `"primary"` gives it the
-  primary account; `null` gives it no default.
+  capability's default account; `null` gives it no default.
 - `"*"` claims every method on the capability's entities that no capability
   lists.
 - A setting without `"*"` claims only the methods it lists. A method no

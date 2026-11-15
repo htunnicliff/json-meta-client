@@ -70,22 +70,42 @@ const example = defineCapability({
   };
 }>();
 
+const primaryAccounts = {
+  ...Object.fromEntries(Object.values(BUILT_IN_CAPABILITIES).map(({ urn }) => [urn, accountId])),
+  [example.urn]: accountId,
+  "urn:example:untyped": accountId,
+  "urn:example:archive": accountId,
+};
+
+/** Accounts by ID, each listing the given capability URNs */
+function accountsWith(urnsByAccountId: Record<string, string[]>): Session["accounts"] {
+  return Object.fromEntries(
+    Object.entries(urnsByAccountId).map(([id, urns]) => [
+      id,
+      {
+        name: id,
+        isPersonal: true,
+        isReadOnly: false,
+        accountCapabilities: Object.fromEntries(urns.map((urn) => [urn, {}])),
+      },
+    ]),
+  );
+}
+
+const capabilities = {
+  [core.urn]: coreSessionCapabilities,
+  [mail.urn]: {},
+  [example.urn]: {},
+};
+
 const DEFAULT_SESSION = {
   apiUrl,
-  primaryAccounts: {
-    ...Object.fromEntries(Object.values(BUILT_IN_CAPABILITIES).map(({ urn }) => [urn, accountId])),
-    [example.urn]: accountId,
-    "urn:example:untyped": accountId,
-    "urn:example:archive": accountId,
-  },
+  accounts: accountsWith({ [accountId]: Object.keys(capabilities) }),
+  primaryAccounts,
   uploadUrl,
   downloadUrl,
   eventSourceUrl: `${host}/events`,
-  capabilities: {
-    [core.urn]: coreSessionCapabilities,
-    [mail.urn]: {},
-    [example.urn]: {},
-  },
+  capabilities,
 } satisfies Partial<Session>;
 
 // ------ Mocking Utils -----------------------------------
@@ -106,12 +126,22 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): nock.Scope {
     .reply(200, response);
 }
 
-/** Replaces the mocked session with one that lists the given primary accounts */
-function mockSessionWith(primaryAccounts: Record<string, string>): void {
+/**
+ * Replaces the mocked session with one that lists the given primary accounts
+ * and, when given, the accounts that list each capability URN
+ */
+function mockSessionWith(
+  primaryAccounts: Record<string, string>,
+  urnsByAccountId?: Record<string, string[]>,
+): void {
   nock.cleanAll();
   nock(host)
     .get(sessionUrlPath)
-    .reply(200, { ...DEFAULT_SESSION, primaryAccounts });
+    .reply(200, {
+      ...DEFAULT_SESSION,
+      primaryAccounts,
+      ...(urnsByAccountId ? { accounts: accountsWith(urnsByAccountId) } : {}),
+    });
 }
 
 // ------ Mocks -------------------------------------------
@@ -864,6 +894,8 @@ describe(JsonMetaClient, () => {
 
     describe("default accountId", () => {
       const contactsUrn = "urn:ietf:params:jmap:contacts";
+      const mdnUrn = "urn:ietf:params:jmap:mdn";
+      const smimeUrn = "urn:ietf:params:jmap:smimeverify";
 
       it("comes from the primary account of the capability that owns the call", async () => {
         mockSessionWith({ [mail.urn]: "mail-account", [contactsUrn]: "contacts-account" });
@@ -896,8 +928,118 @@ describe(JsonMetaClient, () => {
         expect(apiScope.isDone()).toBe(true);
       });
 
-      it("is left out when the session lists no primary account for the owner", async () => {
-        mockSessionWith({ [mail.urn]: "mail-account" });
+      it("goes to the MDN primary account when it differs from the mail primary", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account", [mdnUrn]: "mdn-account" });
+        const mdnClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["mail", "mdn"],
+        });
+        const parsed = mdnClient.api.MDN.parse({ blobIds: ["blob"] });
+        const emails = mdnClient.api.Email.get({ ids: ["e1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, mdnUrn, mail.urn],
+            methodCalls: [
+              ["MDN/parse", { accountId: "mdn-account", blobIds: ["blob"] }, parsed.$id],
+              ["Email/get", { accountId: "mail-account", ids: ["e1"] }, emails.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["MDN/parse", { notFound: ["blob"] }, parsed.$id],
+              ["Email/get", { list: [] }, emails.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(parsed).resolves.toEqual({ notFound: ["blob"] });
+        await expect(emails).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("works on a contacts-only session with no mail capability or mail primary", async () => {
+        nock.cleanAll();
+        nock(host)
+          .get(sessionUrlPath)
+          .reply(200, {
+            ...DEFAULT_SESSION,
+            capabilities: { [core.urn]: coreSessionCapabilities, [contactsUrn]: {} },
+            accounts: accountsWith({ "contacts-account": [contactsUrn] }),
+            primaryAccounts: { [contactsUrn]: "contacts-account" },
+          });
+        warnSpy.mockClear();
+        const contactsClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["contacts"],
+        });
+        const cards = contactsClient.api.ContactCard.get({ ids: ["c1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn],
+            methodCalls: [
+              ["ContactCard/get", { accountId: "contacts-account", ids: ["c1"] }, cards.$id],
+            ],
+          },
+          { methodResponses: [["ContactCard/get", { list: [] }, cards.$id]], sessionState },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        { capabilities: ["mail", "smime"], using: [core.urn, mail.urn, smimeUrn] },
+        { capabilities: ["smime", "mail"], using: [core.urn, smimeUrn, mail.urn] },
+      ] as const)(
+        "sends Email calls to the mail primary account with $capabilities",
+        async ({ capabilities, using }) => {
+          mockSessionWith({ [mail.urn]: "mail-account", [smimeUrn]: "smime-account" });
+          const smimeClient = new JsonMetaClient({ sessionUrl, auth: token, capabilities });
+          const emails = smimeClient.api.Email.get({ ids: ["e1"] });
+          const apiScope = mockApi(
+            {
+              using: [...using],
+              methodCalls: [["Email/get", { accountId: "mail-account", ids: ["e1"] }, emails.$id]],
+            },
+            { methodResponses: [["Email/get", { list: [] }, emails.$id]], sessionState },
+          );
+
+          await expect(emails).resolves.toEqual({ list: [] });
+          expect(apiScope.isDone()).toBe(true);
+        },
+      );
+
+      it("falls back to the only account that supports the owner's capability", async () => {
+        mockSessionWith(
+          { [mail.urn]: "mail-account" },
+          { "mail-account": [mail.urn], "contacts-account": [mail.urn, contactsUrn] },
+        );
+        const contactsClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["contacts"],
+        });
+        const cards = contactsClient.api.ContactCard.get({ ids: ["c1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn],
+            methodCalls: [
+              ["ContactCard/get", { accountId: "contacts-account", ids: ["c1"] }, cards.$id],
+            ],
+          },
+          { methodResponses: [["ContactCard/get", { list: [] }, cards.$id]], sessionState },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is left out when no account supports the owner's capability", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account" }, { "mail-account": [mail.urn] });
         const contactsClient = new JsonMetaClient({
           sessionUrl,
           auth: token,
@@ -913,6 +1055,195 @@ describe(JsonMetaClient, () => {
         );
 
         await expect(cards).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      describe("when several accounts support the owner's capability", () => {
+        let multiClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["mail", "contacts"],
+        });
+
+        beforeEach(() => {
+          mockSessionWith(
+            { [mail.urn]: "mail-account" },
+            { "mail-account": [mail.urn, contactsUrn], shared: [contactsUrn] },
+          );
+          multiClient = new JsonMetaClient({
+            sessionUrl,
+            auth: token,
+            capabilities: ["mail", "contacts"],
+          });
+        });
+
+        it("rejects only the ambiguous method call and sends the rest of the batch", async () => {
+          const cards = multiClient.api.ContactCard.get({ ids: ["c1"] });
+          const emails = multiClient.api.Email.get({ ids: ["e1"] });
+          const apiScope = mockApi(
+            {
+              using: [core.urn, mail.urn],
+              methodCalls: [["Email/get", { accountId: "mail-account", ids: ["e1"] }, emails.$id]],
+            },
+            { methodResponses: [["Email/get", { list: [] }, emails.$id]], sessionState },
+          );
+
+          const [cardsResult, emailsResult] = await Promise.allSettled([cards, emails]);
+
+          expect(emailsResult).toEqual({ status: "fulfilled", value: { list: [] } });
+          expect(cardsResult).toEqual({
+            status: "rejected",
+            reason: expect.any(ConfigurationError),
+          });
+          expect(cardsResult).toMatchObject({
+            reason: {
+              message:
+                "Cannot choose a default account for ContactCard/get: several accounts " +
+                `support ${contactsUrn}, and the session names no primary account for it. ` +
+                "Pass `accountId` to choose one.",
+            },
+          });
+          expect(cards.$args).toEqual({ ids: ["c1"] });
+          expect(apiScope.isDone()).toBe(true);
+        });
+
+        it("still sends a method call that references a rejected one", async () => {
+          const query = multiClient.api.ContactCard.query({});
+          const emails = multiClient.api.Email.get({ ids: query.resultRef("/ids") });
+          const reference = { name: "ContactCard/query", resultOf: query.$id, path: "/ids" };
+          const apiScope = mockApi(
+            {
+              using: [core.urn, mail.urn],
+              methodCalls: [
+                ["Email/get", { accountId: "mail-account", "#ids": reference }, emails.$id],
+              ],
+            },
+            {
+              methodResponses: [["error", { type: "invalidResultReference" }, emails.$id]],
+              sessionState,
+            },
+          );
+
+          await expect(query).rejects.toBeInstanceOf(ConfigurationError);
+          await expect(emails).rejects.toMatchObject({
+            name: "JmapError",
+            type: "invalidResultReference",
+          });
+          expect(apiScope.isDone()).toBe(true);
+        });
+
+        it("makes no HTTP request when every method call in the batch is rejected", async () => {
+          await multiClient.session;
+          const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+          const results = await Promise.allSettled([
+            multiClient.api.ContactCard.get({ ids: ["c1"] }),
+            multiClient.api.ContactCard.query({}),
+          ]);
+
+          expect(results).toEqual([
+            { status: "rejected", reason: expect.any(ConfigurationError) },
+            { status: "rejected", reason: expect.any(ConfigurationError) },
+          ]);
+          expect(fetchSpy).not.toHaveBeenCalled();
+          fetchSpy.mockRestore();
+        });
+
+        it("keeps an accountId that the caller passes", async () => {
+          const cards = multiClient.api.ContactCard.get({ accountId: "shared", ids: ["c1"] });
+          const apiScope = mockApi(
+            {
+              using: [core.urn, contactsUrn],
+              methodCalls: [["ContactCard/get", { accountId: "shared", ids: ["c1"] }, cards.$id]],
+            },
+            { methodResponses: [["ContactCard/get", { list: [] }, cards.$id]], sessionState },
+          );
+
+          await expect(cards).resolves.toEqual({ list: [] });
+          expect(apiScope.isDone()).toBe(true);
+        });
+      });
+
+      it("is not added to a method call whose accountId is a result reference", async () => {
+        const query = client.api.Mailbox.query({ limit: 1 });
+        const emails = client.api.Email.get({
+          accountId: query.resultRef("/accountId"),
+          ids: ["e1"],
+        });
+        const reference = { name: "Mailbox/query", resultOf: query.$id, path: "/accountId" };
+        const apiScope = mockApi(
+          {
+            using: [core.urn, mail.urn],
+            methodCalls: [
+              ["Mailbox/query", { accountId, limit: 1 }, query.$id],
+              ["Email/get", { "#accountId": reference, ids: ["e1"] }, emails.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["Mailbox/query", { ids: [] }, query.$id],
+              ["Email/get", { list: [] }, emails.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(emails).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is absent from $args until the batch is sent", async () => {
+        const freshClient = new JsonMetaClient({ sessionUrl, auth: token, capabilities: [mail] });
+        const query = freshClient.api.Mailbox.query({ limit: 1 });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, mail.urn],
+            methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
+          },
+          { methodResponses: [["Mailbox/query", { ids: [] }, query.$id]], sessionState },
+        );
+
+        // The session hasn't loaded yet, and reading the arguments doesn't throw
+        expect(query.$args).toEqual({ limit: 1 });
+        expect(query.$args).not.toHaveProperty("accountId");
+
+        await expect(query).resolves.toEqual({ ids: [] });
+        expect(Object.getOwnPropertyDescriptor(query.$args, "accountId")).toEqual({
+          value: accountId,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is in the request that beforeJmapRequest hooks receive", async () => {
+        const seen: JMAPRequest[] = [];
+        const hookClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: [mail],
+          hooks: {
+            beforeJmapRequest: [
+              ({ request }) => {
+                seen.push(structuredClone(request));
+                return request;
+              },
+            ],
+          },
+        });
+        const query = hookClient.api.Mailbox.query({ limit: 1 });
+        const request = {
+          using: [core.urn, mail.urn],
+          methodCalls: [["Mailbox/query", { accountId, limit: 1 }, query.$id]],
+        } satisfies JMAPRequest;
+        const apiScope = mockApi(request, {
+          methodResponses: [["Mailbox/query", { ids: [] }, query.$id]],
+          sessionState,
+        });
+
+        await expect(query).resolves.toEqual({ ids: [] });
+        expect(seen).toEqual([request]);
         expect(apiScope.isDone()).toBe(true);
       });
 

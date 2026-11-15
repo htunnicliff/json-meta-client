@@ -107,7 +107,7 @@ export type PointerPaths<T> =
 /**
  * Transforms a method call's arguments before it is sent.
  */
-export type Middleware = (payload: JsonValue, call: { name: string }) => JsonValue;
+export type Middleware = (payload: JsonValue) => JsonValue;
 
 /**
  * Deeply allows a {@link Ref} of the expected value at any position.

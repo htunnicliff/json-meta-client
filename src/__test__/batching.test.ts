@@ -26,6 +26,14 @@ const session = {
   uploadUrl: `${host}/upload/{accountId}`,
   downloadUrl: `${host}/download/{accountId}/{blobId}`,
   eventSourceUrl: `${host}/events`,
+  accounts: {
+    [accountId]: {
+      name: "Account",
+      isPersonal: true,
+      isReadOnly: false,
+      accountCapabilities: { [mail.urn]: {} },
+    },
+  },
   primaryAccounts: { [mail.urn]: accountId },
   capabilities: {
     [core.urn]: { maxCallsInRequest: 1, maxSizeRequest: 1 },
