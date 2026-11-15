@@ -13,10 +13,14 @@ import type { EventSourceOptions } from "eventsource-client";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { contacts } from "../capabilities/contacts.ts";
 import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
+import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
 import { StateChangeError } from "../errors/state-change-error.ts";
+import type { Session } from "../rfc-types/core/index.ts";
+import type { CapabilityOption, OnStateChangeHandler } from "../types.ts";
 
 vi.mock("eventsource-client", () => ({ createEventSource: vi.fn<typeof createEventSource>() }));
 
@@ -24,23 +28,72 @@ const host = "https://example.test";
 const accountId = "primary-account";
 const close = vi.fn<() => void>();
 
-function createClient() {
-  return new JsonMetaClient({
-    sessionUrl: `${host}/session`,
-    auth: "token",
-    capabilities: [mail],
-  });
+/** Accounts by ID, each listing the given capability URNs */
+function accountsWith(urnsByAccountId: Record<string, string[]>): Session["accounts"] {
+  return Object.fromEntries(
+    Object.entries(urnsByAccountId).map(([id, urns]) => [
+      id,
+      {
+        name: id,
+        isPersonal: true,
+        isReadOnly: false,
+        accountCapabilities: Object.fromEntries(urns.map((urn) => [urn, {}])),
+      },
+    ]),
+  );
 }
 
-type StateChangeHandler = Parameters<ReturnType<typeof createClient>["onStateChange"]>[0];
+/** Serves a session with the given primary accounts and accounts */
+function mockSession(
+  primaryAccounts: Record<string, string>,
+  urnsByAccountId: Record<string, string[]>,
+): void {
+  nock.cleanAll();
+  nock(host)
+    .get("/session")
+    .reply(200, {
+      apiUrl: `${host}/api`,
+      uploadUrl: `${host}/upload/{accountId}`,
+      downloadUrl: `${host}/download/{accountId}/{blobId}`,
+      accounts: accountsWith(urnsByAccountId),
+      primaryAccounts,
+      capabilities: { [core.urn]: {}, [mail.urn]: {}, [contacts.urn]: {} },
+      // spellchecker:disable-next-line
+      eventSourceUrl: `${host}/events?types={types}&closeafter={closeafter}&ping={ping}`,
+    });
+}
 
-async function subscribe(handler: StateChangeHandler) {
-  await createClient().onStateChange(handler);
+async function subscribe(
+  handler: OnStateChangeHandler,
+  capabilities: ReadonlyArray<CapabilityOption> = [mail],
+) {
+  const client = new JsonMetaClient({
+    sessionUrl: `${host}/session`,
+    auth: "token",
+    capabilities,
+  });
+  await client.onStateChange(handler);
   const options = vi.mocked(createEventSource).mock.calls[0]?.[0];
   if (!options || typeof options !== "object" || options instanceof URL || !options.onMessage) {
     throw new Error("Expected an event source message callback");
   }
   return (data: string) => options.onMessage!({ data, event: "message", id: undefined });
+}
+
+/**
+ * Whether a state change for the entity in the account is reported as being
+ * in the primary account
+ */
+async function isPrimaryAccount(
+  entity: string,
+  accountId: string,
+  capabilities?: ReadonlyArray<CapabilityOption>,
+): Promise<boolean | undefined> {
+  const handler = vi.fn<OnStateChangeHandler>();
+  const emit = await subscribe(handler, capabilities);
+  emit(JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { [entity]: "state" } } }));
+  expect(handler).toHaveBeenCalledExactlyOnceWith(null, expect.objectContaining({ entity }));
+  return handler.mock.calls[0]![1]?.isPrimaryAccount;
 }
 
 describe("onStateChange", () => {
@@ -62,17 +115,7 @@ describe("onStateChange", () => {
         async *[Symbol.asyncIterator]() {},
       }),
     );
-    nock(host)
-      .get("/session")
-      .reply(200, {
-        apiUrl: `${host}/api`,
-        uploadUrl: `${host}/upload/{accountId}`,
-        downloadUrl: `${host}/download/{accountId}/{blobId}`,
-        primaryAccounts: { [mail.urn]: accountId },
-        capabilities: { [core.urn]: {}, [mail.urn]: {} },
-        // spellchecker:disable-next-line
-        eventSourceUrl: `${host}/events?types={types}&closeafter={closeafter}&ping={ping}`,
-      });
+    mockSession({ [mail.urn]: accountId }, { [accountId]: [mail.urn], secondary: [mail.urn] });
   });
 
   afterEach(() => {
@@ -80,7 +123,7 @@ describe("onStateChange", () => {
   });
 
   it("delivers a null error and a change for each entity in each account", async () => {
-    const handler = vi.fn<StateChangeHandler>();
+    const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
     emit(
       JSON.stringify({
@@ -114,7 +157,7 @@ describe("onStateChange", () => {
       causeType: TypeError,
     },
   ])("reports malformed messages as StateChangeError: $data", async ({ data, causeType }) => {
-    const handler = vi.fn<StateChangeHandler>();
+    const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
     expect(() => emit(data)).not.toThrow();
     expect(handler).toHaveBeenCalledExactlyOnceWith(expect.any(StateChangeError), undefined);
@@ -125,7 +168,7 @@ describe("onStateChange", () => {
   });
 
   it("continues delivering changes after a malformed message", async () => {
-    const handler = vi.fn<StateChangeHandler>();
+    const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
     emit("{invalid");
     emit(JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { Email: "next" } } }));
@@ -136,10 +179,129 @@ describe("onStateChange", () => {
   });
 
   it("ignores other message types and empty changes", async () => {
-    const handler = vi.fn<StateChangeHandler>();
+    const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
     emit(JSON.stringify({ "@type": "Ping" }));
     emit(JSON.stringify({ "@type": "StateChange", changed: {} }));
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  describe("isPrimaryAccount", () => {
+    describe("with a mail primary account A and a contacts primary account B", () => {
+      beforeEach(() => {
+        mockSession(
+          { [mail.urn]: "A", [contacts.urn]: "B" },
+          { A: [mail.urn, contacts.urn], B: [mail.urn, contacts.urn], C: [mail.urn] },
+        );
+      });
+
+      it.each([
+        { entity: "Email", account: "A", expected: true },
+        { entity: "ContactCard", account: "B", expected: true },
+        { entity: "Email", account: "B", expected: false },
+        { entity: "ContactCard", account: "A", expected: false },
+      ])("is $expected for $entity in $account", async ({ entity, account, expected }) => {
+        await expect(isPrimaryAccount(entity, account, ["mail", "contacts"])).resolves.toBe(
+          expected,
+        );
+      });
+
+      it.each([
+        { account: "A", expected: true },
+        { account: "B", expected: true },
+        { account: "C", expected: false },
+      ])(
+        "is $expected for the push-only EmailDelivery in $account, by any configured capability's primary",
+        async ({ account, expected }) => {
+          await expect(
+            isPrimaryAccount("EmailDelivery", account, ["mail", "contacts"]),
+          ).resolves.toBe(expected);
+        },
+      );
+
+      it("is false for a push-only type in the primary account of a capability that isn't configured", async () => {
+        await expect(isPrimaryAccount("EmailDelivery", "B", ["mail"])).resolves.toBe(false);
+      });
+
+      it("treats an entity whose Entity/get has no default account like a push-only type", async () => {
+        const tasks = defineCapability({
+          urn: "urn:example:tasks",
+          entities: ["Task"],
+          defaultAccount: { "*": "primary", "Task/get": null },
+        });
+
+        await expect(isPrimaryAccount("Task", "A", ["mail", tasks])).resolves.toBe(true);
+      });
+    });
+
+    describe("for a push-only type on a session that names no primary account", () => {
+      it("is true in the session's only account", async () => {
+        mockSession({}, { only: [] });
+
+        await expect(isPrimaryAccount("EmailDelivery", "only")).resolves.toBe(true);
+      });
+
+      it("is false when the session has several accounts", async () => {
+        mockSession({}, { one: [], two: [] });
+
+        await expect(isPrimaryAccount("EmailDelivery", "one")).resolves.toBe(false);
+      });
+
+      it("is false in an account the session doesn't list", async () => {
+        mockSession({}, { only: [] });
+
+        await expect(isPrimaryAccount("EmailDelivery", "unlisted")).resolves.toBe(false);
+      });
+    });
+
+    describe("on a contacts-only session", () => {
+      beforeEach(() => {
+        mockSession(
+          { [contacts.urn]: "contacts-account" },
+          { "contacts-account": [contacts.urn], shared: [contacts.urn] },
+        );
+      });
+
+      it.each([
+        { account: "contacts-account", expected: true },
+        { account: "shared", expected: false },
+      ])("is $expected for ContactCard in $account", async ({ account, expected }) => {
+        await expect(isPrimaryAccount("ContactCard", account, ["contacts"])).resolves.toBe(
+          expected,
+        );
+      });
+    });
+
+    describe("when the session names no primary account for the owner", () => {
+      it("is true in the only account that supports the owner's capability", async () => {
+        mockSession({ [mail.urn]: "A" }, { A: [mail.urn], B: [mail.urn, contacts.urn] });
+
+        await expect(isPrimaryAccount("ContactCard", "B", ["mail", "contacts"])).resolves.toBe(
+          true,
+        );
+      });
+
+      it.each(["A", "B"])(
+        "is false in %s when several accounts support the owner's capability",
+        async (account) => {
+          mockSession(
+            { [mail.urn]: "A" },
+            { A: [mail.urn, contacts.urn], B: [mail.urn, contacts.urn] },
+          );
+
+          await expect(
+            isPrimaryAccount("ContactCard", account, ["mail", "contacts"]),
+          ).resolves.toBe(false);
+        },
+      );
+
+      it("is false when no account supports the owner's capability", async () => {
+        mockSession({ [mail.urn]: "A" }, { A: [mail.urn] });
+
+        await expect(isPrimaryAccount("ContactCard", "A", ["mail", "contacts"])).resolves.toBe(
+          false,
+        );
+      });
+    });
   });
 });

@@ -7,7 +7,8 @@
   or use an interceptor such as nock or MSW
 - Minimal fake-session fixture: `apiUrl`, `uploadUrl` / `downloadUrl` templates,
   `eventSourceUrl`, `primaryAccounts` (including each configured capability's URN),
-  `capabilities["urn:ietf:params:jmap:core"]`
+  `accounts` (each with its `accountCapabilities`; the client reads them when a
+  URN has no primary account), `capabilities["urn:ietf:params:jmap:core"]`
 :::
 
 ## Predictable call IDs

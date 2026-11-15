@@ -10,7 +10,6 @@
 
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { DEFAULT_CAPABILITIES, getCapabilitiesForBuiltIns } from "./built-ins.ts";
-import { mail } from "./capabilities/mail.ts";
 import type { Capability } from "./capability.ts";
 import {
   ConfigurationError,
@@ -21,12 +20,13 @@ import {
 } from "./errors.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
+import { resolveDefaultAccount } from "./internal/default-account.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
 import { mapMethodOwners } from "./internal/method-owners.ts";
-import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
+import type { FindMethodOwner } from "./internal/method-owners.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
 import type {
@@ -35,6 +35,7 @@ import type {
   EventSourceArguments,
   Response as JMAPResponse,
   ProblemDetails,
+  Session,
   StateChange,
 } from "./rfc-types/core/index.ts";
 import type {
@@ -62,19 +63,12 @@ export class JsonMetaClient<
     };
 
     // The capability that gives each method call its default account
-    const findMethodOwner = mapMethodOwners([
-      ...DEFAULT_CAPABILITIES,
-      ...this.#config.capabilities,
-    ]);
+    const capabilities = [...DEFAULT_CAPABILITIES, ...this.#config.capabilities];
+    this.#findMethodOwner = mapMethodOwners(capabilities);
+    this.#configuredUrns = new Set(capabilities.map(({ urn }) => urn));
 
     // Built-in transformations of each method's arguments
-    this.#middleware = [
-      replaceNestedResultRefKeys,
-      injectAccountId(() => {
-        if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
-        return this.#sessionSync;
-      }, findMethodOwner),
-    ];
+    this.#middleware = [replaceNestedResultRefKeys];
 
     // Build entity <-> URN map
     this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
@@ -90,6 +84,7 @@ export class JsonMetaClient<
       transport: this.#postJmapRequest,
       session: () => this.session,
       urnsForEntity: (entity) => this.#entityToUrn[entity] ?? [],
+      findMethodOwner: this.#findMethodOwner,
       hooks: this.#config.hooks,
     };
 
@@ -175,7 +170,6 @@ export class JsonMetaClient<
   ): Promise<Disposable> => {
     const { pingSeconds = 30, signal } = options;
     const session = await this.session;
-    const primaryAccountId = session.primaryAccounts[mail.urn]!;
     const eventSourceArguments: EventSourceArguments = {
       types: "*",
       // spellchecker:disable-next-line
@@ -215,7 +209,7 @@ export class JsonMetaClient<
                 entity,
                 state,
                 accountId,
-                isPrimaryAccount: accountId === primaryAccountId,
+                isPrimaryAccount: this.#isPrimaryAccount(session, entity, accountId),
               });
             }
           }
@@ -258,6 +252,16 @@ export class JsonMetaClient<
    * Transformations applied to each method's arguments
    */
   readonly #middleware: ReadonlyArray<Middleware>;
+
+  /**
+   * Finds the capability that gives a method call its default account
+   */
+  readonly #findMethodOwner: FindMethodOwner;
+
+  /**
+   * The URNs of the default and configured capabilities
+   */
+  readonly #configuredUrns: ReadonlySet<string>;
 
   /**
    * Dependencies shared by the dispatcher of every API
@@ -315,6 +319,33 @@ export class JsonMetaClient<
         },
       );
       console.warn(error);
+    }
+  }
+
+  /**
+   * Whether an `Entity/get` call that passes no `accountId` would go to the
+   * account, by the same resolution as method calls. Such a call has no
+   * default account when no capability owns it, as with push-only types
+   * like `EmailDelivery`; the account then counts as primary if it is the
+   * primary account of any configured capability, or the session's only
+   * account.
+   */
+  #isPrimaryAccount(session: Session, entity: string, accountId: string): boolean {
+    const account = resolveDefaultAccount(this.#findMethodOwner(`${entity}/get`), session);
+    switch (account.status) {
+      case "resolved": {
+        return account.accountId === accountId;
+      }
+      case "none": {
+        const accountIds = Object.keys(session.accounts ?? {});
+        return (
+          [...this.#configuredUrns].some((urn) => session.primaryAccounts[urn] === accountId) ||
+          (accountIds.length === 1 && accountIds[0] === accountId)
+        );
+      }
+      default: {
+        return false;
+      }
     }
   }
 

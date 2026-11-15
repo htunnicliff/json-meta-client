@@ -42,6 +42,9 @@ _Avoid_: plugin, add-on
 The account whose ID the client adds to a method call that doesn't pass
 `accountId`. It is the session's primary account for the URN of the
 capability that owns the method, as that capability's `defaultAccount`
-setting claims it; a method set to `null`, or claimed by no capability, has
-none.
+setting claims it, or else the only account whose capabilities include that
+URN. A method set to `null`, or claimed by no capability, has none; so does
+one whose URN no account lists. When several accounts list the URN and the
+session names no primary, the default account is ambiguous and the Dispatcher
+rejects the method call.
 _Avoid_: primary mail account (a different, mail-specific account), fallback account

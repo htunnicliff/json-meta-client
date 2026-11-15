@@ -42,6 +42,18 @@ describe("method calls", () => {
     expect(mailboxes.list).toContainEqual(expect.objectContaining({ role: "inbox" }));
   });
 
+  it("adds the primary mail account to a Mailbox call once the batch is sent", async () => {
+    const client = createClient("mail");
+
+    const mailboxes = client.api.Mailbox.get({ ids: [] });
+    expect(mailboxes.$args).toEqual({ ids: [] });
+    const { accountId } = await mailboxes;
+
+    const { primaryAccounts } = await client.session;
+    expect(accountId).toBe(primaryAccounts["urn:ietf:params:jmap:mail"]);
+    expect(mailboxes.$args).toEqual({ ids: [], accountId });
+  });
+
   it("resolves a result reference on the server", async () => {
     const client = createClient("mail");
     const query = client.api.Mailbox.query({ filter: { role: "inbox" } });

@@ -13,16 +13,26 @@
 ## Account IDs
 
 :::warning TODO
-- When `accountId` is omitted, it is filled from the primary account of the
-  capability that owns the method: `session.primaryAccounts[urn]` (e.g. the
-  contacts URN for `ContactCard` calls)
-- If the session lists no primary account for that URN, the call is sent
-  without `accountId`; pass it explicitly
-- Pass `accountId` explicitly for other accounts (multi-account example belongs here)
+- When `accountId` is omitted, the client fills it in from the capability that
+  owns the method (e.g. contacts for `ContactCard` calls), in this order:
+  1. `session.primaryAccounts[urn]`, the primary account for that capability
+  2. otherwise, the only account whose `accountCapabilities` list that URN
+- If no account lists the URN, the call is sent without `accountId`
+- If several accounts list it and the session names no primary, only that call
+  rejects with `ConfigurationError` (names the method and URN); it is left out
+  of the request and the rest of the batch still goes ahead. Pass `accountId`
+- Calls in one batch can target different accounts (mail and contacts
+  primaries can differ), so a result reference between them may need an
+  explicit `accountId` on one side (multi-account example belongs here)
+- A call that references a rejected call is still sent; the server answers it
+  with `invalidResultReference`
 - `Blob.copy` never gets a default; `Core.echo` and `PushSubscription` calls
   aren't scoped to an account and get none
 - Custom capabilities choose with `defaultAccount` (link to Extending)
-- An explicitly passed `accountId` is always kept
+- An explicitly passed `accountId` is always kept, including a result reference
+- The account is chosen when the batch is sent, after the session loads:
+  `$args.accountId` is absent before that and set afterwards, and
+  `beforeJmapRequest` hooks see it
 :::
 
 ## Getting results

@@ -35,6 +35,14 @@ function setup() {
     if (url.endsWith("/session")) {
       return Response.json({
         apiUrl,
+        accounts: {
+          account: {
+            name: "Account",
+            isPersonal: true,
+            isReadOnly: false,
+            accountCapabilities: { [mail.urn]: {}, [submission.urn]: {} },
+          },
+        },
         primaryAccounts: {
           [mail.urn]: "account",
           [submission.urn]: "account",
