@@ -73,7 +73,10 @@ const example = defineCapability({
 const DEFAULT_SESSION = {
   apiUrl,
   primaryAccounts: {
-    [mail.urn]: accountId,
+    ...Object.fromEntries(Object.values(BUILT_IN_CAPABILITIES).map(({ urn }) => [urn, accountId])),
+    [example.urn]: accountId,
+    "urn:example:untyped": accountId,
+    "urn:example:archive": accountId,
   },
   uploadUrl,
   downloadUrl,
@@ -101,6 +104,14 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): nock.Scope {
   })
     .post(apiUrlPath, (body: unknown) => isDeepStrictEqual(body, request))
     .reply(200, response);
+}
+
+/** Replaces the mocked session with one that lists the given primary accounts */
+function mockSessionWith(primaryAccounts: Record<string, string>): void {
+  nock.cleanAll();
+  nock(host)
+    .get(sessionUrlPath)
+    .reply(200, { ...DEFAULT_SESSION, primaryAccounts });
 }
 
 // ------ Mocks -------------------------------------------
@@ -182,6 +193,8 @@ describe(JsonMetaClient, () => {
       { urn: "urn:example", entities: [42] },
       { urn: "urn:example", entities: ["Example"], dependsOn: "urn:other" },
       { urn: "urn:example", entities: ["Example"], dependsOn: [42] },
+      { urn: "urn:example", entities: ["Example"], defaultAccount: "primary" },
+      { urn: "urn:example", entities: ["Example"], defaultAccount: { "*": "mail" } },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
@@ -672,7 +685,7 @@ describe(JsonMetaClient, () => {
 
       it.each([
         ["Core", "echo", { hello: "world" }],
-        ["Blob", "copy", {}],
+        ["Blob", "copy", { accountId: "destination", fromAccountId: accountId, blobIds: [] }],
         ["PushSubscription", "get", {}],
         ["PushSubscription", "set", {}],
       ])("allows %s.%s without listing core", async (entity, method, args) => {
@@ -681,7 +694,7 @@ describe(JsonMetaClient, () => {
         const scope = mockApi(
           {
             using: [core.urn],
-            methodCalls: [[`${entity}/${method}`, { accountId, ...args }, call.$id]],
+            methodCalls: [[`${entity}/${method}`, args, call.$id]],
           },
           { methodResponses: [[`${entity}/${method}`, {}, call.$id]], sessionState },
         );
@@ -807,6 +820,168 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
+    it.each([
+      ["Blob", "upload", "blob", ["urn:ietf:params:jmap:blob"], { create: {} }],
+      ["Email", "copy", "mail", [mail.urn], { fromAccountId: "account-2", create: {} }],
+      [
+        "ContactCard",
+        "copy",
+        "contacts",
+        ["urn:ietf:params:jmap:contacts"],
+        { fromAccountId: "account-2", create: {} },
+      ],
+    ] as const)(
+      "gives %s/%s a default accountId",
+      async (entity, method, capability, urns, args) => {
+        const otherClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: [capability],
+        });
+        const call = untyped(otherClient.api)[entity][method](args);
+        const name = `${entity}/${method}`;
+        const apiScope = mockApi(
+          { using: [core.urn, ...urns], methodCalls: [[name, { accountId, ...args }, call.$id]] },
+          { methodResponses: [[name, {}, call.$id]], sessionState },
+        );
+
+        await expect(call).resolves.toEqual({});
+        expect(apiScope.isDone()).toBe(true);
+      },
+    );
+
+    it("never gives Blob/copy a default accountId", async () => {
+      const args = { fromAccountId: "account-2", blobIds: ["blob"] };
+      const copy = untyped(client.api).Blob.copy(args);
+      const apiScope = mockApi(
+        { using: [core.urn], methodCalls: [["Blob/copy", args, copy.$id]] },
+        { methodResponses: [["Blob/copy", {}, copy.$id]], sessionState },
+      );
+
+      await expect(copy).resolves.toEqual({});
+      expect(apiScope.isDone()).toBe(true);
+    });
+
+    describe("default accountId", () => {
+      const contactsUrn = "urn:ietf:params:jmap:contacts";
+
+      it("comes from the primary account of the capability that owns the call", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account", [contactsUrn]: "contacts-account" });
+        const multiClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["mail", "contacts"],
+        });
+        const cards = multiClient.api.ContactCard.get({ ids: ["c1"] });
+        const emails = multiClient.api.Email.get({ ids: ["e1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn, mail.urn],
+            methodCalls: [
+              ["ContactCard/get", { accountId: "contacts-account", ids: ["c1"] }, cards.$id],
+              ["Email/get", { accountId: "mail-account", ids: ["e1"] }, emails.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["ContactCard/get", { list: [] }, cards.$id],
+              ["Email/get", { list: [] }, emails.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        await expect(emails).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is left out when the session lists no primary account for the owner", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account" });
+        const contactsClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["contacts"],
+        });
+        const cards = contactsClient.api.ContactCard.get({ ids: ["c1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn],
+            methodCalls: [["ContactCard/get", { ids: ["c1"] }, cards.$id]],
+          },
+          { methodResponses: [["ContactCard/get", { list: [] }, cards.$id]], sessionState },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is not added to Core/echo", async () => {
+        const echo = client.api.Core.echo({ hello: "world" });
+        const apiScope = mockApi(
+          {
+            using: [core.urn],
+            methodCalls: [["Core/echo", { hello: "world" }, echo.$id]],
+          },
+          { methodResponses: [["Core/echo", { hello: "world" }, echo.$id]], sessionState },
+        );
+
+        await expect(echo).resolves.toEqual({ hello: "world" });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("follows a custom capability's defaultAccount setting", async () => {
+        const tasks = defineCapability({
+          urn: "urn:example:tasks",
+          entities: ["Task"],
+          defaultAccount: { "*": "primary", "Task/copy": null },
+        }).withMethods<{
+          Task: {
+            get: { input: { accountId: string; ids: string[] }; output: { list: [] } };
+            copy: {
+              input: { accountId: string; fromAccountId: string; ids: string[] };
+              output: { list: [] };
+            };
+          };
+        }>();
+        mockSessionWith({ [tasks.urn]: "tasks-account" });
+        const tasksClient = new JsonMetaClient({ sessionUrl, auth: token, capabilities: [tasks] });
+        const got = tasksClient.api.Task.get({ ids: ["t1"] });
+        const copied = untyped(tasksClient.api).Task.copy({
+          fromAccountId: "source",
+          ids: ["t1"],
+        });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, tasks.urn],
+            methodCalls: [
+              ["Task/get", { accountId: "tasks-account", ids: ["t1"] }, got.$id],
+              ["Task/copy", { fromAccountId: "source", ids: ["t1"] }, copied.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["Task/get", { list: [] }, got.$id],
+              ["Task/copy", { list: [] }, copied.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(got).resolves.toEqual({ list: [] });
+        await expect(copied).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("throws when two capabilities claim the same method call", () => {
+        const notes = defineCapability({ urn: "urn:example:notes", entities: ["Note"] });
+        const vendor = defineCapability({ urn: "urn:example:vendor", entities: ["Note"] });
+        expect(
+          () => new JsonMetaClient({ sessionUrl, auth: token, capabilities: [notes, vendor] }),
+        ).toThrow(CapabilityConfigurationError);
+      });
+    });
+
     it("propagates HTTP problem details and the cached session error to method calls", async () => {
       nock.cleanAll();
       const sessionFailure: ProblemDetails = { type: "serverFail" };
@@ -879,6 +1054,7 @@ describe(JsonMetaClient, () => {
       const archive = defineCapability({
         urn: "urn:example:archive",
         entities: ["Example"],
+        defaultAccount: { "Example/archive": "primary" },
       }).withMethods<{
         Example: {
           archive: { input: { ids: string[] }; output: { archived: string[] } };
@@ -936,7 +1112,7 @@ describe(JsonMetaClient, () => {
           }),
         );
         vi.stubGlobal("fetch", fetchMock);
-        await expect(client.blob.upload(body)).resolves.toEqual(responseData);
+        await expect(client.blob.upload(body, { accountId })).resolves.toEqual(responseData);
         expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(Request));
         const request = fetchMock.mock.calls[0]![0];
         if (!(request instanceof Request)) throw new Error("Expected Request");
@@ -954,7 +1130,7 @@ describe(JsonMetaClient, () => {
       const scope = nock(host)
         .post(`/upload/${encodeURIComponent(accountId)}`)
         .reply(413, { type: "tooLarge", detail: "Blob too large" });
-      await expect(client.blob.upload(body)).rejects.toMatchObject({
+      await expect(client.blob.upload(body, { accountId })).rejects.toMatchObject({
         name: "HttpError",
         message: "Blob too large",
         status: 413,
@@ -962,21 +1138,22 @@ describe(JsonMetaClient, () => {
       });
       expect(scope.isDone()).toBe(true);
     });
-    it("posts body to correct url", async () => {
+    it("posts body to the given account's upload url, not the mail primary's", async () => {
+      const otherAccountId = "<other-account-id>";
       const blob = new Blob([JSON.stringify({ someStuff: "here" })], { type: "application/json" });
 
       const providedResponse: FileUpload.Result = {
-        accountId,
+        accountId: otherAccountId,
         blobId: crypto.randomUUID(),
         size: blob.size,
         type: blob.type,
       };
 
       const scope = nock(host)
-        .post(`/upload/${encodeURIComponent(accountId)}`)
+        .post(`/upload/${encodeURIComponent(otherAccountId)}`)
         .reply(200, providedResponse);
 
-      const response = await client.blob.upload(blob, { accountId });
+      const response = await client.blob.upload(blob, { accountId: otherAccountId });
 
       expect(response).toStrictEqual(providedResponse);
 
@@ -993,7 +1170,7 @@ describe(JsonMetaClient, () => {
           .query({ type: "text/plain", name: "file" })
           .reply(404, payload);
         const error = await client.blob
-          .download({ blobId: "blob", type: "text/plain", name: "file" })
+          .download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
           .catch((error: unknown) => error);
         expect(error).toBeInstanceOf(HttpError);
         if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
@@ -1015,7 +1192,7 @@ describe(JsonMetaClient, () => {
       await client.session;
       vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(error));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toBe(error);
     });
 
@@ -1024,7 +1201,7 @@ describe(JsonMetaClient, () => {
       const cause = new TypeError("download disconnected");
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(cause));
       await expect(
-        client.blob.download({ blobId: "blob", name: "file", type: "text/plain" }),
+        client.blob.download({ accountId, blobId: "blob", name: "file", type: "text/plain" }),
       ).rejects.toMatchObject({
         name: "NetworkError",
         cause,
@@ -1034,13 +1211,14 @@ describe(JsonMetaClient, () => {
         }),
       });
     });
-    it("issues get request to correct url", async () => {
+    it("issues get request to the given account's download url, not the mail primary's", async () => {
+      const otherAccountId = "<other-account-id>";
       const blobId = crypto.randomUUID();
       const name = "Some $up3r@ special name!";
 
       const scope = nock(host)
         .get(
-          `/download/${encodeURIComponent(accountId)}/${encodeURIComponent(blobId)}?type=${encodeURIComponent("application/json")}&name=${encodeURIComponent(name)}`,
+          `/download/${encodeURIComponent(otherAccountId)}/${encodeURIComponent(blobId)}?type=${encodeURIComponent("application/json")}&name=${encodeURIComponent(name)}`,
         )
         .reply(200, {
           a: ["very", "special", "blob"],
@@ -1050,7 +1228,7 @@ describe(JsonMetaClient, () => {
         blobId,
         name,
         type: "application/json",
-        accountId,
+        accountId: otherAccountId,
       });
 
       await expect(response.json()).resolves.toStrictEqual({

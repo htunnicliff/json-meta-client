@@ -8,8 +8,6 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { SetOptional } from "type-fest";
-
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { DEFAULT_CAPABILITIES, getCapabilitiesForBuiltIns } from "./built-ins.ts";
 import { mail } from "./capabilities/mail.ts";
@@ -27,6 +25,7 @@ import { Dispatcher } from "./internal/dispatcher.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
+import { mapMethodOwners } from "./internal/method-owners.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
@@ -62,13 +61,19 @@ export class JsonMetaClient<
       hooks: options.hooks,
     };
 
+    // The capability that gives each method call its default account
+    const findMethodOwner = mapMethodOwners([
+      ...DEFAULT_CAPABILITIES,
+      ...this.#config.capabilities,
+    ]);
+
     // Built-in transformations of each method's arguments
     this.#middleware = [
       replaceNestedResultRefKeys,
       injectAccountId(() => {
         if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
         return this.#sessionSync;
-      }),
+      }, findMethodOwner),
     ];
 
     // Build entity <-> URN map
@@ -132,18 +137,18 @@ export class JsonMetaClient<
     return this.#session;
   };
 
+  /**
+   * Upload and download blobs. Each call names its account: the client does
+   * not choose a default, because the right one depends on what the blob is
+   * for.
+   */
   blob = {
     /**
-     * Upload a blob
+     * Upload a blob to the given account
      */
-    upload: async (
-      body: BodyInit,
-      params: SetOptional<FileUpload.Params, "accountId"> = {},
-    ): Promise<FileUpload.Result> => {
+    upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
       const session = await this.session;
-      const url = expandURITemplate(session.uploadUrl, {
-        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
-      });
+      const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
       const data = await this.#fetchJson<FileUpload.Result>(url, {
         method: "POST",
         body,
@@ -151,14 +156,11 @@ export class JsonMetaClient<
       return data;
     },
     /**
-     * Download a blob
+     * Download a blob from the given account
      */
-    download: async (params: SetOptional<FileDownload.Params, "accountId">): Promise<Response> => {
+    download: async (params: FileDownload.Params): Promise<Response> => {
       const session = await this.session;
-      const url = expandURITemplate(session.downloadUrl, {
-        ...params,
-        accountId: params.accountId ?? session.primaryAccounts[mail.urn]!,
-      });
+      const url = expandURITemplate(session.downloadUrl, { ...params });
       const { response } = await this.#fetch(url, { method: "GET" });
       return response;
     },

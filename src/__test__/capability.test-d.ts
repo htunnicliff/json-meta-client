@@ -32,7 +32,10 @@ describe("Capability type", () => {
       type Expected = Capability<
         Entities,
         CapabilityMethods<Entities>,
-        "urn:ietf:params:jmap:mail"
+        "urn:ietf:params:jmap:mail",
+        unknown,
+        unknown,
+        undefined
       >;
       expectTypeOf(cap.withMethods()).toEqualTypeOf<Expected>();
     });
@@ -84,7 +87,8 @@ describe("Capability type", () => {
         CapabilityMethods<Entities>,
         "urn:ietf:params:jmap:mail",
         AccountCapabilities,
-        SessionCapabilities
+        SessionCapabilities,
+        undefined
       >;
       expectTypeOf(configured).toEqualTypeOf<Expected>();
     });

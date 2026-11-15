@@ -64,9 +64,14 @@ describe(recordingFetch, () => {
     const settled = vi.fn<() => void>();
 
     client.blob
-      .download({ blobId: "B1", name: "a.txt", type: "text/plain" })
+      .download({
+        accountId: PLACEHOLDER_ACCOUNT_ID,
+        blobId: "B1",
+        name: "a.txt",
+        type: "text/plain",
+      })
       .then(settled, settled);
-    client.blob.upload("hello").then(settled, settled);
+    client.blob.upload("hello", { accountId: PLACEHOLDER_ACCOUNT_ID }).then(settled, settled);
     // Resolves once the event stream is opened, not once it connects
     const subscription = await client.onStateChange(() => {});
     await vi.waitFor(() => expect(recorder.count).toBe(4));

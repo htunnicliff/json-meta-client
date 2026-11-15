@@ -8,21 +8,33 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { mail } from "../../capabilities/mail.ts";
 import type { Session } from "../../rfc-types/core/index.ts";
+import type { FindMethodOwner } from "../method-owners.ts";
 import type { Middleware } from "../types.ts";
 
-export function injectAccountId(getSession: () => Session): Middleware {
-  return (args) => {
-    // Add `accountId` if not set
+/**
+ * Adds `accountId` to a method call that doesn't pass one, when the
+ * capability that owns the call defaults to its primary account. The account
+ * is read when the request is serialized, after the session has loaded; if
+ * the session lists no primary account for the owner's URN, the call is sent
+ * without `accountId`.
+ */
+export function injectAccountId(
+  getSession: () => Session,
+  findMethodOwner: FindMethodOwner,
+): Middleware {
+  return (args, { name }) => {
+    const owner = findMethodOwner(name);
     if (
+      owner?.defaultAccount === "primary" &&
       typeof args === "object" &&
       args !== null &&
       !Array.isArray(args) &&
       !Object.hasOwn(args, "accountId")
     ) {
+      const { urn } = owner;
       Object.defineProperty(args, "accountId", {
-        get: () => getSession().primaryAccounts[mail.urn],
+        get: () => getSession().primaryAccounts[urn],
         enumerable: true,
       });
     }

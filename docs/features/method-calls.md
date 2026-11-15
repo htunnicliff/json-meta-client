@@ -13,10 +13,15 @@
 ## Account IDs
 
 :::warning TODO
-- When `accountId` is omitted, it is filled from
-  `session.primaryAccounts["urn:ietf:params:jmap:mail"]`
-- Gotcha: this is the primary MAIL account even for Contacts or Sieve calls;
-  pass `accountId` explicitly for other accounts (multi-account example belongs here)
+- When `accountId` is omitted, it is filled from the primary account of the
+  capability that owns the method: `session.primaryAccounts[urn]` (e.g. the
+  contacts URN for `ContactCard` calls)
+- If the session lists no primary account for that URN, the call is sent
+  without `accountId`; pass it explicitly
+- Pass `accountId` explicitly for other accounts (multi-account example belongs here)
+- `Blob.copy` never gets a default; `Core.echo` and `PushSubscription` calls
+  aren't scoped to an account and get none
+- Custom capabilities choose with `defaultAccount` (link to Extending)
 - An explicitly passed `accountId` is always kept
 :::
 

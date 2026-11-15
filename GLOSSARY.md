@@ -37,3 +37,11 @@ A built-in capability that adds contract extensions instead of methods, and
 that the client requires to be configured with the capability it extends.
 `smime` extends `mail`.
 _Avoid_: plugin, add-on
+
+**Default account**:
+The account whose ID the client adds to a method call that doesn't pass
+`accountId`. It is the session's primary account for the URN of the
+capability that owns the method, as that capability's `defaultAccount`
+setting claims it; a method set to `null`, or claimed by no capability, has
+none.
+_Avoid_: primary mail account (a different, mail-specific account), fallback account

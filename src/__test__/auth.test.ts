@@ -95,7 +95,7 @@ describe("authentication", () => {
       .reply(200, makeSession())
       .post("/special-jmap-api", {
         using: ["urn:ietf:params:jmap:core"],
-        methodCalls: [["Core/echo", { hello: "world", accountId }, "0"]],
+        methodCalls: [["Core/echo", { hello: "world" }, "0"]],
       })
       .reply(200, { sessionState, methodResponses: [["Core/echo", { hello: "world" }, "0"]] })
       .post(`/upload/${encodeURIComponent(accountId)}`, "upload")
@@ -131,10 +131,10 @@ describe("authentication", () => {
     await expect(client.api.Core.echo({ hello: "world" }, { id: "0" })).resolves.toEqual({
       hello: "world",
     });
-    await client.blob.upload("upload");
+    await client.blob.upload("upload", { accountId });
     expect(
       await (
-        await client.blob.download({ blobId: "blob", type: "text/plain", name: "file" })
+        await client.blob.download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
       ).text(),
     ).toBe("download");
     expect(scope.isDone()).toBe(true);

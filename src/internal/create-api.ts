@@ -34,10 +34,10 @@ export function createApi<T extends object>({
 }: ApiOptions): T {
   const entityProxies = new Map<string, object>();
 
-  const applyMiddleware = (payload: JsonObject): object => {
+  const applyMiddleware = (payload: JsonObject, name: string): object => {
     let transformed: JsonValue = payload;
     for (const fn of middleware) {
-      transformed = fn(transformed);
+      transformed = fn(transformed, { name });
     }
     if (typeof transformed !== "object" || transformed === null || Array.isArray(transformed)) {
       throw new TypeError("JMAP method arguments must be an object");
@@ -66,9 +66,10 @@ export function createApi<T extends object>({
 
                 // Unknown entities skip middleware (no account ID injection)
                 // and never reach the dispatcher, so they are never sent
+                const name = `${entity}/${method}`;
                 const methodCall = new MethodCall({
-                  method: `${entity}/${method}`,
-                  args: known ? applyMiddleware(args) : args,
+                  method: name,
+                  args: known ? applyMiddleware(args, name) : args,
                   id: options?.id,
                 });
 

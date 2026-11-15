@@ -6,7 +6,7 @@
 - The client calls global `fetch` with a `Request`; stub it (`vi.stubGlobal`)
   or use an interceptor such as nock or MSW
 - Minimal fake-session fixture: `apiUrl`, `uploadUrl` / `downloadUrl` templates,
-  `eventSourceUrl`, `primaryAccounts` (including the mail URN),
+  `eventSourceUrl`, `primaryAccounts` (including each configured capability's URN),
   `capabilities["urn:ietf:params:jmap:core"]`
 :::
 
