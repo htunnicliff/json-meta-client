@@ -16,6 +16,37 @@ export interface MethodContract {
 }
 
 /**
+ * Where the client finds the `accountId` it adds to a method call that
+ * doesn't pass one:
+ * - `"primary"`: the account the session lists for the capability's URN in
+ *   `primaryAccounts`. If the session lists none, the call is sent without
+ *   `accountId`.
+ * - `null`: no default. Callers must pass `accountId`.
+ */
+export type DefaultAccount = "primary" | null;
+
+/**
+ * Which method calls a capability gives a default `accountId`, keyed by
+ * method name (`Entity/method`) or `"*"`.
+ *
+ * A listed method name claims that method call for the capability. `"*"`
+ * claims every other method on the capability's entities. When a capability
+ * omits the setting, it claims every method as `{ "*": "primary" }` would; a
+ * setting without `"*"` claims only the methods it lists.
+ *
+ * A method set to `null` is still claimed: the client adds no `accountId`,
+ * even if another capability declares the same entity. A method that is left
+ * out falls through to `"*"`, or, without `"*"`, to whichever capability
+ * claims it, if any.
+ *
+ * Two capabilities can't claim the same method call with different settings:
+ * the client throws a `CapabilityConfigurationError` when it is constructed.
+ */
+export type DefaultAccountSetting<Name extends string = string> = {
+  "*"?: DefaultAccount;
+} & { [Key in Name]?: DefaultAccount };
+
+/**
  * A fully configured capability:
  * - Known entities (type and value)
  * - Known urn (value)
@@ -23,6 +54,7 @@ export interface MethodContract {
  * - Known methods (type)
  * - Known account capability details (type)
  * - Known session capability details (type)
+ * - Which method calls get a default `accountId` (type and value)
  */
 export interface Capability<
   Entity extends string = string,
@@ -30,6 +62,7 @@ export interface Capability<
   Urn extends string = string,
   _AccountCapabilities = unknown,
   _SessionCapabilities = unknown,
+  DefaultAccounts extends DefaultAccountSetting | undefined = DefaultAccountSetting | undefined,
 > {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
@@ -39,6 +72,14 @@ export interface Capability<
    * alongside {@link Capability.urn}.
    */
   dependsOn?: ReadonlyArray<string>;
+  /**
+   * Which method calls get a default `accountId`, and where it comes from.
+   * Omitted, every method on the capability's entities defaults to the
+   * session's primary account for {@link Capability.urn}.
+   *
+   * @see {@link DefaultAccountSetting}
+   */
+  defaultAccount?: DefaultAccounts;
 }
 
 /**
@@ -63,16 +104,30 @@ export type InferMethodsFromCapability<C> =
  * }>();
  * ```
  */
-export function defineCapability<const Entity extends string, const Urn extends string = string>({
+export function defineCapability<
+  const Entity extends string,
+  const Urn extends string = string,
+  const DefaultAccounts extends DefaultAccountSetting<`${Entity}/${string}`> | undefined =
+    undefined,
+>({
   urn,
   entities,
   dependsOn,
+  defaultAccount,
 }: {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
   dependsOn?: ReadonlyArray<string>;
-}): ConfigurableCapability<Entity, Urn> {
-  const capability = dependsOn === undefined ? { urn, entities } : { urn, entities, dependsOn };
+  defaultAccount?: DefaultAccounts & {
+    [Key in Exclude<keyof DefaultAccounts, "*" | `${Entity}/${string}`>]: never;
+  };
+}): ConfigurableCapability<Entity, Urn, DefaultAccounts> {
+  const capability = {
+    urn,
+    entities,
+    ...(dependsOn === undefined ? {} : { dependsOn }),
+    ...(defaultAccount === undefined ? {} : { defaultAccount }),
+  };
   return {
     ...capability,
     withMethods: () => ({ ...capability }),

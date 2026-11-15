@@ -540,6 +540,17 @@ describe(JsonMetaClient, () => {
       void client.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
     });
 
+    it("lets the RFC 9404 Blob methods omit accountId alongside Blob.copy", () => {
+      const blobClient = new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["blob"] });
+      expectTypeOf(blobClient.api.Blob.get)
+        .parameter(0)
+        .toHaveProperty("accountId")
+        .toEqualTypeOf<AllowRefs<string> | undefined>();
+      void blobClient.api.Blob.get({ ids: ["blob"] });
+      // @ts-expect-error The client cannot choose the account to copy blobs into.
+      void blobClient.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
+    });
+
     it("lets Email.copy omit accountId", () => {
       expectTypeOf(client.api.Email.copy)
         .parameter(0)

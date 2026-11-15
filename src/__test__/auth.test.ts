@@ -95,7 +95,7 @@ describe("authentication", () => {
       .reply(200, makeSession())
       .post("/special-jmap-api", {
         using: ["urn:ietf:params:jmap:core"],
-        methodCalls: [["Core/echo", { hello: "world", accountId }, "0"]],
+        methodCalls: [["Core/echo", { hello: "world" }, "0"]],
       })
       .reply(200, { sessionState, methodResponses: [["Core/echo", { hello: "world" }, "0"]] })
       .post(`/upload/${encodeURIComponent(accountId)}`, "upload")

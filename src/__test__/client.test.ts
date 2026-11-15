@@ -73,7 +73,10 @@ const example = defineCapability({
 const DEFAULT_SESSION = {
   apiUrl,
   primaryAccounts: {
-    [mail.urn]: accountId,
+    ...Object.fromEntries(Object.values(BUILT_IN_CAPABILITIES).map(({ urn }) => [urn, accountId])),
+    [example.urn]: accountId,
+    "urn:example:untyped": accountId,
+    "urn:example:archive": accountId,
   },
   uploadUrl,
   downloadUrl,
@@ -101,6 +104,14 @@ function mockApi(request: JMAPRequest, response: JMAPResponse): nock.Scope {
   })
     .post(apiUrlPath, (body: unknown) => isDeepStrictEqual(body, request))
     .reply(200, response);
+}
+
+/** Replaces the mocked session with one that lists the given primary accounts */
+function mockSessionWith(primaryAccounts: Record<string, string>): void {
+  nock.cleanAll();
+  nock(host)
+    .get(sessionUrlPath)
+    .reply(200, { ...DEFAULT_SESSION, primaryAccounts });
 }
 
 // ------ Mocks -------------------------------------------
@@ -182,6 +193,8 @@ describe(JsonMetaClient, () => {
       { urn: "urn:example", entities: [42] },
       { urn: "urn:example", entities: ["Example"], dependsOn: "urn:other" },
       { urn: "urn:example", entities: ["Example"], dependsOn: [42] },
+      { urn: "urn:example", entities: ["Example"], defaultAccount: "primary" },
+      { urn: "urn:example", entities: ["Example"], defaultAccount: { "*": "mail" } },
     ])("reports invalid capabilities with available built-ins: %j", (capability) => {
       const createClient = () =>
         new JsonMetaClient({
@@ -681,7 +694,7 @@ describe(JsonMetaClient, () => {
         const scope = mockApi(
           {
             using: [core.urn],
-            methodCalls: [[`${entity}/${method}`, { accountId, ...args }, call.$id]],
+            methodCalls: [[`${entity}/${method}`, args, call.$id]],
           },
           { methodResponses: [[`${entity}/${method}`, {}, call.$id]], sessionState },
         );
@@ -849,6 +862,126 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
+    describe("default accountId", () => {
+      const contactsUrn = "urn:ietf:params:jmap:contacts";
+
+      it("comes from the primary account of the capability that owns the call", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account", [contactsUrn]: "contacts-account" });
+        const multiClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["mail", "contacts"],
+        });
+        const cards = multiClient.api.ContactCard.get({ ids: ["c1"] });
+        const emails = multiClient.api.Email.get({ ids: ["e1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn, mail.urn],
+            methodCalls: [
+              ["ContactCard/get", { accountId: "contacts-account", ids: ["c1"] }, cards.$id],
+              ["Email/get", { accountId: "mail-account", ids: ["e1"] }, emails.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["ContactCard/get", { list: [] }, cards.$id],
+              ["Email/get", { list: [] }, emails.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        await expect(emails).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is left out when the session lists no primary account for the owner", async () => {
+        mockSessionWith({ [mail.urn]: "mail-account" });
+        const contactsClient = new JsonMetaClient({
+          sessionUrl,
+          auth: token,
+          capabilities: ["contacts"],
+        });
+        const cards = contactsClient.api.ContactCard.get({ ids: ["c1"] });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, contactsUrn],
+            methodCalls: [["ContactCard/get", { ids: ["c1"] }, cards.$id]],
+          },
+          { methodResponses: [["ContactCard/get", { list: [] }, cards.$id]], sessionState },
+        );
+
+        await expect(cards).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("is not added to Core/echo", async () => {
+        const echo = client.api.Core.echo({ hello: "world" });
+        const apiScope = mockApi(
+          {
+            using: [core.urn],
+            methodCalls: [["Core/echo", { hello: "world" }, echo.$id]],
+          },
+          { methodResponses: [["Core/echo", { hello: "world" }, echo.$id]], sessionState },
+        );
+
+        await expect(echo).resolves.toEqual({ hello: "world" });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("follows a custom capability's defaultAccount setting", async () => {
+        const tasks = defineCapability({
+          urn: "urn:example:tasks",
+          entities: ["Task"],
+          defaultAccount: { "*": "primary", "Task/copy": null },
+        }).withMethods<{
+          Task: {
+            get: { input: { accountId: string; ids: string[] }; output: { list: [] } };
+            copy: {
+              input: { accountId: string; fromAccountId: string; ids: string[] };
+              output: { list: [] };
+            };
+          };
+        }>();
+        mockSessionWith({ [tasks.urn]: "tasks-account" });
+        const tasksClient = new JsonMetaClient({ sessionUrl, auth: token, capabilities: [tasks] });
+        const got = tasksClient.api.Task.get({ ids: ["t1"] });
+        const copied = untyped(tasksClient.api).Task.copy({
+          fromAccountId: "source",
+          ids: ["t1"],
+        });
+        const apiScope = mockApi(
+          {
+            using: [core.urn, tasks.urn],
+            methodCalls: [
+              ["Task/get", { accountId: "tasks-account", ids: ["t1"] }, got.$id],
+              ["Task/copy", { fromAccountId: "source", ids: ["t1"] }, copied.$id],
+            ],
+          },
+          {
+            methodResponses: [
+              ["Task/get", { list: [] }, got.$id],
+              ["Task/copy", { list: [] }, copied.$id],
+            ],
+            sessionState,
+          },
+        );
+
+        await expect(got).resolves.toEqual({ list: [] });
+        await expect(copied).resolves.toEqual({ list: [] });
+        expect(apiScope.isDone()).toBe(true);
+      });
+
+      it("throws when two capabilities claim the same method call", () => {
+        const notes = defineCapability({ urn: "urn:example:notes", entities: ["Note"] });
+        const vendor = defineCapability({ urn: "urn:example:vendor", entities: ["Note"] });
+        expect(
+          () => new JsonMetaClient({ sessionUrl, auth: token, capabilities: [notes, vendor] }),
+        ).toThrow(CapabilityConfigurationError);
+      });
+    });
+
     it("propagates HTTP problem details and the cached session error to method calls", async () => {
       nock.cleanAll();
       const sessionFailure: ProblemDetails = { type: "serverFail" };
@@ -921,6 +1054,7 @@ describe(JsonMetaClient, () => {
       const archive = defineCapability({
         urn: "urn:example:archive",
         entities: ["Example"],
+        defaultAccount: { "Example/archive": "primary" },
       }).withMethods<{
         Example: {
           archive: { input: { ids: string[] }; output: { archived: string[] } };

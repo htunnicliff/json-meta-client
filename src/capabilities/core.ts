@@ -33,8 +33,13 @@ export const core: Capability<
   },
   "urn:ietf:params:jmap:core",
   unknown,
-  CoreSessionCapabilities
+  CoreSessionCapabilities,
+  { "Blob/copy": null }
 > = {
   urn: "urn:ietf:params:jmap:core",
   entities: ["Core", "Blob", "PushSubscription"],
+  // `Blob/copy` copies blobs into `accountId`, and nothing in the call says
+  // which account that should be. `Core/echo` and `PushSubscription` calls
+  // aren't scoped to an account, so core claims nothing else.
+  defaultAccount: { "Blob/copy": null },
 };

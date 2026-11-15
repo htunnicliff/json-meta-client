@@ -17,7 +17,7 @@ import type {
 } from "./built-ins.ts";
 import type { Capability, InferMethodsFromCapability } from "./capability.ts";
 import type { StateChangeError } from "./errors.ts";
-import type { Augment, InferContractExtensions } from "./internal/types.ts";
+import type { Augment, InferContractExtensions, MarkDefaultAccounts } from "./internal/types.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -108,9 +108,25 @@ export type ResolveCapability<C> = C extends BuiltInCapabilityName
 export type ClientApi<T extends ReadonlyArray<CapabilityOption>> = T[number] extends never
   ? object
   : Augment<
-      UnionToIntersection<InferMethodsFromCapability<ResolveCapability<T[number]>>>,
+      UnionToIntersection<CapabilityMethodsWithDefaults<ResolveCapability<T[number]>>>,
       ClientContractExtensions<T>
     >;
+
+/**
+ * A capability's methods, each marked when the capability gives its calls
+ * no default `accountId`. Marked before the client merges every
+ * capability's methods, which loses the capability each method came from.
+ */
+type CapabilityMethodsWithDefaults<C> = C extends unknown
+  ? MarkDefaultAccounts<InferMethodsFromCapability<C>, InferDefaultAccountSetting<C>>
+  : never;
+
+/** A capability's `defaultAccount` setting, or `undefined` when it omits one. */
+type InferDefaultAccountSetting<C> = C extends { defaultAccount?: infer Setting }
+  ? [Exclude<Setting, undefined>] extends [never]
+    ? undefined
+    : Exclude<Setting, undefined>
+  : undefined;
 
 /** The contract extensions contributed by every configured capability. */
 type ClientContractExtensions<T extends ReadonlyArray<CapabilityOption>> =

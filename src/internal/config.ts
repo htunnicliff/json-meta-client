@@ -91,6 +91,21 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
         { capability },
       );
     }
+
+    if (
+      capability.defaultAccount !== undefined &&
+      (typeof capability.defaultAccount !== "object" ||
+        capability.defaultAccount === null ||
+        Array.isArray(capability.defaultAccount) ||
+        !Object.values(capability.defaultAccount).every(
+          (value: unknown) => value === "primary" || value === null || value === undefined,
+        ))
+    ) {
+      throw new CapabilityConfigurationError(
+        'Capability `defaultAccount` must be an object whose values are "primary" or null',
+        { capability },
+      );
+    }
   }
 
   // A capability that extends another's method contracts needs that one too.

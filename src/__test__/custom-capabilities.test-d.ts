@@ -8,11 +8,11 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import { describe, expectTypeOf, it } from "vitest";
+import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { mail } from "../capabilities/index.ts";
 import { JsonMetaClient, defineCapability } from "../index.ts";
-import type { MethodContract } from "../index.ts";
+import type { Capability, MethodContract } from "../index.ts";
 
 interface Note {
   id: string;
@@ -178,5 +178,98 @@ describe("public custom capability authoring", () => {
     expectTypeOf<
       Extract<Parameters<typeof client.api.Conflict.run>[0]["value"], string | number>
     >().toBeNever();
+  });
+});
+
+interface TaskMethods {
+  Task: {
+    get: { input: { accountId: string; ids: string[] }; output: { list: [] } };
+    copy: {
+      input: { accountId: string; fromAccountId: string; ids: string[] };
+      output: { list: [] };
+    };
+  };
+}
+
+function clientWith<const C extends Capability>(capability: C) {
+  return new JsonMetaClient({
+    sessionUrl: "https://example.test/jmap",
+    auth: "token",
+    capabilities: [capability],
+  });
+}
+
+describe("default account setting", () => {
+  it("requires accountId for every method when the wildcard has no default", () => {
+    const client = clientWith(
+      defineCapability({
+        urn: "urn:example:tasks",
+        entities: ["Task"],
+        defaultAccount: { "*": null },
+      }).withMethods<TaskMethods>(),
+    );
+    assertType(client.api.Task.get({ accountId: "account", ids: ["t1"] }));
+    // @ts-expect-error The capability gives no default account.
+    assertType(client.api.Task.get({ ids: ["t1"] }));
+  });
+
+  it("requires accountId only for a listed method without a default", () => {
+    const client = clientWith(
+      defineCapability({
+        urn: "urn:example:tasks",
+        entities: ["Task"],
+        defaultAccount: { "*": "primary", "Task/copy": null },
+      }).withMethods<TaskMethods>(),
+    );
+    assertType(client.api.Task.get({ ids: ["t1"] }));
+    assertType(client.api.Task.copy({ accountId: "to", fromAccountId: "from", ids: ["t1"] }));
+    // @ts-expect-error The capability gives Task/copy no default account.
+    assertType(client.api.Task.copy({ fromAccountId: "from", ids: ["t1"] }));
+  });
+
+  it("requires accountId for a method the setting doesn't claim", () => {
+    const client = clientWith(
+      defineCapability({
+        urn: "urn:example:tasks",
+        entities: ["Task"],
+        defaultAccount: { "Task/get": "primary" },
+      }).withMethods<TaskMethods>(),
+    );
+    assertType(client.api.Task.get({ ids: ["t1"] }));
+    // @ts-expect-error No capability claims Task/copy, so it has no default account.
+    assertType(client.api.Task.copy({ fromAccountId: "from", ids: ["t1"] }));
+  });
+
+  it("rejects a key for an entity the capability doesn't declare", () => {
+    assertType(
+      defineCapability({
+        urn: "urn:example:tasks",
+        entities: ["Task"],
+        // @ts-expect-error `Tsk` is not one of the capability's entities.
+        defaultAccount: { "Tsk/get": null },
+      }),
+    );
+  });
+
+  it("rejects a key for a method the capability doesn't declare", () => {
+    assertType(
+      defineCapability({
+        urn: "urn:example:tasks",
+        entities: ["Task"],
+        defaultAccount: { "Task/cpy": null },
+        // @ts-expect-error `Task/cpy` is not one of the capability's methods.
+      }).withMethods<TaskMethods>(),
+    );
+  });
+
+  it("keeps the setting's literal types", () => {
+    const tasks = defineCapability({
+      urn: "urn:example:tasks",
+      entities: ["Task"],
+      defaultAccount: { "*": "primary", "Task/copy": null },
+    });
+    expectTypeOf(tasks.defaultAccount).toEqualTypeOf<
+      { readonly "*": "primary"; readonly "Task/copy": null } | undefined
+    >();
   });
 });

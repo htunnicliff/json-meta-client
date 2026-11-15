@@ -93,7 +93,7 @@ describe("JMAP envelope hooks", () => {
     const scope = nock(host)
       .post("/special-jmap-api", {
         using: ["urn:ietf:params:jmap:core"],
-        methodCalls: [["Core/echo", { accountId }, "echo"]],
+        methodCalls: [["Core/echo", {}, "echo"]],
         createdIds: {},
       })
       .reply(200, { sessionState, methodResponses: [["Core/echo", { raw: true }, "echo"]] });
@@ -135,7 +135,7 @@ describe("JMAP envelope hooks", () => {
     expect(events).toEqual([
       `beforeFetch ${sessionPath}`,
       `afterFetch ${sessionPath}`,
-      `beforeJmapRequest ${JSON.stringify({ accountId })}`,
+      "beforeJmapRequest {}",
       "beforeFetch /special-jmap-api",
       "afterFetch /special-jmap-api",
       "afterJmapResponse",

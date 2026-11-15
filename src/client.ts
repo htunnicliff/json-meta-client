@@ -25,6 +25,7 @@ import { Dispatcher } from "./internal/dispatcher.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
+import { mapMethodOwners } from "./internal/method-owners.ts";
 import { injectAccountId } from "./internal/middleware/inject-account-id.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
 import type { Middleware } from "./internal/types.ts";
@@ -60,13 +61,19 @@ export class JsonMetaClient<
       hooks: options.hooks,
     };
 
+    // The capability that gives each method call its default account
+    const findMethodOwner = mapMethodOwners([
+      ...DEFAULT_CAPABILITIES,
+      ...this.#config.capabilities,
+    ]);
+
     // Built-in transformations of each method's arguments
     this.#middleware = [
       replaceNestedResultRefKeys,
       injectAccountId(() => {
         if (!this.#sessionSync) throw new ConfigurationError("Session not yet resolved");
         return this.#sessionSync;
-      }),
+      }, findMethodOwner),
     ];
 
     // Build entity <-> URN map

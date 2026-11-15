@@ -19,10 +19,10 @@ import type {
   SetOptional,
   SetRequired,
   Simplify,
+  UnionToIntersection,
 } from "type-fest";
 
-import type { Capability, MethodContract } from "../capability.ts";
-import type { MethodWithoutDefaultAccountId } from "./default-account-id.ts";
+import type { Capability, DefaultAccountSetting, MethodContract } from "../capability.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
@@ -156,6 +156,51 @@ export type CapabilityMethods<Entity extends string> = {
   };
 };
 
+/** The name, `Entity/method`, of each method in a {@link CapabilityMethods} map. */
+export type MethodName<Methods> = {
+  [Entity in keyof Methods & string]: `${Entity}/${keyof Methods[Entity] & string}`;
+}[keyof Methods & string];
+
+declare const withoutDefaultAccountId: unique symbol;
+
+/**
+ * Marks a method contract whose calls the client gives no default
+ * `accountId`, so callers must pass one.
+ */
+export interface WithoutDefaultAccountId {
+  readonly [withoutDefaultAccountId]: true;
+}
+
+/**
+ * The default account that a capability's setting gives `Name`: the listed
+ * value, else the `"*"` value, else `undefined` when the capability doesn't
+ * claim the method. An omitted setting claims every method as `"primary"`.
+ */
+type ResolveDefaultAccount<Setting, Name extends string> = [Setting] extends [undefined]
+  ? "primary"
+  : Name extends keyof Setting
+    ? [Setting[Name]] extends [undefined]
+      ? WildcardDefaultAccount<Setting>
+      : Setting[Name]
+    : WildcardDefaultAccount<Setting>;
+
+type WildcardDefaultAccount<Setting> = "*" extends keyof Setting ? Setting["*"] : undefined;
+
+/**
+ * Marks each method in a capability's {@link CapabilityMethods} that the
+ * client gives no default `accountId`: the capability sets it to `null`
+ * (listed, or through `"*"`), or doesn't claim it at all.
+ */
+export type MarkDefaultAccounts<Methods, Setting> = {
+  [Entity in keyof Methods]: {
+    [Method in keyof Methods[Entity]]: [
+      ResolveDefaultAccount<Setting, `${Entity & string}/${Method & string}`>,
+    ] extends [null | undefined]
+      ? Methods[Entity][Method] & WithoutDefaultAccountId
+      : Methods[Entity][Method];
+  };
+};
+
 /**
  * Builds the client's methods from its capabilities' contracts. A contract
  * that declares an `extensions` field receives `ContractExtensions` there,
@@ -227,14 +272,14 @@ type AcceptedInput<Contract extends MethodContract> = Contract extends {
 
 /**
  * The arguments a caller passes for a method call. `accountId` is optional
- * because the client fills it in, except for methods listed in
- * {@link MethodWithoutDefaultAccountId}.
+ * because the client fills it in, except for contracts marked
+ * {@link WithoutDefaultAccountId}.
  */
-export type MethodArguments<Contract extends MethodContract, Name extends string = string> = {
+export type MethodArguments<Contract extends MethodContract> = {
   [Key in keyof AcceptedInput<Contract>]: AllowRefs<AcceptedInput<Contract>[Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
-    ? Name extends MethodWithoutDefaultAccountId
+    ? Contract extends WithoutDefaultAccountId
       ? Args
       : SetOptional<Args, "accountId">
     : Args
@@ -295,7 +340,7 @@ export interface AugmentedOptions {
 }
 
 export type AugmentMethod<Contract extends MethodContract, Name extends string = string> = <
-  Args extends MethodArguments<Contract, Name>,
+  Args extends MethodArguments<Contract>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
     EffectiveMethodInput<Contract, Args>
@@ -322,18 +367,39 @@ export type AugmentMethod<Contract extends MethodContract, Name extends string =
     : {});
 
 /**
+ * The methods that a default account setting lists, as a
+ * {@link CapabilityMethods} map, so a listed method that the capability
+ * doesn't declare fails its `withMethods` constraint.
+ */
+type ListedMethods<Setting> = [Exclude<keyof Setting, "*">] extends [never]
+  ? unknown
+  : UnionToIntersection<
+      {
+        [Name in Exclude<keyof Setting, "*">]: Name extends `${infer Entity}/${infer Method}`
+          ? { [_ in Entity]: { [_ in Method]: MethodContract } }
+          : never;
+      }[Exclude<keyof Setting, "*">]
+    >;
+
+/**
  * A partially-configured capability that supports using
  * layers of generics. The first layer captures the {@link Entity}
- * type, while the second layer captures the {@link CapabilityMethods}
- * and its account and session capability details.
+ * type and its default account setting, while the second layer
+ * captures the {@link CapabilityMethods} and its account and session
+ * capability details.
  */
-export interface ConfigurableCapability<Entity extends string, Urn extends string = string> {
+export interface ConfigurableCapability<
+  Entity extends string,
+  Urn extends string = string,
+  DefaultAccounts extends DefaultAccountSetting | undefined = undefined,
+> {
   urn: Urn;
   entities: ReadonlyArray<Entity>;
   dependsOn?: ReadonlyArray<string>;
+  defaultAccount?: DefaultAccounts;
   withMethods<
-    M extends CapabilityMethods<Entity>,
+    M extends CapabilityMethods<Entity> & ListedMethods<DefaultAccounts>,
     AccountCapabilities = unknown,
     SessionCapabilities = unknown,
-  >(): Capability<Entity, M, Urn, AccountCapabilities, SessionCapabilities>;
+  >(): Capability<Entity, M, Urn, AccountCapabilities, SessionCapabilities, DefaultAccounts>;
 }
