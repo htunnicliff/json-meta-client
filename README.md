@@ -1,8 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-transparent-dark.svg">
-    <img src="docs/public/readme-banner.svg" alt="json-meta-client" width="640">
-  </picture>
+  <a href="https://json-meta-client.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-transparent-dark.svg">
+      <img src="docs/public/readme-banner.svg" alt="json-meta-client" width="640">
+    </picture>
+  </a>
 </p>
 
 <p align="center">
@@ -36,7 +38,8 @@ It features:
 The library is alpha software; its API may change between releases.
 
 View full documentation and examples on
-[json-meta-client.dev](https://json-meta-client.dev).
+[json-meta-client.dev](https://json-meta-client.dev), or try the library in
+your browser in the [playground](https://json-meta-client.dev/playground).
 
 ## Quick Start
 
