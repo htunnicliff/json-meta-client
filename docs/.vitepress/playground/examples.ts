@@ -43,12 +43,74 @@ for (const { subject, from } of emails.list) {
 }
 `;
 
+const eventSource = `import { JsonMetaClient } from "json-meta-client";
+
+// Running against a connected server marks one unread message as read.
+const { promise: connected, resolve: streamReady } = Promise.withResolvers<void>();
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>",
+  auth: "<credentials>",
+  capabilities: ["mail"],
+  hooks: { afterEventSourceConnect: [() => streamReady()] },
+});
+
+const controller = new AbortController();
+await client.onStateChange(
+  (error, change) => {
+    if (error) {
+      console.error(error);
+    } else if (change.entity === "Email" && change.isPrimaryAccount) {
+      console.log("Email state change received:", change.state);
+    }
+  },
+  { signal: controller.signal },
+);
+
+// Allow up to one minute for the connection and its notifications.
+const timeout = setTimeout(stopListening, 60_000);
+
+function stopListening() {
+  clearTimeout(timeout);
+  controller.abort();
+  streamReady(); // Release the wait if the stream never connected.
+}
+
+try {
+  const { ids: [id] } = await client.api.Email.query({
+    filter: { notKeyword: "$seen" },
+    limit: 1,
+  });
+
+  if (id === undefined) {
+    console.log("No unread messages found.");
+    stopListening();
+  } else {
+    // Wait for the stream before marking a message as read on the server.
+    await connected;
+    controller.signal.throwIfAborted();
+    const { newState, notUpdated } = await client.api.Email.set({
+      update: { [id]: { "keywords/$seen": true } },
+    });
+    const failure = notUpdated?.[id];
+    if (failure) {
+      throw new Error(\`Could not mark message as read: \${failure.type}\`);
+    }
+    console.log("Marked message as read. New Email state:", newState);
+  }
+} catch (error) {
+  stopListening();
+  throw error;
+}
+`;
+
 /**
  * The examples the playground offers, the first being its default
  */
 export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
   { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
+  { id: "event-source", title: "Event source", code: eventSource },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");
