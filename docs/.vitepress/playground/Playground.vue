@@ -734,14 +734,152 @@ onBeforeUnmount(() => {
   color: var(--vp-c-purple-1, var(--vp-c-indigo-1));
 }
 
+/* Tooltips float like the site's other menus */
 .playground .cm-tooltip {
   border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
   background: var(--vp-c-bg-elv);
+  box-shadow: var(--vp-shadow-3);
   color: var(--vp-c-text-1);
 }
 
-.playground .cm-tooltip-autocomplete > ul > li[aria-selected] {
+/*
+ * The completion menu, like the options menu: padded, with rounded rows.
+ * Tooltips render inside the editor, and `.cm-editor` outranks CodeMirror's
+ * own theme.
+ */
+.playground .cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul {
+  min-width: 220px;
+  max-height: 15em;
+  padding: 4px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--vp-c-divider) transparent;
+}
+
+.playground .cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 6px;
+  line-height: 20px;
+}
+
+.playground .cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul > li:hover {
+  background: var(--vp-c-default-soft);
+}
+
+.playground .cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-text-1);
+}
+
+.playground .cm-editor .cm-completionMatchedText {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.playground .cm-editor .cm-completionDetail {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--vp-c-text-3);
+  font-style: normal;
+}
+
+/* Each kind as a letter on a tinted badge, in the editor's token colors */
+.playground .cm-editor .cm-completionIcon {
+  --kind: var(--vp-c-text-2);
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--kind) 14%, transparent);
+  color: var(--kind);
+  font-family: var(--vp-font-family-base);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 1;
+}
+
+.playground .cm-editor .cm-completionIcon::after {
+  content: var(--letter, "·");
+}
+
+.playground .cm-editor .cm-completionIcon-function,
+.playground .cm-editor .cm-completionIcon-method {
+  --kind: var(--vp-c-brand-1);
+}
+
+.playground .cm-editor .cm-completionIcon-function {
+  --letter: "f";
+}
+
+.playground .cm-editor .cm-completionIcon-method {
+  --letter: "m";
+}
+
+.playground .cm-editor .cm-completionIcon-property {
+  --kind: var(--vp-c-tip-1);
+  --letter: "p";
+}
+
+.playground .cm-editor .cm-completionIcon-variable {
+  --kind: var(--vp-c-tip-1);
+  --letter: "v";
+}
+
+.playground .cm-editor .cm-completionIcon-constant {
+  --kind: var(--vp-c-green-1);
+  --letter: "c";
+}
+
+.playground .cm-editor .cm-completionIcon-class,
+.playground .cm-editor .cm-completionIcon-interface,
+.playground .cm-editor .cm-completionIcon-type,
+.playground .cm-editor .cm-completionIcon-enum {
+  --kind: var(--vp-c-purple-1, var(--vp-c-indigo-1));
+}
+
+.playground .cm-editor .cm-completionIcon-class {
+  --letter: "C";
+}
+
+.playground .cm-editor .cm-completionIcon-interface {
+  --letter: "I";
+}
+
+.playground .cm-editor .cm-completionIcon-type {
+  --letter: "T";
+}
+
+.playground .cm-editor .cm-completionIcon-enum {
+  --letter: "E";
+}
+
+.playground .cm-editor .cm-completionIcon-namespace {
+  --letter: "N";
+}
+
+.playground .cm-editor .cm-completionIcon-keyword {
+  --letter: "k";
+}
+
+.playground .cm-editor .cm-completionIcon-text {
+  --letter: "t";
+}
+
+/* Documentation beside the menu */
+.playground .cm-editor .cm-tooltip.cm-completionInfo {
+  padding: 8px 12px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  line-height: 1.5;
 }
 </style>
