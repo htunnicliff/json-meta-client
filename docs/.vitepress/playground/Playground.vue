@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useData } from "vitepress";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import type { RecordedRequest } from "../recorder/index.ts";
+import type { CodeEditor } from "./editor.ts";
 import { defaultExample } from "./examples.ts";
 import type { Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
@@ -19,6 +21,13 @@ const requests = ref<RecordedRequest[]>([]);
 const diagnostics = ref<Diagnostic[]>([]);
 const errors = ref<string[]>([]);
 const status = ref<Status>("running");
+
+const { isDark } = useData();
+const editorHost = ref<HTMLElement>();
+// The plain textarea stands in until Monaco loads
+const editorReady = ref(false);
+let editor: CodeEditor | undefined;
+let unmounted = false;
 
 let runner: Runner | undefined;
 let runTimer: ReturnType<typeof setTimeout> | undefined;
@@ -66,15 +75,24 @@ watch(code, () => {
   runTimer = setTimeout(runNow, RUN_DELAY_MS);
 });
 
-onMounted(() => {
+watch(isDark, (dark) => editor?.setDark(dark));
+
+onMounted(async () => {
   runner = createRunner(onEvent);
   runNow();
+  const { createMonacoEditor } = await import("./monaco-editor.ts");
+  if (unmounted || !editorHost.value) return;
+  editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
+  editor.onChange((next) => (code.value = next));
+  editorReady.value = true;
 });
 
 onBeforeUnmount(() => {
+  unmounted = true;
   clearTimeout(runTimer);
   clearTimeout(stuckTimer);
   runner?.dispose();
+  editor?.dispose();
 });
 
 const recorded = computed(() => requests.value.filter(Boolean));
@@ -127,7 +145,9 @@ function onKeydown(event: KeyboardEvent) {
       <header class="pane-header">
         <span class="pane-title">playground.ts</span>
       </header>
+      <div v-show="editorReady" ref="editorHost" class="monaco-host" />
       <textarea
+        v-if="!editorReady"
         v-model="code"
         class="editor"
         spellcheck="false"
@@ -249,6 +269,11 @@ function onKeydown(event: KeyboardEvent) {
 
 .editor:focus {
   outline: none;
+}
+
+.monaco-host {
+  flex: 1;
+  min-height: 320px;
 }
 
 .output {

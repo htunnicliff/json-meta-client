@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
+import { playgroundTypes } from "./playground/types-plugin.ts";
 import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
 
 // Fails when a generated JMAP Request fence is out of date
@@ -95,7 +96,7 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [groupIconVitePlugin()],
+    plugins: [groupIconVitePlugin(), playgroundTypes()],
     // The playground's workers import the library, which loads
     // `eventsource-client` on demand, so they need code splitting.
     worker: { format: "es" },
