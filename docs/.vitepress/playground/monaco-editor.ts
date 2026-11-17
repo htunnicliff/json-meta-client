@@ -75,6 +75,9 @@ export function createMonacoEditor(
     fixedOverflowWidgets: true,
     padding: { top: 12, bottom: 12 },
     renderLineHighlight: "none",
+    // Take input through a textarea, so the site's "/" search shortcut sees
+    // that the user is editing
+    editContext: false,
     "semanticHighlighting.enabled": true,
   });
   const decorations = editor.createDecorationsCollection();

@@ -2,7 +2,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 import { editorCompilerOptions } from "../editor-options.ts";
-import { defaultExample } from "../examples.ts";
+import { defaultExample, examples } from "../examples.ts";
 import { collectTypes } from "../types-plugin.ts";
 
 const files = collectTypes();
@@ -46,6 +46,10 @@ const errors = (service: ts.LanguageService) =>
 describe(collectTypes, () => {
   it("type-checks the home page example without errors", () => {
     expect(errors(languageService(defaultExample))).toEqual([]);
+  });
+
+  it.each(examples)("type-checks the $title example without errors", ({ code }) => {
+    expect(errors(languageService(code))).toEqual([]);
   });
 
   it("narrows a result by `properties`", () => {

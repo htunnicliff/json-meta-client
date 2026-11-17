@@ -1,26 +1,39 @@
 <script setup lang="ts">
 import { useData } from "vitepress";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import type { RecordedRequest } from "../recorder/index.ts";
 import type { CodeEditor } from "./editor.ts";
-import { defaultExample } from "./examples.ts";
+import { examples, findExample } from "./examples.ts";
 import type { Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
+import type { RunStatus } from "./timeline.ts";
+import TimelinePanel from "./TimelinePanel.vue";
 
 // How long typing must pause before the code runs again
 const RUN_DELAY_MS = 400;
+// How long a new run's results wait to replace the last run's while it has not
+// settled, so the panel does not flicker while typing
+const SHOW_PARTIAL_AFTER_MS = 600;
 // How long a run may stay busy before the panel suggests it is stuck
 const STUCK_AFTER_MS = 3_000;
 
-type Status = "running" | "stuck" | "waiting" | "finished" | "failed";
+/**
+ * What the panel shows of a run
+ */
+interface RunView {
+  requests: RecordedRequest[];
+  diagnostics: Diagnostic[];
+  errors: string[];
+  status: RunStatus;
+}
 
-const code = ref(defaultExample);
-const requests = ref<RecordedRequest[]>([]);
-const diagnostics = ref<Diagnostic[]>([]);
-const errors = ref<string[]>([]);
-const status = ref<Status>("running");
+const emptyView = (): RunView => ({ requests: [], diagnostics: [], errors: [], status: "running" });
+
+const code = ref(examples[0]!.code);
+const view = shallowRef<RunView>(emptyView());
+const rawJson = ref(false);
 
 const { isDark } = useData();
 const editorHost = ref<HTMLElement>();
@@ -31,36 +44,52 @@ let unmounted = false;
 
 let runner: Runner | undefined;
 let runTimer: ReturnType<typeof setTimeout> | undefined;
+let showTimer: ReturnType<typeof setTimeout> | undefined;
 let stuckTimer: ReturnType<typeof setTimeout> | undefined;
+// The latest run's view while it is not shown yet
+let next: RunView | undefined;
+
+function show() {
+  clearTimeout(showTimer);
+  if (next) view.value = next;
+  next = undefined;
+}
+
+function update(change: (current: RunView) => Partial<RunView>) {
+  if (next) next = { ...next, ...change(next) };
+  else view.value = { ...view.value, ...change(view.value) };
+}
 
 function onEvent(event: RunnerEvent) {
   switch (event.type) {
     case "start":
-      requests.value = [];
-      diagnostics.value = [];
-      errors.value = [];
-      status.value = "running";
+      next = emptyView();
+      clearTimeout(showTimer);
+      showTimer = setTimeout(show, SHOW_PARTIAL_AFTER_MS);
       clearTimeout(stuckTimer);
       stuckTimer = setTimeout(() => {
-        if (status.value === "running") status.value = "stuck";
+        show();
+        update(({ status }) => (status === "running" ? { status: "stuck" } : {}));
       }, STUCK_AFTER_MS);
       break;
-    case "request": {
-      const next = [...requests.value];
-      next[event.index] = event.request;
-      requests.value = next;
+    case "request":
+      update(({ requests }) => {
+        const copy = [...requests];
+        copy[event.index] = event.request;
+        return { requests: copy };
+      });
       break;
-    }
     case "idle":
-      status.value = event.finished ? "finished" : "waiting";
+      update(() => ({ status: event.finished ? "finished" : "waiting" }));
+      show();
       break;
     case "diagnostics":
-      diagnostics.value = event.diagnostics;
-      status.value = "failed";
+      update(() => ({ diagnostics: event.diagnostics, status: "failed" }));
+      show();
       break;
     case "error":
-      errors.value = [...errors.value, event.message];
-      status.value = "failed";
+      update(({ errors }) => ({ errors: [...errors, event.message], status: "failed" }));
+      show();
       break;
   }
 }
@@ -77,56 +106,32 @@ watch(code, () => {
 
 watch(isDark, (dark) => editor?.setDark(dark));
 
+function setCode(value: string) {
+  if (editor) editor.setCode(value);
+  else code.value = value;
+}
+
 onMounted(async () => {
   runner = createRunner(onEvent);
   runNow();
   const { createMonacoEditor } = await import("./monaco-editor.ts");
   if (unmounted || !editorHost.value) return;
   editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
-  editor.onChange((next) => (code.value = next));
+  editor.onChange((value) => (code.value = value));
   editorReady.value = true;
 });
 
 onBeforeUnmount(() => {
   unmounted = true;
   clearTimeout(runTimer);
+  clearTimeout(showTimer);
   clearTimeout(stuckTimer);
   runner?.dispose();
   editor?.dispose();
 });
 
-const recorded = computed(() => requests.value.filter(Boolean));
-
-const statusText = computed(() => {
-  switch (status.value) {
-    case "running":
-      return "Running…";
-    case "stuck":
-      return "Still running. The code may be in an infinite loop; editing it starts a new run.";
-    case "waiting":
-      return "Waiting for a response";
-    case "finished":
-      return recorded.value.length
-        ? "Finished; requests stay pending"
-        : "Finished without a request";
-    case "failed":
-      return "Stopped by an error";
-  }
-  return "";
-});
-
-const kindLabels: Record<RecordedRequest["kind"], string> = {
-  session: "Session",
-  request: "JMAP Request",
-  upload: "Upload",
-  download: "Download",
-  eventSource: "Event stream",
-  unknown: "Request",
-};
-
-function formatBody(body: unknown): string {
-  return typeof body === "string" ? body : JSON.stringify(body, null, 2);
-}
+const example = computed(() => findExample(code.value));
+const requestCount = computed(() => view.value.requests.filter(Boolean).length);
 
 function onKeydown(event: KeyboardEvent) {
   // Indent with Tab rather than leaving the editor
@@ -159,40 +164,24 @@ function onKeydown(event: KeyboardEvent) {
       />
     </section>
 
-    <section class="pane output-pane" aria-label="Requests" aria-live="polite">
+    <section class="pane output-pane" aria-label="Requests">
       <header class="pane-header">
-        <span class="pane-title">Requests</span>
-        <span class="status" :data-status="status">{{ statusText }}</span>
+        <span class="pane-title"> Requests <span class="count">{{ requestCount }}</span> </span>
+        <label class="toggle">
+          <input v-model="rawJson" type="checkbox" />
+          Raw JSON
+        </label>
       </header>
-      <div class="output">
-        <ul v-if="diagnostics.length" class="problems">
-          <li v-for="(diagnostic, index) in diagnostics" :key="index">
-            <span v-if="diagnostic.line" class="location"
-              >playground.ts:{{ diagnostic.line }}:{{ diagnostic.column }}</span
-            >
-            {{ diagnostic.message }}
-          </li>
-        </ul>
-
-        <ol class="requests">
-          <li v-for="(request, index) in recorded" :key="index" class="request">
-            <div class="request-line">
-              <span class="kind">{{ kindLabels[request.kind] }}</span>
-              <code class="method">{{ request.method }}</code>
-              <code class="url">{{ request.url }}</code>
-            </div>
-            <pre
-              v-if="request.body !== undefined"
-              class="body"
-            ><code>{{ formatBody(request.body) }}</code></pre>
-          </li>
-        </ol>
-
-        <ul v-if="errors.length" class="problems">
-          <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
-        </ul>
-
-        <p v-if="status === 'waiting'" class="waiting">Waiting for a response</p>
+      <div class="output" aria-live="polite">
+        <TimelinePanel
+          :requests="view.requests"
+          :status="view.status"
+          :errors="view.errors"
+          :diagnostics="view.diagnostics"
+          :raw-json="rawJson"
+          :example="example"
+          @show-batched="setCode"
+        />
       </div>
     </section>
   </div>
@@ -240,14 +229,18 @@ function onKeydown(event: KeyboardEvent) {
   color: var(--vp-c-text-1);
 }
 
-.status {
+.count {
+  margin-left: 2px;
+  font-weight: 400;
   color: var(--vp-c-text-2);
-  text-align: right;
 }
 
-.status[data-status="failed"],
-.status[data-status="stuck"] {
-  color: var(--vp-c-danger-1);
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
 }
 
 .editor {
@@ -280,77 +273,5 @@ function onKeydown(event: KeyboardEvent) {
   flex: 1;
   overflow: auto;
   padding: 12px;
-}
-
-.requests {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.request + .request {
-  margin-top: 12px;
-}
-
-.request-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.kind {
-  font-weight: 600;
-  color: var(--vp-c-text-1);
-}
-
-.method {
-  color: var(--vp-c-brand-1);
-}
-
-.url {
-  overflow-wrap: anywhere;
-  color: var(--vp-c-text-2);
-}
-
-.body {
-  margin: 6px 0 0;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--vp-code-block-bg);
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  line-height: 1.5;
-  overflow-x: auto;
-}
-
-.problems {
-  margin: 0 0 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  list-style: none;
-  background: var(--vp-c-danger-soft);
-  color: var(--vp-c-danger-1);
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  white-space: pre-wrap;
-}
-
-.requests + .problems {
-  margin-top: 12px;
-}
-
-.location {
-  font-weight: 600;
-}
-
-.waiting {
-  margin: 12px 0 0;
-  padding: 8px 12px;
-  border: 1px dashed var(--vp-c-divider);
-  border-radius: 6px;
-  color: var(--vp-c-text-2);
-  font-size: 13px;
 }
 </style>
