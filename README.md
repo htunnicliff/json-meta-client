@@ -1,7 +1,17 @@
-# json-meta-client
+<p align="center">
+  <a href="https://json-meta-client.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-transparent-dark.svg">
+      <img src="docs/public/readme-banner.svg" alt="json-meta-client" width="640">
+    </picture>
+  </a>
+</p>
 
-[![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
-[![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8)](./LICENSE)
+<p align="center">
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/version/json-meta-client" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://npmx.dev/api/registry/badge/license/json-meta-client" alt="License"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/types/json-meta-client" alt="Types included"></a>
+</p>
 
 ## Introduction
 
@@ -28,7 +38,8 @@ It features:
 The library is alpha software; its API may change between releases.
 
 View full documentation and examples on
-[json-meta-client.dev](https://json-meta-client.dev).
+[json-meta-client.dev](https://json-meta-client.dev), or try the library in
+your browser in the [playground](https://json-meta-client.dev/playground).
 
 ## Quick Start
 
