@@ -1,4 +1,9 @@
-# ![json-meta-client](https://json-meta-client.dev/readme-banner.svg)
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-dark.svg">
+    <img src="docs/public/readme-banner.svg" alt="json-meta-client" width="960">
+  </picture>
+</h1>
 
 [![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
 [![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8)](./LICENSE)
