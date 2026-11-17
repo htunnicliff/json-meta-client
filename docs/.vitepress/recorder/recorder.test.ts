@@ -40,6 +40,18 @@ describe(recordingFetch, () => {
     ]);
   });
 
+  it("reports a placeholder Session as the response to its fetch", async () => {
+    const responses: [number, RecordedResponse][] = [];
+    const recorder = recordingFetch({
+      onResponse: (response, index) => responses.push([index, response]),
+    });
+
+    const session = await (await recorder.fetch(sessionUrl)).json();
+    await recorder.settled();
+
+    expect(responses).toEqual([[0, { status: 200, body: session }]]);
+  });
+
   it("records a JMAP Request and leaves it pending", async () => {
     const recorder = recordingFetch();
     const client = clientRecordedBy(recorder);

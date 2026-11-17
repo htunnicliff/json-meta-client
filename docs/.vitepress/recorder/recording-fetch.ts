@@ -77,7 +77,11 @@ export interface RecorderOptions {
    * request pending
    */
   passThrough?: typeof fetch;
-  /** Called with the response to each request, in pass-through mode */
+  /**
+   * Called with the response to each request: every response in pass-through
+   * mode, and otherwise each placeholder Session, after its request is
+   * recorded
+   */
   onResponse?: (response: RecordedResponse, index: number) => void;
 }
 
@@ -169,10 +173,13 @@ export function recordingFetch({
     }
     const kind = classify(request.method, request.url);
     if (passThrough) return send(request, kind, passThrough);
-    push(record(request, kind));
+    const index = push(record(request, kind));
     if (kind !== "session") return new Promise(() => {});
     const session = placeholderSession(new URL(request.url).origin, extraUrns?.());
     sessions.push(session);
+    if (onResponse) {
+      void entries[index].then(() => onResponse({ status: 200, body: session }, index));
+    }
     return Promise.resolve(Response.json(session));
   };
 

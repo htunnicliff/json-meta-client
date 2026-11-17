@@ -41,14 +41,12 @@ export function run(code: string, post: (event: RunEvent) => void, connection?: 
   const recorder = recordingFetch({
     extraUrns: () => [...customUrns],
     onRecord: (request, index) => post({ type: "request", index, request }),
+    onResponse: (response, index) => {
+      post({ type: "response", index, response });
+      watch();
+    },
     // Connected: send requests on and record their responses
-    ...(connection && {
-      passThrough: globalThis.fetch.bind(globalThis),
-      onResponse: (response, index) => {
-        post({ type: "response", index, response });
-        watch();
-      },
-    }),
+    ...(connection && { passThrough: globalThis.fetch.bind(globalThis) }),
   });
   globalThis.fetch = (...args) => {
     watch();

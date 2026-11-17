@@ -3,17 +3,20 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import ConnectDialog from "./ConnectDialog.vue";
+import ConsolePanel from "./ConsolePanel.vue";
+import type { ConsoleLine } from "./ConsolePanel.vue";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { SourceInfo, Trace } from "./instrument.ts";
+import OptionsMenu from "./OptionsMenu.vue";
 import type { Connection, Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { labelsAt, sourceLines } from "./source-lines.ts";
+import { loadTimelineOptions, saveTimelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
-import type { ConsoleLine } from "./TimelinePanel.vue";
 
 /**
  * What the panel shows of a run
@@ -23,7 +26,7 @@ interface RunView {
   diagnostics: Diagnostic[];
   errors: string[];
   logs: ConsoleLine[];
-  /** Responses from a connected server, by request index */
+  /** Responses by request index: placeholder Sessions, and those from a connected server */
   responses: (RecordedResponse | undefined)[];
   status: RunStatus;
   /** The code the run ran */
@@ -45,6 +48,8 @@ const emptyView = (code: string, status: RunStatus): RunView => ({
 const code = ref(examples[0]!.code);
 const view = shallowRef<RunView>(emptyView(code.value, "ready"));
 const editorHost = ref<HTMLElement>();
+const timelineOptions = ref(loadTimelineOptions());
+watch(timelineOptions, saveTimelineOptions);
 let editor: CodeEditor | undefined;
 let runner: Runner | undefined;
 let unmounted = false;
@@ -234,7 +239,10 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="pane" aria-label="Output">
-        <header class="pane-header">Requests</header>
+        <header class="pane-header">
+          Requests
+          <OptionsMenu v-model="timelineOptions" />
+        </header>
         <div class="output" aria-live="polite">
           <TimelinePanel
             :requests="view.requests"
@@ -243,22 +251,37 @@ onBeforeUnmount(() => {
             :status="status"
             :errors="view.errors"
             :diagnostics="view.diagnostics"
-            :logs="view.logs"
             :lines="lines"
             :highlighted="highlighted"
+            :options="timelineOptions"
             @hover-call="panelHovered = $event"
           />
         </div>
       </section>
     </div>
+
+    <section class="pane console-pane" aria-label="Console">
+      <header class="pane-header">
+        Console
+        <span v-if="view.logs.length" class="count">{{ view.logs.length }}</span>
+      </header>
+      <div class="output">
+        <ConsolePanel :logs="view.logs" />
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
+/* As wide as the nav bar's content, centered on wide screens */
 .playground {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--vp-layout-max-width);
+  margin: 0 auto;
   padding: 12px 16px 16px;
   min-height: calc(100vh - var(--vp-nav-height));
 }
@@ -345,6 +368,7 @@ onBeforeUnmount(() => {
 @media (min-width: 960px) {
   .playground {
     height: calc(100vh - var(--vp-nav-height));
+    padding-inline: 32px;
   }
 
   .panes {
@@ -363,11 +387,35 @@ onBeforeUnmount(() => {
 }
 
 .pane-header {
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
   font-size: 13px;
   font-weight: 600;
+}
+
+.count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Short and scrolling, so the code and requests keep the room */
+.console-pane {
+  flex: none;
+  min-height: 0;
+  height: clamp(96px, 22vh, 240px);
 }
 
 .editor {

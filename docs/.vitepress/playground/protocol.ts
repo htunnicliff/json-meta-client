@@ -49,7 +49,7 @@ export interface Connection {
 export type RunEvent =
   /** A request the code made, with its position in send order */
   | { type: "request"; index: number; request: RecordedRequest }
-  /** The response to the request at `index`, from a connected server */
+  /** The response to the request at `index`: from a connected server, or a placeholder Session */
   | { type: "response"; index: number; response: RecordedResponse }
   /**
    * No request has been made for a while, so the code is waiting for a

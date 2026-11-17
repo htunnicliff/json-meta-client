@@ -4,15 +4,22 @@ import { computed } from "vue";
 import { annotateRequest, jsonLines } from "./timeline.ts";
 import type { AnnotatedLine, BatchEntry, TokenKind } from "./timeline.ts";
 
-const props = defineProps<{
-  /** A JMAP Request, shown with notes on its method calls */
-  batch?: BatchEntry;
-  /** Any other JSON value, shown when there is no `batch` */
-  body?: unknown;
-  label: string;
-  /** Labels of the method calls to highlight */
-  highlighted?: ReadonlySet<string>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** A JMAP Request, shown with notes on its method calls */
+    batch?: BatchEntry;
+    /** Any other JSON value, shown when there is no `batch` */
+    body?: unknown;
+    label: string;
+    /** Labels of the method calls to highlight */
+    highlighted?: ReadonlySet<string>;
+    /** Whether to number the lines */
+    lineNumbers?: boolean;
+    /** Whether to label method calls and result references */
+    notes?: boolean;
+  }>(),
+  { lineNumbers: true, notes: true },
+);
 
 const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 
@@ -31,7 +38,7 @@ const tokenClasses: Record<TokenKind, string> = {
 </script>
 
 <template>
-  <div class="raw" role="region" :aria-label="label">
+  <div class="raw" :class="{ numbered: lineNumbers }" role="region" :aria-label="label">
     <div
       v-for="(line, index) in lines"
       :key="index"
@@ -40,7 +47,7 @@ const tokenClasses: Record<TokenKind, string> = {
       @mouseenter="emit('hoverCall', line.call)"
       @mouseleave="emit('hoverCall', undefined)"
     >
-      <span class="number">{{ index + 1 }}</span>
+      <span v-if="lineNumbers" class="number">{{ index + 1 }}</span>
       <code class="text"
         ><span
           v-for="(token, tokenIndex) in line.tokens"
@@ -49,7 +56,9 @@ const tokenClasses: Record<TokenKind, string> = {
           >{{ token.text }}</span
         ></code
       >
-      <span v-if="line.note" class="note" :data-tone="line.note.tone">{{ line.note.text }}</span>
+      <span v-if="notes && line.note" class="note" :data-tone="line.note.tone">{{
+        line.note.text
+      }}</span>
     </div>
   </div>
 </template>
@@ -65,10 +74,14 @@ const tokenClasses: Record<TokenKind, string> = {
 
 .line {
   display: grid;
-  grid-template-columns: 3ch max-content minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 0 12px;
+}
+
+.numbered .line {
+  grid-template-columns: 3ch max-content minmax(0, 1fr);
 }
 
 .line.highlighted {

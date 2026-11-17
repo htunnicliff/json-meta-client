@@ -2,36 +2,39 @@
 import { computed } from "vue";
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
-import type { ConsoleLevel, Diagnostic } from "./protocol.ts";
+import ClipBox from "./ClipBox.vue";
+import type { Diagnostic } from "./protocol.ts";
 import RawJson from "./RawJson.vue";
 import type { SourceLines } from "./source-lines.ts";
+import { defaultTimelineOptions } from "./timeline-options.ts";
+import type { TimelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus, TimelineEntry } from "./timeline.ts";
 
-export interface ConsoleLine {
-  level: ConsoleLevel;
-  text: string;
-}
-
 const props = defineProps<{
   requests: readonly (RecordedRequest | undefined)[];
-  /** Responses from a connected server, by request index */
+  /** Responses by request index: placeholder Sessions, and those from a connected server */
   responses?: readonly (RecordedResponse | undefined)[];
   /** The host of the connected server, if any */
   connected?: string;
   status: RunStatus;
   errors: readonly string[];
   diagnostics: readonly Diagnostic[];
-  logs: readonly ConsoleLine[];
   /** Where the run's method calls were made and where it waits, when known */
   lines?: SourceLines;
   /** Labels of the method calls to highlight */
   highlighted?: ReadonlySet<string>;
+  /** Which parts of the timeline to show */
+  options?: TimelineOptions;
 }>();
 
 const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 
-const entries = computed(() => buildTimeline(props.requests));
+const show = computed(() => props.options ?? defaultTimelineOptions);
+
+const entries = computed(() =>
+  buildTimeline(props.requests).filter((entry) => show.value.sessions || entry.kind !== "session"),
+);
 
 const kindLabels: Record<Exclude<TimelineEntry["kind"], "batch">, string> = {
   session: "Session",
@@ -105,24 +108,38 @@ const waitingHint = computed(() => {
           <code class="method" :data-method="entry.method">{{ entry.method }}</code>
           <span class="target">
             <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
-            <span v-if="responses?.[entry.index]" class="aside">
-              HTTP {{ responses[entry.index]!.status || "failed" }}
-            </span>
-            <span v-else-if="entry.kind === 'session' && !connected" class="aside"
+            <span v-if="entry.kind === 'session' && !connected" class="aside"
               >answered by the playground</span
             >
+            <span v-else-if="responses?.[entry.index]" class="aside">
+              HTTP {{ responses[entry.index]!.status || "failed" }}
+            </span>
           </span>
         </header>
-        <template v-if="entry.kind === 'batch'">
-          <RawJson
-            class="entry-body"
-            :batch="entry"
-            label="JMAP Request as sent"
-            :highlighted="highlighted"
-            @hover-call="emit('hoverCall', $event)"
-          />
-          <template v-if="responses?.[entry.index]?.body !== undefined">
-            <h4 class="response-heading">Response</h4>
+        <template v-if="show.requestBodies">
+          <ClipBox v-if="entry.kind === 'batch'" :clip="show.clipLong">
+            <RawJson
+              class="entry-body"
+              :batch="entry"
+              label="JMAP Request as sent"
+              :highlighted="highlighted"
+              :line-numbers="show.lineNumbers"
+              :notes="show.callLabels"
+              @hover-call="emit('hoverCall', $event)"
+            />
+          </ClipBox>
+          <ClipBox
+            v-else-if="entry.kind !== 'session' && entry.body !== undefined"
+            :clip="show.clipLong"
+          >
+            <pre class="entry-body plain"><code>{{ formatBody(entry.body) }}</code></pre>
+          </ClipBox>
+        </template>
+        <template v-if="show.responses && responses?.[entry.index]?.body !== undefined">
+          <h4 v-if="show.requestBodies && entry.kind !== 'session'" class="response-heading">
+            Response
+          </h4>
+          <ClipBox :clip="show.clipLong">
             <pre
               v-if="typeof responses![entry.index]!.body === 'string'"
               class="entry-body plain"
@@ -131,27 +148,17 @@ const waitingHint = computed(() => {
               v-else
               class="entry-body"
               :body="responses![entry.index]!.body"
-              label="JMAP Response"
+              :label="entry.kind === 'session' ? 'Session' : 'Response'"
+              :line-numbers="show.lineNumbers"
             />
-          </template>
+          </ClipBox>
         </template>
-        <pre
-          v-else-if="entry.kind !== 'session' && entry.body !== undefined"
-          class="entry-body plain"
-        ><code>{{ formatBody(entry.body) }}</code></pre>
       </li>
     </ol>
 
     <ul v-if="errors.length" class="problems">
       <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
     </ul>
-
-    <ol v-if="logs.length" class="console" aria-label="Console output">
-      <li v-for="(line, index) in logs" :key="index" class="log" :data-level="line.level">
-        <span class="level">{{ line.level }}</span>
-        <pre class="text">{{ line.text }}</pre>
-      </li>
-    </ol>
 
     <p class="status-line" :data-status="status" role="status">{{ statusLine }}</p>
     <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
@@ -300,40 +307,6 @@ const waitingHint = computed(() => {
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
   white-space: pre-wrap;
-}
-
-.console {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-}
-
-.log {
-  display: grid;
-  grid-template-columns: 6ch minmax(0, 1fr);
-  gap: 8px;
-  padding: 2px 0;
-  border-bottom: 1px solid var(--vp-c-divider);
-}
-
-.level {
-  color: var(--vp-c-text-3);
-}
-
-.log[data-level="warn"] {
-  color: var(--vp-c-warning-1);
-}
-
-.log[data-level="error"] {
-  color: var(--vp-c-danger-1);
-}
-
-.text {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .status-line {
