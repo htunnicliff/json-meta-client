@@ -2,10 +2,10 @@ import { docsClientOptions } from "../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../src/index.ts";
 import { fillPlaceholders, recordingFetch, seedCallIds } from "../recorder/index.ts";
 import { formatConsoleArgs } from "./format.ts";
-import { createTracer, TRACER } from "./instrument.ts";
 import { SHIM_SPECIFIER } from "./protocol.ts";
 import type { ConsoleLevel, Connection, RunEvent } from "./protocol.ts";
 import { createShim } from "./shim.ts";
+import { createTracer, TRACER } from "./tracer.ts";
 
 /**
  * The seed of call ids, the same as the docs build's, so a docs example shows

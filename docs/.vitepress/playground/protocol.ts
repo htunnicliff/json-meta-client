@@ -1,5 +1,5 @@
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
-import type { Trace } from "./instrument.ts";
+import type { Trace } from "./tracer.ts";
 
 /**
  * The specifier that compiled code imports the library from. The run worker
