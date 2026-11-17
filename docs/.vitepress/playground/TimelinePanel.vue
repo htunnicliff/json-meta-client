@@ -157,7 +157,7 @@ const waitingHint = computed(() => {
               label="JMAP Request as sent"
               :highlighted="highlighted"
               :line-numbers="show.lineNumbers"
-              :notes="show.callLabels"
+              :links="show.callLabels"
               @hover-call="emit('hoverCall', $event)"
             />
           </ClipBox>

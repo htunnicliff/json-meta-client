@@ -48,6 +48,10 @@ export interface TimelineCall {
   label: string;
   name: string;
   callId: string;
+  /** 0-based position in the run, in send order, to tell calls apart by color */
+  order: number;
+  /** The method calls this one refers to the results of, by label */
+  refersTo: Record<string, { name: string; order: number }>;
   /** Labels of later method calls that refer to this one's result */
   referencedBy: string[];
   /**
@@ -176,16 +180,30 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
       ? body.methodCalls.filter(isInvocation)
       : [];
     const batchCalls = invocations.map(([name, args, callId]): TimelineCall => {
-      const label = isNamedCallId(callId) ? callId : `#${labels.size + 1}`;
+      const order = labels.size;
+      const label = isNamedCallId(callId) ? callId : `#${order + 1}`;
+      const refersTo: TimelineCall["refersTo"] = {};
       labels.set(callId, label);
       const references: Record<string, string> = {};
       for (const [key, value] of Object.entries(args)) {
         const target = key.startsWith("#") ? resultOf(value) : undefined;
         if (target === undefined) continue;
         references[key] = labels.get(target) ?? target;
-        calls.get(target)?.referencedBy.push(label);
+        const referred = calls.get(target);
+        if (referred) {
+          referred.referencedBy.push(label);
+          refersTo[referred.label] = { name: referred.name, order: referred.order };
+        }
       }
-      const call: TimelineCall = { label, name, callId, referencedBy: [], references };
+      const call: TimelineCall = {
+        label,
+        name,
+        callId,
+        order,
+        refersTo,
+        referencedBy: [],
+        references,
+      };
       calls.set(callId, call);
       return call;
     });
@@ -285,52 +303,67 @@ export function jsonLines(value: unknown): JsonLine[] {
 }
 
 /**
- * A line of a JMAP Request's JSON: the method call it belongs to, and a note
- * on where a method call starts and on the result references between calls
+ * A reference from one method call to the result of another, drawn as a line
+ * from the call id of the call referred to down to the argument that refers
+ */
+export interface ResultLink {
+  /** The method call referred to */
+  from: { label: string; name?: string; order?: number };
+  /** The method call that refers to it */
+  to: { label: string; name: string; order: number };
+  /** The argument that refers, such as `#ids` */
+  key: string;
+  /** The path into the result, such as `/ids` */
+  path?: string;
+}
+
+/**
+ * A line of a JMAP Request's JSON: the method call it belongs to, and where
+ * result references start and end
  */
 export interface AnnotatedLine extends JsonLine {
   /** The label of the method call this line is part of */
   call?: string;
-  note?: { text: string; tone: "label" | "reference" };
-}
-
-/**
- * The note on the line at `path` within a method call: its label where it
- * starts, and the result references it takes part in
- */
-function note(path: readonly (string | number)[], call: TimelineCall): AnnotatedLine["note"] {
-  const [, , part, key] = path;
-  if (path.length === 2) return { text: describeCall(call), tone: "label" };
-  if (part === 2 && path.length === 3 && call.referencedBy.length) {
-    return { text: `used by ${call.referencedBy.join(", ")}`, tone: "reference" };
-  }
-  const target = part === 1 && typeof key === "string" ? call.references[key] : undefined;
-  if (path.length === 4 && target) return { text: `from ${target}`, tone: "reference" };
-  return undefined;
+  /** Whether this line holds its method call's id, which references point to */
+  callId?: boolean;
+  /** The result reference this line's argument makes */
+  link?: ResultLink;
 }
 
 /**
  * The JMAP Request as `JSON.stringify(body, null, 2)` writes it, one line at a
- * time, with notes on its method calls and result references
+ * time, with where its method calls and result references are
  */
 export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
   const byId = new Map(batch.calls.map((call) => [call.callId, call]));
   const methodCalls: unknown[] =
     isObject(batch.body) && Array.isArray(batch.body.methodCalls) ? batch.body.methodCalls : [];
 
-  function callAt(path: readonly (string | number)[]): TimelineCall | undefined {
+  function invocationAt(path: readonly (string | number)[]): Invocation | undefined {
     const [top, index] = path;
     if (top !== "methodCalls" || typeof index !== "number") return undefined;
     const invocation = methodCalls[index];
-    return isInvocation(invocation) ? byId.get(invocation[2]) : undefined;
+    return isInvocation(invocation) ? invocation : undefined;
   }
 
   return writeJson(batch.body).map(({ text, tokens, path, closing }): AnnotatedLine => {
     const line: AnnotatedLine = { text, tokens };
-    const call = callAt(path);
-    if (call) {
-      line.call = call.label;
-      if (!closing) line.note = note(path, call);
+    const invocation = invocationAt(path);
+    const call = invocation && byId.get(invocation[2]);
+    if (!invocation || !call) return line;
+    line.call = call.label;
+    const [, , part, key] = path;
+    if (part === 2 && path.length === 3) line.callId = true;
+    const from = typeof key === "string" ? call.references[key] : undefined;
+    if (part === 1 && path.length === 4 && typeof key === "string" && from && !closing) {
+      const reference = invocation[1][key];
+      line.link = {
+        from: { label: from, ...call.refersTo[from] },
+        to: { label: call.label, name: call.name, order: call.order },
+        key,
+        path:
+          isObject(reference) && typeof reference.path === "string" ? reference.path : undefined,
+      };
     }
     return line;
   });
