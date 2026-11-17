@@ -58,8 +58,10 @@ defineProps<{ logs: readonly ConsoleLine[] }>();
   overflow-wrap: anywhere;
 }
 
+/* Centered in the pane */
 .empty {
-  margin: 0;
+  margin: auto;
+  text-align: center;
   font-size: 13px;
   color: var(--vp-c-text-3);
 }

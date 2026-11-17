@@ -580,7 +580,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* A column, so a lone message can center itself in the pane */
 .output {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: auto;
   padding: 12px;

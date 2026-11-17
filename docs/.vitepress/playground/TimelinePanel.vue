@@ -163,8 +163,10 @@ const waitingHint = computed(() => {
       <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
     </ul>
 
-    <p class="status-line" :data-status="status" role="status">{{ statusLine }}</p>
-    <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
+    <div class="status">
+      <p class="status-line" :data-status="status" role="status">{{ statusLine }}</p>
+      <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
+    </div>
   </div>
 </template>
 
@@ -173,6 +175,21 @@ const waitingHint = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1 0 auto;
+}
+
+/*
+ * The status line and hint sit in the middle of the room left below the
+ * requests, which is the whole pane before any request is made
+ */
+.status {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
 }
 
 /*
@@ -333,7 +350,8 @@ const waitingHint = computed(() => {
 }
 
 .hint {
-  margin: -8px 0 0;
+  max-width: 44ch;
+  margin: 0;
   font-size: 13px;
   color: var(--vp-c-text-2);
 }
