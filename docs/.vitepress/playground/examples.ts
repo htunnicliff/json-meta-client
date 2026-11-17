@@ -1,4 +1,8 @@
 import homeRequest from "../../snippets/home-request.md?raw";
+import searchMail from "../../snippets/examples/search-mail.ts?raw";
+import markAsRead from "../../snippets/examples/mark-as-read.ts?raw";
+import mailOverview from "../../snippets/examples/mail-overview.ts?raw";
+import mailSync from "../../snippets/examples/mail-sync.ts?raw";
 
 /**
  * The first TypeScript fence of a Markdown page
@@ -49,6 +53,10 @@ for (const { subject, from } of emails.list) {
 export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
   { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
+  { id: "search-mail", title: "Search mail", code: searchMail },
+  { id: "mark-as-read", title: "Mark as read", code: markAsRead },
+  { id: "mail-overview", title: "Kitchen sink: mail overview", code: mailOverview },
+  { id: "mail-sync", title: "Kitchen sink: incremental sync", code: mailSync },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");
