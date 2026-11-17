@@ -24,7 +24,7 @@ const sequentialAwaits = `import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
   sessionUrl: "<server>",
-  auth: "<token>",
+  auth: "<credentials>",
   capabilities: ["mail"],
 });
 

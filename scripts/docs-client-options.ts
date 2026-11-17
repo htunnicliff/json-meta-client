@@ -10,7 +10,7 @@
  * apart.
  */
 export const docsClientOptions = {
-  auth: "<token>",
+  auth: "<credentials>",
   sessionUrl: "<server>/.well-known/jmap",
   capabilities: ["mail", "submission"],
 } as const;

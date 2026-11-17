@@ -126,8 +126,9 @@ async function connect(event: SubmitEvent) {
 
       <p class="placeholders">
         Connecting fills in the placeholders of your code: a <code>sessionUrl</code> with
-        <code>&lt;server&gt;</code> becomes this Session URL, and <code>auth: "&lt;token&gt;"</code>
-        these credentials. Other values are used as written.
+        <code>&lt;server&gt;</code> becomes this Session URL, and
+        <code>auth: "&lt;credentials&gt;"</code> uses these credentials. Other values are used as
+        written.
       </p>
 
       <label class="remember" for="jmap-remember-connection">

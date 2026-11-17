@@ -4,7 +4,11 @@ import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
 
-import { hasServerPlaceholder, PLACEHOLDER_ORIGIN, TOKEN_PLACEHOLDER } from "../recorder/index.ts";
+import {
+  CREDENTIALS_PLACEHOLDER,
+  hasServerPlaceholder,
+  PLACEHOLDER_ORIGIN,
+} from "../recorder/index.ts";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -13,7 +17,7 @@ type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
  */
 export interface PlaceholderFill {
   sessionUrl: string;
-  credentials: "token" | "password";
+  authMethod: "bearer" | "basic";
 }
 
 /** Set or clear the connected server */
@@ -80,10 +84,17 @@ function decorations(state: EditorState): DecorationSet {
       if (name === "sessionUrl" && hasServerPlaceholder(value)) {
         title = server ? `Filled in with ${server.sessionUrl}` : `Mocked as ${PLACEHOLDER_ORIGIN}`;
         if (server) widget = new FillWidget(host(server.sessionUrl), title);
-      } else if (name === "auth" && value === TOKEN_PLACEHOLDER) {
-        const credentials = server?.credentials === "password" ? "your password" : "your token";
-        title = server ? `Filled in with ${credentials}` : "Connect a server to fill in";
-        if (server) widget = new FillWidget(credentials, title);
+      } else if (name === "auth" && value === CREDENTIALS_PLACEHOLDER) {
+        if (server) {
+          const basic = server.authMethod === "basic";
+          title = basic
+            ? "Uses the connected username and password"
+            : "Uses the connected Bearer token";
+          widget = new FillWidget(basic ? "Basic Auth" : "Bearer token", title);
+        } else {
+          title = "Connect a server to fill in";
+          widget = new FillWidget(title, title);
+        }
       } else {
         return;
       }
@@ -124,7 +135,7 @@ const marks = ViewPlugin.fromClass(
 );
 
 /**
- * Marks the `<server>` and `<token>` placeholders of client options, with a
- * note on what fills them in while a server is connected
+ * Marks the `<server>` and `<credentials>` placeholders of client options and
+ * shows how the playground fills them in
  */
 export const placeholderMarks: Extension = [fill, marks];

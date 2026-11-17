@@ -118,7 +118,7 @@ describe(run, () => {
 
       const tasks = defineCapability({ urn: "urn:example:tasks", entities: ["Task"] });
       const client = new JsonMetaClient({
-        auth: "<token>",
+        auth: "<credentials>",
         sessionUrl: "https://tasks.example.com/.well-known/jmap",
         capabilities: [tasks],
       });
@@ -205,7 +205,7 @@ describe(run, () => {
 function clientRecording(
   urls: string[],
   shim: ReturnType<typeof createShim>,
-  options: { sessionUrl: string; auth: string },
+  options: { sessionUrl: string; auth: string | { username: string; password: string } },
 ) {
   return new shim.JsonMetaClient({
     capabilities: ["mail"],
@@ -222,35 +222,47 @@ function clientRecording(
 }
 
 describe(createShim, () => {
-  it("fills in the placeholders of each client with a connected server", async () => {
-    const urls: string[] = [];
-    const shim = createShim(() => {}, {
-      sessionUrl: "https://real.example.com/jmap",
-      auth: "secret",
-    });
-    const client = clientRecording(urls, shim, {
-      sessionUrl: "<server>",
-      auth: "<token>",
-    });
+  it.each([
+    { auth: "secret", header: "Bearer secret" },
+    { auth: { username: "user", password: "secret" }, header: "Basic dXNlcjpzZWNyZXQ=" },
+  ])(
+    "fills in the placeholders with connected credentials for $header",
+    async ({ auth, header }) => {
+      const urls: string[] = [];
+      const shim = createShim(() => {}, {
+        sessionUrl: "https://real.example.com/jmap",
+        auth,
+      });
+      const client = clientRecording(urls, shim, {
+        sessionUrl: "<server>",
+        auth: "<credentials>",
+      });
 
-    await expect(client.session).rejects.toThrow("stop");
-    expect(urls).toEqual(["https://real.example.com/jmap Bearer secret"]);
-  });
+      await expect(client.session).rejects.toThrow("stop");
+      expect(urls).toEqual([`https://real.example.com/jmap ${header}`]);
+    },
+  );
 
-  it("keeps options that aren't placeholders, even with a connected server", async () => {
-    const urls: string[] = [];
-    const shim = createShim(() => {}, {
-      sessionUrl: "https://real.example.com/jmap",
-      auth: "secret",
-    });
-    const client = clientRecording(urls, shim, {
-      sessionUrl: "https://other.example.com/jmap",
-      auth: "mine",
-    });
+  it.each([
+    { auth: "mine", header: "Bearer mine" },
+    { auth: { username: "user", password: "mine" }, header: "Basic dXNlcjptaW5l" },
+  ])(
+    "keeps explicit credentials for $header even with a connected server",
+    async ({ auth, header }) => {
+      const urls: string[] = [];
+      const shim = createShim(() => {}, {
+        sessionUrl: "https://real.example.com/jmap",
+        auth: "secret",
+      });
+      const client = clientRecording(urls, shim, {
+        sessionUrl: "https://other.example.com/jmap",
+        auth,
+      });
 
-    await expect(client.session).rejects.toThrow("stop");
-    expect(urls).toEqual(["https://other.example.com/jmap Bearer mine"]);
-  });
+      await expect(client.session).rejects.toThrow("stop");
+      expect(urls).toEqual([`https://other.example.com/jmap ${header}`]);
+    },
+  );
 
   it("mocks the server placeholder without a connected server", async () => {
     const urls: string[] = [];
@@ -259,11 +271,11 @@ describe(createShim, () => {
       createShim(() => {}),
       {
         sessionUrl: "<server>",
-        auth: "<token>",
+        auth: "<credentials>",
       },
     );
 
     await expect(client.session).rejects.toThrow("stop");
-    expect(urls).toEqual(["https://jmap.example.com/ Bearer <token>"]);
+    expect(urls).toEqual(["https://jmap.example.com/ Bearer <credentials>"]);
   });
 });

@@ -30,7 +30,7 @@ export interface RunRequest {
   code: string;
   /**
    * A real server to send requests to, instead of recording them only, and to
-   * fill in the code's `<server>` and `<token>` placeholders with
+   * fill in the code's `<server>` and `<credentials>` placeholders with
    */
   connection?: Connection;
 }
