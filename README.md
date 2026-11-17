@@ -6,8 +6,9 @@
 </p>
 
 <p align="center">
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/v/json-meta-client?style=for-the-badge" alt="npm"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8" alt="License"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/version/json-meta-client" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://npmx.dev/api/registry/badge/license/json-meta-client" alt="License"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/types/json-meta-client" alt="Types included"></a>
 </p>
 
 ## Introduction
