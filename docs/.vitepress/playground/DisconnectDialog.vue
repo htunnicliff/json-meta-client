@@ -26,7 +26,10 @@ onMounted(() => dialog.value?.showModal());
   >
     <div class="body">
       <header>
-        <h2 id="disconnect-title">Disconnect from {{ server ?? "this server" }}?</h2>
+        <h2 id="disconnect-title">
+          Disconnect from <code v-if="server">{{ server }}</code
+          ><template v-else>this server</template>?
+        </h2>
         <p id="disconnect-details" class="lede">
           The playground forgets your credentials<template v-if="remembered"
             >, including those remembered on this device</template

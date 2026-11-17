@@ -61,7 +61,8 @@ function shortUrl(url: string): string {
 const statusLine = computed(() => {
   switch (props.status) {
     case "ready":
-      return props.connected ? `Ready to run against ${props.connected}` : "Ready to run";
+      // The template adds the connected host, as code
+      return props.connected ? "Ready to run against" : "Ready to run";
     case "running":
       return "Running…";
     case "finished":
@@ -164,7 +165,10 @@ const waitingHint = computed(() => {
     </ul>
 
     <div class="status">
-      <p class="status-line" :data-status="status" role="status">{{ statusLine }}</p>
+      <p class="status-line" :data-status="status" role="status">
+        {{ statusLine }}
+        <code v-if="status === 'ready' && connected">{{ connected }}</code>
+      </p>
       <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
     </div>
   </div>
