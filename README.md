@@ -1,6 +1,6 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-dark.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/readme-banner-transparent-dark.svg">
     <img src="docs/public/readme-banner.svg" alt="json-meta-client" width="640">
   </picture>
 </p>
