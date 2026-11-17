@@ -2,12 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
+import { PLACEHOLDER_ORIGIN } from "../recorder/placeholders.ts";
 import { codeOptions } from "./code-options.ts";
 import { loadCode, saveCode } from "./code-storage.ts";
 import ConnectDialog from "./ConnectDialog.vue";
 import { forgetConnection, loadConnection, saveConnection } from "./connection-storage.ts";
 import ConsolePanel from "./ConsolePanel.vue";
 import type { ConsoleLine } from "./ConsolePanel.vue";
+import DisconnectDialog from "./DisconnectDialog.vue";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { SourceInfo, Trace } from "./instrument.ts";
@@ -182,7 +184,9 @@ function onEvent(event: RunnerEvent) {
 
 // A real server: in memory only, unless the user chose to remember it
 const connection = shallowRef<Connection | undefined>(loadConnection());
+const remembered = ref(connection.value !== undefined);
 const connecting = ref(false);
+const confirmingDisconnect = ref(false);
 const server = computed(() => {
   try {
     return connection.value && new URL(connection.value.sessionUrl).host;
@@ -190,6 +194,8 @@ const server = computed(() => {
     return connection.value?.sessionUrl;
   }
 });
+// Where `<server>` points without a connection
+const mockedServer = new URL(PLACEHOLDER_ORIGIN).host;
 
 // Show in the editor what fills in the code's placeholders
 function showPlaceholderFill() {
@@ -219,6 +225,7 @@ async function run({ byUser = true } = {}) {
 function connect(chosen: Connection, remember: boolean) {
   connecting.value = false;
   connection.value = chosen;
+  remembered.value = remember;
   if (remember) saveConnection(chosen);
   else forgetConnection();
   runner?.stop();
@@ -227,8 +234,10 @@ function connect(chosen: Connection, remember: boolean) {
 }
 
 function disconnect() {
+  confirmingDisconnect.value = false;
   // Dropping the reference and the worker that held a copy forgets the credentials
   connection.value = undefined;
+  remembered.value = false;
   forgetConnection();
   runner?.stop();
   view.value = emptyView(code.value, "ready");
@@ -333,11 +342,29 @@ onBeforeUnmount(() => {
         </svg>
         Run <kbd>⌘↵</kbd>
       </button>
-      <div v-if="connection" class="connection">
-        <span class="connected" title="Fills in <server> and <token> in your code's client options">
+      <div class="connection">
+        <span
+          v-if="connection"
+          class="status"
+          data-state="connected"
+          title="Fills in <server> and <token> in your code's client options"
+        >
           <strong>Connected</strong> · {{ server }}
         </span>
-        <button type="button" class="button secondary" @click="disconnect">
+        <span
+          v-else
+          class="status"
+          data-state="mocked"
+          title="Without a server, the playground answers the Session request with a placeholder and leaves method calls unanswered. Connect a server for real responses."
+        >
+          <strong>Mocked</strong> · {{ mockedServer }}
+        </span>
+        <button
+          v-if="connection"
+          type="button"
+          class="button secondary"
+          @click="confirmingDisconnect = true"
+        >
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m19 5 3-3" />
             <path d="m2 22 3-3" />
@@ -348,18 +375,25 @@ onBeforeUnmount(() => {
           </svg>
           Disconnect
         </button>
+        <button v-else type="button" class="button secondary" @click="connecting = true">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 22v-5" />
+            <path d="M9 8V2" />
+            <path d="M15 8V2" />
+            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+          </svg>
+          Connect a server…
+        </button>
       </div>
-      <button v-else type="button" class="button secondary connect" @click="connecting = true">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 22v-5" />
-          <path d="M9 8V2" />
-          <path d="M15 8V2" />
-          <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-        </svg>
-        Connect a server…
-      </button>
     </div>
     <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
+    <DisconnectDialog
+      v-if="confirmingDisconnect"
+      :server="server"
+      :remembered="remembered"
+      @disconnect="disconnect"
+      @close="confirmingDisconnect = false"
+    />
     <div
       class="panes"
       :class="{ resizing }"
@@ -541,19 +575,35 @@ onBeforeUnmount(() => {
   color: var(--vp-button-alt-hover-text);
 }
 
-.connect,
-.connection {
-  margin-left: auto;
-}
-
 .connection {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
+  margin-left: auto;
 }
 
-.connected {
+/* A dot before the state: green for a server, amber like the Mocked badge for mocks */
+.status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--vp-c-green-1);
+  vertical-align: 1px;
+}
+
+.status[data-state="mocked"]::before {
+  background: var(--vp-c-warning-1);
+}
+
+.status[data-state="mocked"] {
+  cursor: help;
+}
+
+.status {
   overflow: hidden;
   font-size: 13px;
   color: var(--vp-c-text-2);

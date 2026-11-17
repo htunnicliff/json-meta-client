@@ -111,41 +111,9 @@ async function connect() {
   </dialog>
 </template>
 
+<style scoped src="./dialog.css"></style>
+
 <style scoped>
-.dialog {
-  margin: auto;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  padding: 0;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 14px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-1);
-}
-
-.dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px 20px 0;
-  font-size: 14px;
-}
-
-h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.lede {
-  margin: 6px 0 0;
-  color: var(--vp-c-text-2);
-}
-
 .fields {
   display: flex;
   flex-direction: column;
@@ -201,36 +169,5 @@ h2 {
   border-radius: 8px;
   background: var(--vp-c-danger-soft);
   color: var(--vp-c-danger-1);
-}
-
-.footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 4px -20px 0;
-  padding: 12px 20px;
-  border-top: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
-}
-
-.cancel {
-  margin-left: auto;
-}
-
-.button {
-  padding: 6px 14px;
-  border-radius: 8px;
-  background: var(--vp-button-alt-bg);
-  font-weight: 500;
-}
-
-.button.primary {
-  background: var(--vp-c-tip-1);
-  color: var(--vp-c-bg);
-}
-
-.button:disabled {
-  opacity: 0.6;
 }
 </style>
