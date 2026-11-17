@@ -326,16 +326,36 @@ onBeforeUnmount(() => {
           </option>
         </select>
       </label>
-      <button type="button" class="button run" @click="run()">▶ Run <kbd>⌘↵</kbd></button>
-      <span
-        v-if="connection"
-        class="connected"
-        title="Fills in <server> and <token> in your code's client options"
-      >
-        <strong>Connected</strong> · {{ server }}
-        <button type="button" class="disconnect" @click="disconnect">Disconnect</button>
-      </span>
-      <button v-else type="button" class="button connect" @click="connecting = true">
+      <!-- Icons from Lucide (ISC license): play, plug and unplug -->
+      <button type="button" class="button run" @click="run()">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 3l14 9-14 9Z" fill="currentColor" />
+        </svg>
+        Run <kbd>⌘↵</kbd>
+      </button>
+      <div v-if="connection" class="connection">
+        <span class="connected" title="Fills in <server> and <token> in your code's client options">
+          <strong>Connected</strong> · {{ server }}
+        </span>
+        <button type="button" class="button secondary" @click="disconnect">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m19 5 3-3" />
+            <path d="m2 22 3-3" />
+            <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" />
+            <path d="M7.5 13.5 10 11" />
+            <path d="M10.5 16.5 13 14" />
+            <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" />
+          </svg>
+          Disconnect
+        </button>
+      </div>
+      <button v-else type="button" class="button secondary connect" @click="connecting = true">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 22v-5" />
+          <path d="M9 8V2" />
+          <path d="M15 8V2" />
+          <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+        </svg>
         Connect a server…
       </button>
     </div>
@@ -443,8 +463,17 @@ onBeforeUnmount(() => {
   color: var(--vp-c-text-2);
 }
 
+/* Every control in the toolbar is one height, with one corner radius */
+.example select,
+.button {
+  box-sizing: border-box;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
 .example select {
-  padding: 4px 28px 4px 10px;
+  padding: 0 28px 0 10px;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   background: var(--vp-c-bg)
@@ -455,9 +484,27 @@ onBeforeUnmount(() => {
 }
 
 .button {
-  padding: 4px 12px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid transparent;
   font-weight: 500;
+  white-space: nowrap;
+  transition:
+    border-color 0.25s,
+    background-color 0.25s;
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .run {
@@ -465,38 +512,53 @@ onBeforeUnmount(() => {
   color: var(--vp-c-white);
 }
 
+.run .icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 0;
+}
+
 .run:hover {
   background: var(--vp-c-brand-2);
 }
 
 .run kbd {
-  margin-left: 4px;
   font-family: inherit;
   font-size: 12px;
   opacity: 0.8;
 }
 
-.connect {
+/* Like the site's alt buttons, such as those on the home page */
+.secondary {
+  border-color: var(--vp-button-alt-border);
+  background: var(--vp-button-alt-bg);
+  color: var(--vp-button-alt-text);
+}
+
+.secondary:hover {
+  border-color: var(--vp-button-alt-hover-border);
+  background: var(--vp-button-alt-hover-bg);
+  color: var(--vp-button-alt-hover-text);
+}
+
+.connect,
+.connection {
   margin-left: auto;
-  border: 1px solid var(--vp-c-divider);
-  color: var(--vp-c-text-1);
+}
+
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .connected {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
+  overflow: hidden;
   font-size: 13px;
   color: var(--vp-c-text-2);
-}
-
-.disconnect {
-  padding: 2px 10px;
-  border-radius: 8px;
-  background: var(--vp-button-alt-bg);
-  color: var(--vp-c-text-1);
-  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Narrow: code, requests, console. Wide: the console under the code, the requests beside both. */
