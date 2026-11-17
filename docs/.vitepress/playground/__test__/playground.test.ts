@@ -1,0 +1,164 @@
+import { Worker } from "node:worker_threads";
+
+import { describe, expect, it } from "vitest";
+
+import homeRequest from "../../../snippets/home-request.md?raw";
+import { PLACEHOLDER_ACCOUNT_ID } from "../../recorder/index.ts";
+import type { RecordedRequest } from "../../recorder/index.ts";
+import { compile } from "../compile.ts";
+import { defaultExample } from "../examples.ts";
+import { SHIM_SPECIFIER } from "../protocol.ts";
+import { run } from "../run.ts";
+import type { NodeRunMessage } from "./node-run-worker.ts";
+
+function compiled(source: string): string {
+  const output = compile(source);
+  if ("diagnostics" in output) throw new Error(JSON.stringify(output.diagnostics));
+  return output.code;
+}
+
+/**
+ * Run code in a worker thread until it is idle, and return what it did by then
+ */
+async function runUntilIdle(source: string) {
+  const worker = new Worker(new URL("node-run-worker.ts", import.meta.url), {
+    workerData: { code: compiled(source) },
+  });
+  const messages: NodeRunMessage[] = [];
+  try {
+    const { finished } = await new Promise<{ finished: boolean }>((resolve, reject) => {
+      worker.on("error", reject);
+      worker.on("message", (message: NodeRunMessage) => {
+        messages.push(message);
+        if (message.type === "idle") resolve(message);
+        if (message.type === "error") reject(new Error(message.message));
+      });
+    });
+    const requests: RecordedRequest[] = [];
+    const warnings: string[] = [];
+    for (const message of messages) {
+      if (message.type === "request") requests[message.index] = message.request;
+      if (message.type === "warn") warnings.push(message.message);
+    }
+    return { finished, requests, warnings };
+  } finally {
+    await worker.terminate();
+  }
+}
+
+const jmapRequests = (requests: RecordedRequest[]) =>
+  requests.filter(({ kind }) => kind === "request").map(({ body }) => body);
+
+describe(compile, () => {
+  it("points imports of the library at the shim", () => {
+    const code = compiled(
+      'import { JsonMetaClient } from "json-meta-client";\nconst lib = await import("json-meta-client");\nconsole.log(JsonMetaClient, lib);',
+    );
+
+    expect(code).toContain(`from "${SHIM_SPECIFIER}"`);
+    expect(code).toContain(`import("${SHIM_SPECIFIER}")`);
+    expect(code).not.toContain('"json-meta-client"');
+  });
+
+  it("reports any other import, with its location", () => {
+    expect(compile('const a = 1;\nimport { z } from "zod";\nconsole.log(z, a);')).toEqual({
+      diagnostics: [
+        {
+          message: 'The playground can only import "json-meta-client", not "zod"',
+          line: 2,
+          column: 19,
+        },
+      ],
+    });
+  });
+
+  it("allows type-only imports of other modules", () => {
+    expect(compile('import type { Except } from "type-fest";\nlet a: Except<{}, never>;')).toEqual({
+      code: expect.any(String),
+    });
+  });
+
+  it("reports syntax errors", () => {
+    expect(compile("const a = ;")).toEqual({
+      diagnostics: [{ message: "Expression expected.", line: 1, column: 11 }],
+    });
+  });
+});
+
+describe(run, () => {
+  it("makes the same JMAP Request for the home page example as its generated tab", async () => {
+    const tab = /```json \[JMAP Request[^\n]*\n([\s\S]*?)^```/m.exec(homeRequest)?.[1];
+
+    const { finished, requests } = await runUntilIdle(defaultExample);
+
+    expect(finished).toBe(false);
+    expect(jmapRequests(requests)).toEqual([JSON.parse(tab!)]);
+  });
+
+  it("stops after the first Batch when calls are awaited in turn", async () => {
+    const { finished, requests } = await runUntilIdle(`
+      const { ids } = await client.api.Email.query({ limit: 5 });
+      await client.api.Email.get({ ids });
+    `);
+
+    expect(finished).toBe(false);
+    expect(requests.map(({ kind }) => kind)).toEqual(["session", "request"]);
+    expect(jmapRequests(requests)).toEqual([
+      expect.objectContaining({
+        methodCalls: [["Email/query", expect.anything(), expect.any(String)]],
+      }),
+    ]);
+  });
+
+  it("adds custom capabilities to the placeholder Session, so no warning appears", async () => {
+    const { requests, warnings } = await runUntilIdle(`
+      import { defineCapability, JsonMetaClient } from "json-meta-client";
+
+      const tasks = defineCapability({ urn: "urn:example:tasks", entities: ["Task"] });
+      const client = new JsonMetaClient({
+        auth: "<token>",
+        sessionUrl: "https://tasks.example.com/.well-known/jmap",
+        capabilities: [tasks],
+      });
+
+      await client.api.Task.get({ ids: ["task-1"] });
+    `);
+
+    expect(jmapRequests(requests)).toEqual([
+      {
+        using: ["urn:ietf:params:jmap:core", "urn:example:tasks"],
+        methodCalls: [
+          ["Task/get", { ids: ["task-1"], accountId: PLACEHOLDER_ACCOUNT_ID }, expect.any(String)],
+        ],
+      },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("records blob and event-stream requests and leaves them pending", async () => {
+    const { requests } = await runUntilIdle(`
+      const accountId = "${PLACEHOLDER_ACCOUNT_ID}";
+      void client.blob.upload("hello", { accountId });
+      void client.blob.download({ accountId, blobId: "B1", name: "a.txt", type: "text/plain" });
+      await client.onStateChange(() => {});
+    `);
+
+    expect(requests.map(({ kind }) => kind)).toEqual([
+      "session",
+      "upload",
+      "download",
+      "eventSource",
+    ]);
+  });
+
+  it("reports when the code finishes", async () => {
+    const { finished, requests } = await runUntilIdle("void client.api.Mailbox.get({});");
+
+    expect(finished).toBe(true);
+    expect(requests.map(({ kind }) => kind)).toEqual(["session", "request"]);
+  });
+
+  it("reports an error the code throws", async () => {
+    await expect(runUntilIdle('throw new TypeError("nope");')).rejects.toThrow("TypeError: nope");
+  });
+});

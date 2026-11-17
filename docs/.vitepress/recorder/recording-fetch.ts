@@ -41,10 +41,24 @@ export interface Recorder {
   settled(): Promise<RecordedRequest[]>;
 }
 
+export interface RecorderOptions {
+  /**
+   * Capability URNs to add to each placeholder Session, read at each Session
+   * fetch, such as those of custom capabilities a client was configured with
+   */
+  extraUrns?: () => readonly string[];
+  /**
+   * Called with each recorded request once its body is read, and its index in
+   * the order received. Requests whose bodies take longer may arrive out of
+   * order.
+   */
+  onRecord?: (request: RecordedRequest, index: number) => void;
+}
+
 /**
  * Create a {@link Recorder}
  */
-export function recordingFetch(): Recorder {
+export function recordingFetch({ extraUrns, onRecord }: RecorderOptions = {}): Recorder {
   const entries: Promise<RecordedRequest>[] = [];
   // Placeholder Sessions handed out, so their other URLs are recognized
   const sessions: Session[] = [];
@@ -75,12 +89,18 @@ export function recordingFetch(): Recorder {
     return entry;
   }
 
+  function push(entry: Promise<RecordedRequest>) {
+    const index = entries.length;
+    entries.push(entry);
+    if (onRecord) void entry.then((request) => onRecord(request, index));
+  }
+
   const recordingFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     let request: Request;
     try {
       request = new Request(input, init);
     } catch {
-      entries.push(
+      push(
         Promise.resolve({
           kind: "unknown",
           method: "GET",
@@ -90,9 +110,9 @@ export function recordingFetch(): Recorder {
       return new Promise(() => {});
     }
     const kind = classify(request.method, request.url);
-    entries.push(record(request, kind));
+    push(record(request, kind));
     if (kind !== "session") return new Promise(() => {});
-    const session = placeholderSession(new URL(request.url).origin);
+    const session = placeholderSession(new URL(request.url).origin, extraUrns?.());
     sessions.push(session);
     return Promise.resolve(Response.json(session));
   };
