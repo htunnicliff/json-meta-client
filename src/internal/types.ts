@@ -30,7 +30,9 @@ import type { Ref, WithResultRefFn } from "./ref.ts";
  * - Property access: `/foo/bar` navigates nested object keys
  * - Numeric index: `/list/0/name` accesses array indices by number literal
  * - Array wildcard: `/list/<star>/name` maps through every element,
- *   collecting results into an array (per RFC 8620 §3.7)
+ *   collecting results into an array. When the rest of the pointer yields
+ *   an array for an element, its contents are added individually, so
+ *   `/list/<star>/emailIds` gives `string[]` (per RFC 8620 §3.7)
  *
  * Returns `never` for invalid paths, such as a wildcard applied to a non-array.
  */
@@ -52,7 +54,7 @@ type ResolveSegments<T, Segments extends string> = Segments extends ""
 type ResolveSegment<T, Segment extends string, Rest extends string> = Segment extends "*"
   ? // Wildcard: resolve the rest against each element, collecting an array
     T extends ReadonlyArray<infer Element>
-    ? Array<ResolveSegments<Element, Rest>>
+    ? Array<FlattenOnce<ResolveSegments<Element, Rest>>>
     : never
   : Segment extends `${number}`
     ? // Numeric index: an array element, or a character of a string
@@ -65,6 +67,12 @@ type ResolveSegment<T, Segment extends string, Rest extends string> = Segment ex
       Segment extends keyof T
       ? ResolveSegments<T[Segment], Rest>
       : never;
+
+/**
+ * The items a wildcard adds to its output for one resolved value: the
+ * contents of an array, or any other value as itself (RFC 8620 §3.7).
+ */
+type FlattenOnce<T> = T extends ReadonlyArray<infer Item> ? Item : T;
 
 /** Convert a type-fest dot path into a JSON Pointer. */
 type DotPathToPointer<Path extends string> = `/${Replace<Path, ".", "/", { all: true }>}`;
