@@ -8,15 +8,22 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-export * from "./errors/cancellation-error.ts";
-export * from "./errors/capability-configuration-error.ts";
-export * from "./errors/configuration-error.ts";
-export * from "./errors/http-error.ts";
-export * from "./errors/invalid-uri-template-error.ts";
-export * from "./errors/jmap-error.ts";
-export * from "./errors/json-meta-error.ts";
-export * from "./errors/method-call-error.ts";
-export * from "./errors/network-error.ts";
-export * from "./errors/state-change-error.ts";
-export * from "./errors/unknown-entity-error.ts";
-export * from "./errors/unknown-error.ts";
+import { InvalidUriTemplateError } from "../errors/index.ts";
+
+/**
+ * Expand an rfc 6570 URI template into a regular URI
+ */
+export function expandURITemplate(template: string, params: Record<string, string>): string {
+  let uri = template;
+  for (const [key, value] of Object.entries(params)) {
+    const target = `{${key}}`;
+    if (!uri.includes(target)) {
+      throw new InvalidUriTemplateError(`Template does not contain "${key}"`, {
+        template,
+        params,
+      });
+    }
+    uri = uri.replace(target, encodeURIComponent(value));
+  }
+  return uri;
+}

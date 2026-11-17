@@ -9,36 +9,17 @@
 // ----------------------------------------------------------------------- //
 
 import type { DefaultCapabilities } from "./built-ins.ts";
-import { DEFAULT_CAPABILITIES, getCapabilitiesForBuiltIns } from "./built-ins.ts";
-import type { Capability } from "./capability.ts";
-import {
-  ConfigurationError,
-  HttpError,
-  JsonMetaError,
-  NetworkError,
-  StateChangeError,
-} from "./errors.ts";
+import { getCapabilitiesForBuiltIns } from "./built-ins.ts";
+import { ConfigurationError, StateChangeError } from "./errors/index.ts";
+import { CapabilityIndex } from "./internal/capability-index.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
-import { resolveDefaultAccount } from "./internal/default-account.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
-import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
-import type { FindMethodOwner } from "./internal/method-owners.ts";
-import { mapMethodOwners } from "./internal/method-owners.ts";
-import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import { expandURITemplate } from "./internal/expand-uri-template.ts";
+import { HttpClient } from "./internal/http.ts";
 import { readStateChanges } from "./internal/read-state-changes.ts";
-import type { Middleware } from "./internal/types.ts";
-import { createHttpError } from "./internal/util/create-http-error.ts";
-import { encodeBasicCredentials } from "./internal/util/encode-basic-credentials.ts";
-import { expandURITemplate } from "./internal/util/expand-uri-template.ts";
-import { isReadableEventStream } from "./internal/util/is-readable-event-stream.ts";
-import type {
-  FileDownload,
-  FileUpload,
-  Response as JMAPResponse,
-  Session,
-} from "./rfc-types/core/index.ts";
+import type { FileDownload, FileUpload, Response as JMAPResponse } from "./rfc-types/core/index.ts";
 import type {
   CapabilityOption,
   ClientApi,
@@ -55,38 +36,22 @@ export class JsonMetaClient<
   constructor(options: Config<GivenCapabilities>) {
     assertValidConfig(options);
 
-    // Assemble config
-    this.#config = {
-      auth: options.auth,
-      sessionUrl: options.sessionUrl,
-      capabilities: getCapabilitiesForBuiltIns(options.capabilities),
-      hooks: options.hooks,
-    };
-
-    // The capability that gives each method call its default account
-    const capabilities = [...DEFAULT_CAPABILITIES, ...this.#config.capabilities];
-    this.#findMethodOwner = mapMethodOwners(capabilities);
-    this.#configuredUrns = new Set(capabilities.map(({ urn }) => urn));
-
-    // Built-in transformations of each method's arguments
-    this.#middleware = [replaceNestedResultRefKeys];
-
-    // Build entity <-> URN map
-    this.#entityToUrn = mapEntitiesToUrns(this.#config.capabilities);
-
-    // Default capabilities are always included, so their entities are always known
-    this.#knownEntities = new Set([
-      ...Object.keys(this.#entityToUrn),
-      ...DEFAULT_CAPABILITIES.flatMap((capability) => capability.entities),
-    ]);
+    this.#sessionUrl = options.sessionUrl;
+    this.#http = new HttpClient(options.auth, options.hooks);
+    this.#capabilities = new CapabilityIndex(getCapabilitiesForBuiltIns(options.capabilities));
 
     // Everything a dispatcher needs; each API gets its own dispatcher
     this.#dispatcherOptions = {
-      transport: this.#postJmapRequest,
+      transport: (request, session) =>
+        this.#http.fetchJson<JMAPResponse>(session.apiUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+        }),
       session: () => this.session,
-      urnsForEntity: (entity) => this.#entityToUrn[entity] ?? [],
-      findMethodOwner: this.#findMethodOwner,
-      hooks: this.#config.hooks,
+      urnsForEntity: this.#capabilities.urnsForEntity,
+      findMethodOwner: this.#capabilities.findMethodOwner,
+      hooks: options.hooks,
     };
 
     // Initialize API proxy
@@ -119,16 +84,15 @@ export class JsonMetaClient<
    * result in a logged warning.
    */
   refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
-    this.#session = this.#fetchJson<ClientSession<GivenCapabilities>>(this.#config.sessionUrl).then(
-      (session) => {
-        const isFirstLoad = !this.#sessionSync;
-        this.#sessionSync = session;
-        if (isFirstLoad) {
+    this.#session = this.#http
+      .fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl)
+      .then((session) => {
+        if (!this.#sessionLoaded) {
+          this.#sessionLoaded = true;
           this.#validateSessionCapabilities(session);
         }
         return session;
-      },
-    );
+      });
 
     return this.#session;
   };
@@ -145,7 +109,7 @@ export class JsonMetaClient<
     upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
       const session = await this.session;
       const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
-      return this.#fetchJson<FileUpload.Result>(url, { method: "POST", body });
+      return this.#http.fetchJson<FileUpload.Result>(url, { method: "POST", body });
     },
     /**
      * Download a blob from the given account
@@ -153,7 +117,7 @@ export class JsonMetaClient<
     download: async (params: FileDownload.Params): Promise<Response> => {
       const session = await this.session;
       const url = expandURITemplate(session.downloadUrl, { ...params });
-      const { response } = await this.#fetch(url, { method: "GET" });
+      const { response } = await this.#http.fetch(url, { method: "GET" });
       return response;
     },
   };
@@ -180,7 +144,7 @@ export class JsonMetaClient<
       fetch: async (url, options) => {
         const requestOptions: RequestInit = options ?? {};
         try {
-          return (await this.#fetch(url, requestOptions, true)).response;
+          return (await this.#http.fetch(url, requestOptions, true)).response;
         } catch (cause) {
           if (!requestOptions.signal?.aborted) {
             handler(new StateChangeError("Event-stream connection failed", { cause }), undefined);
@@ -193,7 +157,11 @@ export class JsonMetaClient<
           for (const change of readStateChanges(event.data)) {
             handler(null, {
               ...change,
-              isPrimaryAccount: this.#isPrimaryAccount(session, change.entity, change.accountId),
+              isPrimaryAccount: this.#capabilities.isPrimaryAccount(
+                session,
+                change.entity,
+                change.accountId,
+              ),
             });
           }
         } catch (error) {
@@ -227,39 +195,24 @@ export class JsonMetaClient<
   // ------------------- Internals -------------------
 
   /**
-   * Parameters used to initialize the client
+   * The URI for getting a JMAP session
    */
-  readonly #config: Config<ReadonlyArray<Capability>>;
+  readonly #sessionUrl: string | URL;
 
   /**
-   * Transformations applied to each method's arguments
+   * Makes every HTTP request, with authentication and the fetch hooks
    */
-  readonly #middleware: ReadonlyArray<Middleware>;
+  readonly #http: HttpClient;
 
   /**
-   * Finds the capability that gives a method call its default account
+   * Lookups over the default and configured capabilities
    */
-  readonly #findMethodOwner: FindMethodOwner;
-
-  /**
-   * The URNs of the default and configured capabilities
-   */
-  readonly #configuredUrns: ReadonlySet<string>;
+  readonly #capabilities: CapabilityIndex;
 
   /**
    * Dependencies shared by the dispatcher of every API
    */
   readonly #dispatcherOptions: DispatcherOptions;
-
-  /**
-   * A mapping of every entity name to their respective capability URNs
-   */
-  readonly #entityToUrn: Record<string, string[]>;
-
-  /**
-   * Entities declared by a configured or default capability
-   */
-  readonly #knownEntities: ReadonlySet<string>;
 
   /**
    * A reference to a promise that is used to access
@@ -268,9 +221,9 @@ export class JsonMetaClient<
   #session: Promise<ClientSession<GivenCapabilities>> | undefined;
 
   /**
-   * The {@link ClientSession} received from the session URI
+   * Whether a session has loaded, and its capabilities been validated
    */
-  #sessionSync: ClientSession<GivenCapabilities> | undefined;
+  #sessionLoaded = false;
 
   /**
    * Evaluates the capabilities configured in the client with
@@ -283,7 +236,6 @@ export class JsonMetaClient<
    * only on the accounts that can use it.
    */
   #validateSessionCapabilities(session: ClientSession<GivenCapabilities>): void {
-    const configuredUrns = new Set(Object.values(this.#entityToUrn).flat());
     const availableUrns = new Set([
       ...Object.keys(session.capabilities),
       ...Object.values(session.accounts ?? {}).flatMap((account) =>
@@ -291,7 +243,9 @@ export class JsonMetaClient<
       ),
     ]);
 
-    const configuredButNotAvailable = [...configuredUrns].filter((urn) => !availableUrns.has(urn));
+    const configuredButNotAvailable = [...this.#capabilities.requestUrns].filter(
+      (urn) => !availableUrns.has(urn),
+    );
     if (configuredButNotAvailable.length > 0) {
       const error = new ConfigurationError(
         `json-meta-client was configured with capabilities that are NOT found in the current session: ${configuredButNotAvailable.join(", ")}`,
@@ -306,141 +260,12 @@ export class JsonMetaClient<
   }
 
   /**
-   * Whether an `Entity/get` call that passes no `accountId` would go to the
-   * account, by the same resolution as method calls. Such a call has no
-   * default account when no capability owns it, as with push-only types
-   * like `EmailDelivery`; the account then counts as primary if it is the
-   * primary account of any configured capability, or the session's only
-   * account.
-   */
-  #isPrimaryAccount(session: Session, entity: string, accountId: string): boolean {
-    const account = resolveDefaultAccount(this.#findMethodOwner(`${entity}/get`), session);
-    switch (account.status) {
-      case "resolved": {
-        return account.accountId === accountId;
-      }
-      case "none": {
-        const accountIds = Object.keys(session.accounts ?? {});
-        return (
-          [...this.#configuredUrns].some((urn) => session.primaryAccounts[urn] === accountId) ||
-          (accountIds.length === 1 && accountIds[0] === accountId)
-        );
-      }
-      default: {
-        return false;
-      }
-    }
-  }
-
-  /**
    * Initialize a dedicated api
    */
   #setupApi(dispatcher: Dispatcher): API {
     return createApi<API>({
       dispatcher,
-      middleware: this.#middleware,
-      isKnownEntity: (entity) => this.#knownEntities.has(entity),
+      isKnownEntity: this.#capabilities.isKnownEntity,
     });
   }
-
-  /**
-   * Transport that posts a JMAP Request to the session's API URL
-   */
-  #postJmapRequest: DispatcherOptions["transport"] = (request, session) =>
-    this.#fetchJson<JMAPResponse>(session.apiUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(request),
-    });
-
-  /**
-   * Primary fetch function: authenticates the request, runs the fetch hooks,
-   * and rejects responses that aren't successful
-   */
-  #fetch = async (url: string | URL, options: RequestInit = {}, eventSource = false) => {
-    const hooks = this.#config.hooks ?? {};
-    let request: Request | undefined;
-    let requestClone: Request;
-    let response: Response;
-    try {
-      request = new Request(url, options);
-      await this.#authenticate(request);
-      const beforeHooks = [
-        ...(hooks.beforeFetch ?? []),
-        ...(eventSource ? (hooks.beforeEventSourceConnect ?? []) : []),
-      ];
-      for (const hook of beforeHooks) {
-        // oxlint-disable-next-line no-await-in-loop
-        request = await hook({ request });
-      }
-      requestClone = request.clone();
-      response = await fetch(request);
-    } catch (error) {
-      if (error instanceof JsonMetaError) {
-        throw error;
-      }
-
-      throw new NetworkError(error instanceof Error ? error.message : "Error when fetching", {
-        cause: error,
-        request,
-      });
-    }
-    try {
-      for (const hook of hooks.afterFetch ?? []) {
-        // oxlint-disable-next-line no-await-in-loop
-        response = await hook({ request: requestClone, response });
-      }
-      if (eventSource && response.status !== 204) {
-        if (!isReadableEventStream(response)) {
-          throw new HttpError("Invalid event-stream response", { request, response });
-        }
-        for (const hook of hooks.afterEventSourceConnect ?? []) {
-          // oxlint-disable-next-line no-await-in-loop
-          await hook({ request: requestClone, response });
-        }
-      }
-      if (!response.ok) {
-        throw await createHttpError(request, response);
-      }
-
-      return { request, response };
-    } catch (error) {
-      // Nothing will read a failed event stream, so release its connection
-      if (eventSource && response.body && !response.body.locked) {
-        void response.body.cancel().catch(() => {});
-      }
-      throw error;
-    }
-  };
-
-  /**
-   * Apply the configured authentication to a request
-   */
-  async #authenticate(request: Request): Promise<void> {
-    const auth = this.#config.auth;
-    if (typeof auth === "function") {
-      await auth({ request });
-    } else if (typeof auth === "string") {
-      request.headers.set("authorization", `Bearer ${auth}`);
-    } else {
-      request.headers.set("authorization", `Basic ${encodeBasicCredentials(auth)}`);
-    }
-  }
-
-  /**
-   * Primary fetch function for responses expected to return JSON
-   */
-  #fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {
-    const headers = new Headers(options.headers);
-    headers.append("accept", "application/json");
-    const { request, response } = await this.#fetch(url, { ...options, headers });
-    let text: string;
-    try {
-      text = await response.text();
-    } catch (cause) {
-      throw new NetworkError("Failed to read", { cause, request });
-    }
-    const payload: T = JSON.parse(text);
-    return payload;
-  };
 }

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { InvalidUriTemplateError } from "../../../errors/invalid-uri-template-error.ts";
+import { InvalidUriTemplateError } from "../../errors/invalid-uri-template-error.ts";
 import { expandURITemplate } from "../expand-uri-template.ts";
 
 describe(expandURITemplate, () => {

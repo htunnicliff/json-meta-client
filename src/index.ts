@@ -8,7 +8,14 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-export * from "./capability.ts";
+export type {
+  Capability,
+  DefaultAccount,
+  DefaultAccountSetting,
+  InferMethodsFromCapability,
+  MethodContract,
+} from "./capability.ts";
+export { defineCapability } from "./capability.ts";
 export * from "./client.ts";
-export * from "./errors.ts";
+export * from "./errors/index.ts";
 export * from "./types.ts";

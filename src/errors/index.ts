@@ -8,30 +8,15 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { JsonValue } from "type-fest";
-
-import { isRef } from "../ref.ts";
-
-/**
- * Recursively detect any objects containing result references,
- * updating their keys to use a # prefix
- */
-export function replaceNestedResultRefKeys(payload: JsonValue): JsonValue {
-  if (Array.isArray(payload)) {
-    return payload.map((item) => replaceNestedResultRefKeys(item));
-  }
-
-  if (typeof payload === "object" && payload !== null) {
-    return Object.fromEntries(
-      Object.entries(payload).map(([key, value]) => {
-        if (isRef(value)) {
-          return [`#${key}`, value];
-        }
-
-        return [key, replaceNestedResultRefKeys(value)];
-      }),
-    );
-  }
-
-  return payload;
-}
+export * from "./cancellation-error.ts";
+export * from "./capability-configuration-error.ts";
+export * from "./configuration-error.ts";
+export * from "./http-error.ts";
+export * from "./invalid-uri-template-error.ts";
+export * from "./jmap-error.ts";
+export * from "./json-meta-error.ts";
+export * from "./method-call-error.ts";
+export * from "./network-error.ts";
+export * from "./state-change-error.ts";
+export * from "./unknown-entity-error.ts";
+export * from "./unknown-error.ts";

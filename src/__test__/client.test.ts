@@ -27,7 +27,7 @@ import {
   NetworkError,
   UnknownEntityError,
   UnknownError,
-} from "../errors.ts";
+} from "../errors/index.ts";
 import type {
   FileUpload,
   Request as JMAPRequest,

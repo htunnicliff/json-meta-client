@@ -10,6 +10,7 @@
 
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
+import type { SessionCapabilities } from "../capability-details.ts";
 import type {
   Account,
   CoreEcho,
@@ -21,7 +22,6 @@ import type {
   Session,
   SetError,
 } from "../core/index.ts";
-import type { SessionCapabilities } from "../extensions.ts";
 
 interface Example {
   id: string;

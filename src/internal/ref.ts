@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { IsUnknown } from "type-fest";
+import type { IsUnknown, JsonValue } from "type-fest";
 
 import type { ResultReference } from "../rfc-types/core/index.ts";
 import type { ExtractByPointer, PointerPaths } from "./types.ts";
@@ -55,4 +55,28 @@ export function addRefMethod<Output, T extends object>(
   };
 
   return Object.assign(obj, { resultRef });
+}
+
+/**
+ * Recursively detect any objects containing result references,
+ * updating their keys to use a # prefix
+ */
+export function replaceNestedResultRefKeys(payload: JsonValue): JsonValue {
+  if (Array.isArray(payload)) {
+    return payload.map((item) => replaceNestedResultRefKeys(item));
+  }
+
+  if (typeof payload === "object" && payload !== null) {
+    return Object.fromEntries(
+      Object.entries(payload).map(([key, value]) => {
+        if (isRef(value)) {
+          return [`#${key}`, value];
+        }
+
+        return [key, replaceNestedResultRefKeys(value)];
+      }),
+    );
+  }
+
+  return payload;
 }

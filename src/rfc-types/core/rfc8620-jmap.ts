@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
+import type { AccountCapabilities, SessionCapabilities } from "../capability-details.ts";
 
 /**
  * Details for a capability whose RFC defines none. It aliases `{}` rather

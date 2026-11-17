@@ -11,7 +11,6 @@
 import type {
   ArrayElement,
   IsUnknown,
-  JsonValue,
   KeysOfUnion,
   Paths,
   Primitive,
@@ -19,10 +18,9 @@ import type {
   SetOptional,
   SetRequired,
   Simplify,
-  UnionToIntersection,
 } from "type-fest";
 
-import type { Capability, DefaultAccountSetting, MethodContract } from "../capability.ts";
+import type { CapabilityMethods, MethodContract } from "../capability.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
 /**
@@ -99,11 +97,6 @@ export type PointerPaths<T> =
     : never;
 
 /**
- * Transforms a method call's arguments before it is sent.
- */
-export type Middleware = (payload: JsonValue) => JsonValue;
-
-/**
  * Deeply allows a {@link Ref} of the expected value at any position.
  * Used by the proxy API so callers may pass `resultRef(...)` in place of concrete args.
  */
@@ -139,16 +132,6 @@ export type UnpackRefs<T> =
 export type Apply<Contract extends MethodContract, Input> = (Contract & {
   input: Input;
 })["output"];
-
-/**
- * The primary type used to define JMAP calls for
- * one or more entities.
- */
-export type CapabilityMethods<Entity extends string> = {
-  [key in Entity]: {
-    [method: string]: MethodContract;
-  };
-};
 
 /** The name, `Entity/method`, of each method in a {@link CapabilityMethods} map. */
 export type MethodName<Methods> = {
@@ -211,46 +194,6 @@ export type Augment<T extends CapabilityMethods<string>, ContractExtensions = un
     >;
   };
 };
-
-declare const contractExtensions: unique symbol;
-
-/**
- * A built-in capability that adds no methods of its own. Instead it adds
- * properties or filter conditions to the method contracts of the capability
- * it {@link ExtendingCapability.extends | extends}, such as S/MIME adding
- * `smime*` properties to `Email/get`. Those contract extensions exist only as
- * a type; the client requires the extended capability alongside it.
- */
-export interface ExtendingCapability<
-  Options extends {
-    /** The entities the capability's URN is sent with. */
-    entity: string;
-    urn: string;
-    /** The URN of the capability whose method contracts this one extends. */
-    extendedUrn: string;
-    accountCapabilities: unknown;
-    sessionCapabilities: unknown;
-    /** Properties and filter conditions added to the extended contracts. */
-    contractExtensions: unknown;
-  },
-> extends Capability<
-  Options["entity"],
-  { [Name in Options["entity"]]: {} },
-  Options["urn"],
-  Options["accountCapabilities"],
-  Options["sessionCapabilities"]
-> {
-  /** The URN of the capability whose method contracts this one extends. */
-  extends: Options["extendedUrn"];
-  readonly [contractExtensions]?: Options["contractExtensions"];
-}
-
-/** Extracts the contract extensions of an {@link ExtendingCapability}, or `never`. */
-export type InferContractExtensions<C> = C extends unknown
-  ? typeof contractExtensions extends keyof C
-    ? NonNullable<C[typeof contractExtensions]>
-    : never
-  : never;
 
 /**
  * The arguments a contract accepts: its `acceptedInput` field when it has
@@ -359,41 +302,3 @@ export type AugmentMethod<Contract extends MethodContract, Name extends string =
         ) => `#${Key}`;
       }
     : {});
-
-/**
- * The methods that a default account setting lists, as a
- * {@link CapabilityMethods} map, so a listed method that the capability
- * doesn't declare fails its `withMethods` constraint.
- */
-type ListedMethods<Setting> = [Exclude<keyof Setting, "*">] extends [never]
-  ? unknown
-  : UnionToIntersection<
-      {
-        [Name in Exclude<keyof Setting, "*">]: Name extends `${infer Entity}/${infer Method}`
-          ? { [_ in Entity]: { [_ in Method]: MethodContract } }
-          : never;
-      }[Exclude<keyof Setting, "*">]
-    >;
-
-/**
- * A partially-configured capability that supports using
- * layers of generics. The first layer captures the {@link Entity}
- * type and its default account setting, while the second layer
- * captures the {@link CapabilityMethods} and its account and session
- * capability details.
- */
-export interface ConfigurableCapability<
-  Entity extends string,
-  Urn extends string = string,
-  DefaultAccounts extends DefaultAccountSetting | undefined = undefined,
-> {
-  urn: Urn;
-  entities: ReadonlyArray<Entity>;
-  dependsOn?: ReadonlyArray<string>;
-  defaultAccount?: DefaultAccounts;
-  withMethods<
-    M extends CapabilityMethods<Entity> & ListedMethods<DefaultAccounts>,
-    AccountCapabilities = unknown,
-    SessionCapabilities = unknown,
-  >(): Capability<Entity, M, Urn, AccountCapabilities, SessionCapabilities, DefaultAccounts>;
-}
