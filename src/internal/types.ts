@@ -25,54 +25,48 @@ import type {
 import type { Capability, DefaultAccountSetting, MethodContract } from "../capability.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 
-/** Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
-
- Supported three navigation patterns:
- - Property access: /foo/bar navigates nested object keys
- - Numeric index: /list/0/name accesses array indices by number literal
- - Array wildcard: /list/<star>/name maps through every element, collecting results into an array (per RFC 8620 §3.7)
- Returns never for invalid paths (e.g., applying a wildcard to a non-array).
-*/
+/**
+ * Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
+ *
+ * Supports three navigation patterns:
+ * - Property access: `/foo/bar` navigates nested object keys
+ * - Numeric index: `/list/0/name` accesses array indices by number literal
+ * - Array wildcard: `/list/<star>/name` maps through every element,
+ *   collecting results into an array (per RFC 8620 §3.7)
+ *
+ * Returns `never` for invalid paths, such as a wildcard applied to a non-array.
+ */
 export type ExtractByPointer<T, Pointer extends string> =
-  IsUnknown<T> extends true ? unknown : _EBS<Pointer, T>;
+  IsUnknown<T> extends true
+    ? unknown
+    : Pointer extends `/${infer Segments}`
+      ? ResolveSegments<T, Segments>
+      : never;
 
-/** Strip leading slash then dispatch to recursive handler */
-type _EBS<P extends string, T> = P extends `/${infer Rest}` ? _EBR<T, Rest> : never;
+/** Walks the pointer's remaining segments, one per step, starting from `T`. */
+type ResolveSegments<T, Segments extends string> = Segments extends ""
+  ? T
+  : Segments extends `${infer First}/${infer Rest}`
+    ? ResolveSegment<T, First, Rest>
+    : ResolveSegment<T, Segments, "">;
 
-/** Recursive extractor: split first segment from rest, navigate into T */
-type _EBR<T, Segments extends string> =
-  // Zero segments left - return the resolved type
-  Segments extends ""
-    ? T
-    : // Two or more segments remaining: First/Remaining (e.g., "foo/bar")
-      Segments extends `${infer First}/${infer Remaining}`
-      ? First extends "*" // wildcard: map each element, collect into an array
-        ? T extends ReadonlyArray<infer E>
-          ? Array<_EBR<E, Remaining>>
-          : never
-        : First extends `${number}` // numeric index mid-path
-          ? T extends ReadonlyArray<infer E>
-            ? _EBR<E, Remaining>
-            : T extends string
-              ? _EBR<string, Remaining>
-              : never
-          : First extends keyof T // named property: descend
-            ? _EBR<T[First], Remaining>
-            : never
-      : // Exactly one segment: could be "*", a numeric index, or a named property
-        Segments extends "*" // standalone wildcard -> array of element types
-        ? T extends ReadonlyArray<infer E>
-          ? E[]
-          : never
-        : Segments extends `${number}` // numeric index - take the array/string element type
-          ? T extends ReadonlyArray<infer E>
-            ? E
-            : T extends string
-              ? string
-              : never
-          : Segments extends keyof T // named property with no continuation
-            ? T[Segments]
-            : never;
+/** Navigates one segment into `T`, then resolves the `Rest` of the pointer. */
+type ResolveSegment<T, Segment extends string, Rest extends string> = Segment extends "*"
+  ? // Wildcard: resolve the rest against each element, collecting an array
+    T extends ReadonlyArray<infer Element>
+    ? Array<ResolveSegments<Element, Rest>>
+    : never
+  : Segment extends `${number}`
+    ? // Numeric index: an array element, or a character of a string
+      T extends ReadonlyArray<infer Element>
+      ? ResolveSegments<Element, Rest>
+      : T extends string
+        ? ResolveSegments<string, Rest>
+        : never
+    : // Named property
+      Segment extends keyof T
+      ? ResolveSegments<T[Segment], Rest>
+      : never;
 
 /** Convert a type-fest dot path into a JSON Pointer. */
 type DotPathToPointer<Path extends string> = `/${Replace<Path, ".", "/", { all: true }>}`;

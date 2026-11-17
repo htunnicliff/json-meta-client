@@ -9,7 +9,7 @@
 // ----------------------------------------------------------------------- //
 
 import type { Invocation } from "../rfc-types/core/index.ts";
-import { randomHex } from "./random-hex.ts";
+import { randomHex } from "./util/random-hex.ts";
 
 interface MethodCallParams<T> {
   readonly method: string;

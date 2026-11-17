@@ -10,117 +10,125 @@
 
 import { BUILT_IN_CAPABILITIES, getCapabilitiesForBuiltIns } from "../built-ins.ts";
 import { CapabilityConfigurationError, ConfigurationError } from "../errors.ts";
-import type { CapabilityOption, Config } from "../types.ts";
+import type { Auth, CapabilityOption, Config } from "../types.ts";
 
 /**
  * Constructor validation mechanism
  */
 export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption>>): void {
-  const { auth, capabilities: givenCapabilities, sessionUrl } = options;
+  assertValidAuth(options.auth);
+  assertValidSessionUrl(options.sessionUrl);
+  assertValidCapabilities(options.capabilities);
+}
 
-  // Authentication
-  const isAuthCallback = typeof auth === "function";
+function assertValidAuth(auth: Auth): void {
+  const isCallback = typeof auth === "function";
 
-  const isAuthObject = auth !== null && typeof auth === "object";
+  const isBearerToken = typeof auth === "string" && auth.trim().length > 0;
 
-  const isBearerAuth = typeof auth === "string" && auth.trim().length > 0;
-
-  const isBasicAuth =
-    isAuthObject &&
+  const isBasicCredentials =
+    typeof auth === "object" &&
+    auth !== null &&
     typeof auth.username === "string" &&
     auth.username.trim().length > 0 &&
     !auth.username.includes(":") &&
     typeof auth.password === "string";
 
-  const validAuth = isAuthCallback || isBearerAuth || isBasicAuth;
-
-  if (!validAuth) {
+  if (!isCallback && !isBearerToken && !isBasicCredentials) {
     throw new ConfigurationError(
       "`auth` must be a non-empty token string, a username and password, or a callback",
-      {
-        cause: { auth },
-      },
+      { cause: { auth } },
     );
   }
+}
 
-  // Session URL
+function assertValidSessionUrl(sessionUrl: string | URL): void {
   if (!URL.canParse(sessionUrl)) {
     throw new ConfigurationError("`sessionUrl` must be a valid URL string or URL instance", {
       cause: { sessionUrl },
     });
   }
+}
 
-  // Capabilities
-  if (!Array.isArray(givenCapabilities)) {
+function assertValidCapabilities(capabilities: ReadonlyArray<CapabilityOption>): void {
+  if (!Array.isArray(capabilities)) {
     throw new ConfigurationError("`capabilities` must be an array", {
-      cause: { capabilities: givenCapabilities },
+      cause: { capabilities },
     });
   }
 
-  for (const capability of givenCapabilities) {
-    if (typeof capability === "string") {
-      if (!Object.hasOwn(BUILT_IN_CAPABILITIES, capability)) {
-        throw new CapabilityConfigurationError(`Unknown built-in capability: ${capability}`, {
-          capability,
-        });
-      }
-      continue;
-    }
-
-    if (typeof capability.urn !== "string") {
-      throw new CapabilityConfigurationError("Capabilities must have a `urn`", { capability });
-    }
-
-    if (
-      !Array.isArray(capability.entities) ||
-      !capability.entities.every((entity: unknown) => typeof entity === "string")
-    ) {
-      throw new CapabilityConfigurationError(
-        "Capability entities must be an array of entity name strings",
-        { capability },
-      );
-    }
-
-    if (
-      capability.dependsOn !== undefined &&
-      (!Array.isArray(capability.dependsOn) ||
-        !capability.dependsOn.every((urn: unknown) => typeof urn === "string"))
-    ) {
-      throw new CapabilityConfigurationError(
-        "Capability `dependsOn` must be an array of URN strings",
-        { capability },
-      );
-    }
-
-    if (
-      capability.defaultAccount !== undefined &&
-      (typeof capability.defaultAccount !== "object" ||
-        capability.defaultAccount === null ||
-        Array.isArray(capability.defaultAccount) ||
-        !Object.values(capability.defaultAccount).every(
-          (value: unknown) => value === "primary" || value === null || value === undefined,
-        ))
-    ) {
-      throw new CapabilityConfigurationError(
-        'Capability `defaultAccount` must be an object whose values are "primary" or null',
-        { capability },
-      );
-    }
+  for (const capability of capabilities) {
+    assertValidCapability(capability);
   }
 
   // A capability that extends another's method contracts needs that one too.
-  const resolved = getCapabilitiesForBuiltIns(givenCapabilities);
+  const resolved = getCapabilitiesForBuiltIns(capabilities);
   const urns = new Set(resolved.map(({ urn }) => urn));
   for (const capability of resolved) {
-    if ("extends" in capability && typeof capability.extends === "string") {
-      if (!urns.has(capability.extends)) {
-        throw new CapabilityConfigurationError(
-          `The ${describeCapability(capability.urn)} capability requires ${describeCapability(capability.extends)}`,
-          { capability },
-        );
-      }
+    if (
+      "extends" in capability &&
+      typeof capability.extends === "string" &&
+      !urns.has(capability.extends)
+    ) {
+      throw new CapabilityConfigurationError(
+        `The ${describeCapability(capability.urn)} capability requires ${describeCapability(capability.extends)}`,
+        { capability },
+      );
     }
   }
+}
+
+function assertValidCapability(capability: CapabilityOption): void {
+  if (typeof capability === "string") {
+    if (!Object.hasOwn(BUILT_IN_CAPABILITIES, capability)) {
+      throw new CapabilityConfigurationError(`Unknown built-in capability: ${capability}`, {
+        capability,
+      });
+    }
+    return;
+  }
+
+  const { urn, entities, dependsOn, defaultAccount } = capability;
+
+  if (typeof urn !== "string") {
+    throw new CapabilityConfigurationError("Capabilities must have a `urn`", { capability });
+  }
+
+  if (!isStringArray(entities)) {
+    throw new CapabilityConfigurationError(
+      "Capability entities must be an array of entity name strings",
+      { capability },
+    );
+  }
+
+  if (dependsOn !== undefined && !isStringArray(dependsOn)) {
+    throw new CapabilityConfigurationError(
+      "Capability `dependsOn` must be an array of URN strings",
+      { capability },
+    );
+  }
+
+  if (defaultAccount !== undefined && !isDefaultAccountSetting(defaultAccount)) {
+    throw new CapabilityConfigurationError(
+      'Capability `defaultAccount` must be an object whose values are "primary" or null',
+      { capability },
+    );
+  }
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
+}
+
+function isDefaultAccountSetting(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(
+      (account: unknown) => account === "primary" || account === null || account === undefined,
+    )
+  );
 }
 
 /** A built-in capability's name in backticks, or else its URN. */
