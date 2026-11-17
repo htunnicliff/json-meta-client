@@ -104,6 +104,59 @@ try {
 }
 `;
 
+const rewriteEmailQuery = `import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  hooks: {
+    beforeJmapRequest: [
+      function setEmailQueryLimit({ request }) {
+        return {
+          ...request,
+          methodCalls: request.methodCalls.map(([method, args, id]) => [
+            method,
+            method === "Email/query" ? { ...args, limit: 5 } : args,
+            id,
+          ]),
+        };
+      },
+    ],
+  },
+});
+
+// The outgoing batch shows the limit set by the hook.
+const { ids } = await client.api.Email.query({ limit: 25 });
+console.log(ids);
+`;
+
+const logHttpTraffic = `import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  hooks: {
+    beforeFetch: [
+      function logRequest({ request }) {
+        console.log(request.method, new URL(request.url).pathname);
+        return request;
+      },
+    ],
+    afterFetch: [
+      function logResponse({ request, response }) {
+        console.log(response.status, new URL(request.url).pathname);
+        return response;
+      },
+    ],
+  },
+});
+
+const { list } = await client.api.Mailbox.get({ properties: ["name"] });
+console.log(list.map(({ name }) => name));
+`;
+
 /**
  * The examples the playground offers, the first being its default
  */
@@ -111,6 +164,8 @@ export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
   { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
   { id: "event-source", title: "Event source", code: eventSource },
+  { id: "rewrite-email-query", title: "Rewrite an email query", code: rewriteEmailQuery },
+  { id: "log-http-traffic", title: "Log HTTP traffic", code: logHttpTraffic },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");
