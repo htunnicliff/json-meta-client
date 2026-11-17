@@ -4,12 +4,14 @@
 import { writeFile } from "node:fs/promises";
 
 import { parse } from "opentype.js/dist/opentype.mjs";
+import { optimize } from "svgo";
+
+import pkg from "../package.json" with { type: "json" };
 
 const fontUrl =
   "https://raw.githubusercontent.com/arrowtype/recursive/v1.085/fonts/ArrowType-Recursive-1.085/Recursive_Code/RecMonoDuotone/RecMonoDuotone-Bold-1.085.ttf";
 
-const title = "json-meta-client";
-const description = "A TypeScript client for JMAP";
+const { name: title, description } = pkg;
 
 const width = 960;
 const height = 224;
@@ -58,6 +60,7 @@ await Promise.all(
   <rect width="${width - 1}" height="${height - 1}" x=".5" y=".5" fill="none" stroke="${colors.border}" rx="15.5"/>
 </svg>
 `;
-    return writeFile(new URL(`../docs/public/${file}`, import.meta.url), svg);
+    const { data } = optimize(svg, { multipass: true });
+    return writeFile(new URL(`../docs/public/${file}`, import.meta.url), `${data}\n`);
   }),
 );
