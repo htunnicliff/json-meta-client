@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
     </div>
     <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
     <div class="panes">
-      <section class="pane" aria-label="Code">
+      <section class="pane code-pane" aria-label="Code">
         <header class="pane-header">
           playground.ts
           <OptionsMenu v-model="codeChoices" :set="codeOptions" title="Editor">
@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
         <div ref="editorHost" class="editor" />
       </section>
 
-      <section class="pane" aria-label="Output">
+      <section class="pane requests-pane" aria-label="Output">
         <header class="pane-header">
           Requests
           <OptionsMenu v-model="shownInTimeline" :set="timelineOptions" title="Timeline" />
@@ -311,17 +311,17 @@ onBeforeUnmount(() => {
           />
         </div>
       </section>
-    </div>
 
-    <section class="pane console-pane" aria-label="Console">
-      <header class="pane-header">
-        Console
-        <span v-if="view.logs.length" class="count">{{ view.logs.length }}</span>
-      </header>
-      <div class="output">
-        <ConsolePanel :logs="view.logs" />
-      </div>
-    </section>
+      <section class="pane console-pane" aria-label="Console">
+        <header class="pane-header">
+          Console
+          <span v-if="view.logs.length" class="count">{{ view.logs.length }}</span>
+        </header>
+        <div class="output">
+          <ConsolePanel :logs="view.logs" />
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -410,12 +410,26 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+/* Narrow: code, requests, console. Wide: the console under the code, the requests beside both. */
 .panes {
   display: grid;
   flex: 1;
+  grid-template-areas: "code" "requests" "console";
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
+}
+
+.code-pane {
+  grid-area: code;
+}
+
+.requests-pane {
+  grid-area: requests;
+}
+
+.console-pane {
+  grid-area: console;
 }
 
 @media (min-width: 960px) {
@@ -425,7 +439,11 @@ onBeforeUnmount(() => {
   }
 
   .panes {
+    grid-template-areas:
+      "code requests"
+      "console requests";
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 }
 

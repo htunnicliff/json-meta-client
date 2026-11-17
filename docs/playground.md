@@ -1,6 +1,7 @@
 ---
 layout: page
 sidebar: false
+footer: false
 title: Playground
 description: Write code that uses json-meta-client and see the requests it sends.
 ---
