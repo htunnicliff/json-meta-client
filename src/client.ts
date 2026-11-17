@@ -21,21 +21,23 @@ import {
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
 import { resolveDefaultAccount } from "./internal/default-account.ts";
-import { Dispatcher } from "./internal/dispatcher.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
-import { expandURITemplate } from "./internal/expand-uri-template.ts";
+import { Dispatcher } from "./internal/dispatcher.ts";
 import { mapEntitiesToUrns } from "./internal/map-entities-to-urns.ts";
-import { mapMethodOwners } from "./internal/method-owners.ts";
 import type { FindMethodOwner } from "./internal/method-owners.ts";
+import { mapMethodOwners } from "./internal/method-owners.ts";
 import { replaceNestedResultRefKeys } from "./internal/middleware/replace-nested-result-ref-keys.ts";
+import { readStateChanges } from "./internal/read-state-changes.ts";
 import type { Middleware } from "./internal/types.ts";
+import { createHttpError } from "./internal/util/create-http-error.ts";
+import { encodeBasicCredentials } from "./internal/util/encode-basic-credentials.ts";
+import { expandURITemplate } from "./internal/util/expand-uri-template.ts";
+import { isReadableEventStream } from "./internal/util/is-readable-event-stream.ts";
 import type {
   FileDownload,
   FileUpload,
   Response as JMAPResponse,
-  ProblemDetails,
   Session,
-  StateChange,
 } from "./rfc-types/core/index.ts";
 import type {
   CapabilityOption,
@@ -44,7 +46,6 @@ import type {
   Config,
   OnStateChangeHandler,
   OnStateChangeOptions,
-  StateChangePayload,
 } from "./types.ts";
 
 export class JsonMetaClient<
@@ -442,63 +443,4 @@ export class JsonMetaClient<
     const payload: T = JSON.parse(text);
     return payload;
   };
-}
-
-/**
- * Base64-encode a username and password for Basic authentication, as UTF-8
- */
-function encodeBasicCredentials(auth: { username: string; password: string }): string {
-  const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
-  return btoa(Array.from(bytes, (byte) => String.fromCodePoint(byte)).join(""));
-}
-
-/**
- * Whether a response is an event stream whose body is still unread
- */
-function isReadableEventStream(response: Response): boolean {
-  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
-  return (
-    response.status === 200 &&
-    contentType?.toLowerCase() === "text/event-stream" &&
-    response.body !== null &&
-    !response.bodyUsed &&
-    !response.body.locked
-  );
-}
-
-/**
- * Describe an unsuccessful response, reading its body for the error's details
- */
-async function createHttpError(request: Request, response: Response): Promise<HttpError> {
-  let responseData: unknown;
-  let cause: unknown;
-  try {
-    const isJsonResponse = /\bjson\b/i.test(response.headers.get("content-type") ?? "");
-    responseData = isJsonResponse ? await response.clone().json() : await response.clone().text();
-  } catch (error) {
-    cause = error;
-  }
-
-  const message =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    (responseData as ProblemDetails)?.detail ?? `HTTP request failed (${response.status})`;
-  return new HttpError(message, { request, response, responseData, cause });
-}
-
-/**
- * Read each entity's change from an event-stream message. Messages other
- * than a `StateChange` have none.
- */
-function* readStateChanges(data: string): Generator<Omit<StateChangePayload, "isPrimaryAccount">> {
-  const payload = JSON.parse(data);
-  if (payload["@type"] !== "StateChange") {
-    return;
-  }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const { changed } = payload as StateChange;
-  for (const [accountId, changes] of Object.entries(changed)) {
-    for (const [entity, state] of Object.entries(changes)) {
-      yield { entity, state, accountId };
-    }
-  }
 }
