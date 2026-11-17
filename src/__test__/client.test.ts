@@ -194,6 +194,74 @@ describe(JsonMetaClient, () => {
     expect(Object.isFrozen(client)).toBe(true);
   });
 
+  it.each(["client.api", "client.isolated"])(
+    "uses generated method call IDs and explicit overrides through %s",
+    async (entryPoint) => {
+      const generateMethodCallId = vi.fn<(method: string) => string>(
+        (method) => `${method}::generated`,
+      );
+      const configuredClient = new JsonMetaClient({
+        sessionUrl,
+        auth: token,
+        capabilities: [mail],
+        generateMethodCallId,
+      });
+      const queryId = "Email/query::generated";
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn],
+          methodCalls: [
+            ["Email/query", { accountId, limit: 1 }, queryId],
+            [
+              "Email/get",
+              { accountId, "#ids": { name: "Email/query", resultOf: queryId, path: "/ids" } },
+              "explicit",
+            ],
+          ],
+        },
+        {
+          methodResponses: [
+            ["Email/query", { ids: ["email"] }, queryId],
+            ["Email/get", { list: [{ id: "email" }] }, "explicit"],
+          ],
+          sessionState,
+        },
+      );
+
+      async function callMethods(api: typeof configuredClient.api) {
+        const query = api.Email.query({ limit: 1 });
+        const get = api.Email.get({ ids: query.resultRef("/ids") }, { id: "explicit" });
+        expect(query.$id).toBe(queryId);
+        expect(get.$id).toBe("explicit");
+        await expect(Promise.all([query, get])).resolves.toEqual([
+          { ids: ["email"] },
+          { list: [{ id: "email" }] },
+        ]);
+      }
+
+      await (entryPoint === "client.api"
+        ? callMethods(configuredClient.api)
+        : configuredClient.isolated(callMethods));
+      expect(generateMethodCallId.mock.calls).toEqual([["Email/query"]]);
+      expect(apiScope.isDone()).toBe(true);
+    },
+  );
+
+  it("rejects a non-string generated ID before sending the method call", () => {
+    const configuredClient = new JsonMetaClient({
+      sessionUrl,
+      auth: token,
+      capabilities: [mail],
+      // @ts-expect-error - Exercise an invalid generator from JavaScript.
+      generateMethodCallId: () => 1,
+    });
+
+    expect(() => configuredClient.api.Email.query({ limit: 1 })).toThrow(
+      new TypeError("Method call IDs must be strings"),
+    );
+    expect(sessionScope.isDone()).toBe(false);
+  });
+
   describe("configuration errors", () => {
     it.each([
       { auth: "" },
@@ -363,7 +431,7 @@ describe(JsonMetaClient, () => {
       const id = "client-provided-id";
       const query = client.api.Mailbox.query({ limit: 1 }, { id });
       const regularQuery = client.api.Mailbox.query({ limit: 2 });
-      expect(regularQuery.$id).not.toBe(id);
+      expect(regularQuery.$id).toMatch(/^Mailbox\/query::[a-f0-9]{8}$/);
       expect(query.$id).toBe(id);
       const scope = nock(host)
         .post(apiUrlPath, {

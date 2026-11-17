@@ -83,8 +83,9 @@
 
 :::warning TODO
 - Every pending call has `$id`, `$method`, `$args`
-- `{ id }` option sets a custom method-call ID (default `"Entity/method::<8 hex>"`);
-  useful for debugging and snapshot tests
+- The `{ id }` option sets the ID for one method call
+- Use [`generateMethodCallId`](../reference/api.md#generatemethodcallid) to
+  configure how the client generates IDs
 :::
 
 ## Method errors

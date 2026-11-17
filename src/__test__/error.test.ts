@@ -112,7 +112,7 @@ describe("JmapError constructor", () => {
 });
 
 describe("error classification", () => {
-  const methodCall = new MethodCall({ method: "Mailbox/query", args: { limit: 1 } });
+  const methodCall = new MethodCall({ method: "Mailbox/query", args: { limit: 1 }, id: "call-1" });
   const errors = [
     [new JsonMetaError("base"), isJsonMetaError],
     [new ConfigurationError("configuration"), isConfigurationError],

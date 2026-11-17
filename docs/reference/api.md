@@ -88,6 +88,27 @@ new JsonMetaClient({
 To see which capabilities are supported out of the box, refer to the
 [list of built-in capabilities](./capabilities.md#built-in).
 
+### `generateMethodCallId` (optional)
+
+Use a synchronous function to generate method call IDs for this client,
+including calls made through `client.isolated()`. It receives the JMAP method
+name, such as `Email/query`, and must return a string. IDs must be unique
+within a request. A method call with an explicit `{ id }` skips the generator.
+
+Without this option, the client uses the method name followed by `::` and
+eight random hex digits.
+
+```ts
+let nextId = 0;
+
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  generateMethodCallId: () => `call-${++nextId}`,
+});
+```
+
 ### `hooks` (optional)
 
 To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks.md).

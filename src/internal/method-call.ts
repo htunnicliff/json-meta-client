@@ -13,14 +13,17 @@ import type { Invocation } from "../rfc-types/core/index.ts";
 interface MethodCallParams<T> {
   readonly method: string;
   readonly args: T;
-  readonly id?: string;
+  readonly id: string;
 }
 
 export class MethodCall<T extends object> implements MethodCallParams<T> {
   constructor(params: MethodCallParams<T>) {
+    if (typeof params.id !== "string") {
+      throw new TypeError("Method call IDs must be strings");
+    }
     this.method = params.method;
     this.args = params.args;
-    this.id = params.id ?? `${params.method}::${randomHex(8)}`;
+    this.id = params.id;
   }
 
   readonly method: string;
@@ -30,13 +33,4 @@ export class MethodCall<T extends object> implements MethodCallParams<T> {
   toInvocation = (): Invocation<T> => {
     return [this.method, this.args, this.id];
   };
-}
-
-/**
- * Generate a string of random hexadecimal characters
- */
-function randomHex(length: number): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(Math.ceil(length / 2)));
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  return hex.slice(0, length);
 }

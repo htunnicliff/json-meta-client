@@ -39,6 +39,7 @@ export class JsonMetaClient<
     this.#sessionUrl = options.sessionUrl;
     this.#http = new HttpClient(options.auth, options.hooks);
     this.#capabilities = new CapabilityIndex(getCapabilitiesForBuiltIns(options.capabilities));
+    this.#generateMethodCallId = options.generateMethodCallId ?? defaultMethodCallId;
 
     // Everything a dispatcher needs; each API gets its own dispatcher
     this.#dispatcherOptions = {
@@ -209,6 +210,8 @@ export class JsonMetaClient<
    */
   readonly #capabilities: CapabilityIndex;
 
+  readonly #generateMethodCallId: (method: string) => string;
+
   /**
    * Dependencies shared by the dispatcher of every API
    */
@@ -266,6 +269,13 @@ export class JsonMetaClient<
     return createApi<API>({
       dispatcher,
       isKnownEntity: this.#capabilities.isKnownEntity,
+      generateMethodCallId: this.#generateMethodCallId,
     });
   }
+}
+
+function defaultMethodCallId(method: string): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${method}::${hex}`;
 }

@@ -50,6 +50,13 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    */
   capabilities: T;
   /**
+   * Synchronously generate an ID from a JMAP method name such as `Email/get`.
+   * Called only when the method call omits its explicit ID. IDs must be
+   * unique within a request. Defaults to the method name plus eight random
+   * hex digits, separated by `::`.
+   */
+  generateMethodCallId?: (method: string) => string;
+  /**
    * Hooks into different client behaviors
    */
   hooks?: {
