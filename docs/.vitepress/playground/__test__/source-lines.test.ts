@@ -42,8 +42,6 @@ async function linesOf(code: string) {
 }
 
 const lineOf = (range: { start: { line: number } }) => range.start.line;
-const linesIn = (ranges: { start: { line: number }; end: { line: number } }[]) =>
-  ranges.map(({ start, end }) => [start.line, end.line]);
 
 describe(sourceLines, () => {
   it("reproduces the sequential awaits board", async () => {
@@ -56,12 +54,6 @@ describe(sourceLines, () => {
       expect.objectContaining({ count: 1, calls: [{ label: "#1", name: "Email/query" }] }),
     ]);
     expect(lineOf(lines.waiting[0].range)).toBe(9);
-    expect(linesIn(lines.notReached)).toEqual([
-      [14, 17],
-      [19, 21],
-    ]);
-    expect(lines.notSent).toEqual([expect.objectContaining({ method: "Email/get" })]);
-    expect(lineOf(lines.notSent[0].range)).toBe(14);
   });
 
   it("maps a multi-line call to its first line, not the result reference's", async () => {
@@ -85,7 +77,6 @@ describe(sourceLines, () => {
     `);
 
     expect(Object.values(lines.calls).map(lineOf)).toEqual([3, 3, 3, 3]);
-    expect(lines.notReached).toEqual([]);
   });
 
   it("counts awaits pending at one location, and reports distinct ones separately", async () => {
@@ -111,20 +102,5 @@ describe(sourceLines, () => {
     `);
 
     expect(lines.waiting.map(({ range }) => lineOf(range))).toEqual([3]);
-  });
-
-  it("greys a skipped branch, but not a function that never ran", async () => {
-    const { lines } = await linesOf(`
-      function unused() {
-        void client.api.Mailbox.get({});
-      }
-      if (Math.random() > 2) {
-        void client.api.Email.get({ ids: [] });
-      }
-      void client.api.Email.query({});
-    `);
-
-    expect(linesIn(lines.notReached)).toEqual([[6, 6]]);
-    expect(lines.notSent.map(({ method }) => method)).toEqual(["Email/get"]);
   });
 });

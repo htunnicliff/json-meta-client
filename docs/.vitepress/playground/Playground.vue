@@ -1,31 +1,19 @@
 <script setup lang="ts">
-import { useData } from "vitepress";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import ConnectDialog from "./ConnectDialog.vue";
-import ConsolePanel from "./ConsolePanel.vue";
-import type { ConsoleLine } from "./ConsolePanel.vue";
-import { editorDecorations, labelsAt } from "./editor-decorations.ts";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { SourceInfo, Trace } from "./instrument.ts";
 import type { Connection, Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
-import { decodeShare, encodeShare } from "./share.ts";
-import { sourceLines } from "./source-lines.ts";
+import { labelsAt, sourceLines } from "./source-lines.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
-
-// How long typing must pause before the code runs again
-const RUN_DELAY_MS = 400;
-// How long a new run's results wait to replace the last run's while it has not
-// settled, so the panel does not flicker while typing
-const SHOW_PARTIAL_AFTER_MS = 600;
-// How long a run may stay busy before the panel suggests it is stuck
-const STUCK_AFTER_MS = 3_000;
+import type { ConsoleLine } from "./TimelinePanel.vue";
 
 /**
  * What the panel shows of a run
@@ -44,61 +32,30 @@ interface RunView {
   trace?: Trace;
 }
 
-const emptyView = (): RunView => ({
+const emptyView = (code: string, status: RunStatus): RunView => ({
   requests: [],
   diagnostics: [],
   errors: [],
   logs: [],
   responses: [],
-  status: "running",
-  code: "",
+  status,
+  code,
 });
 
-const defaultCode = examples[0]!.code;
-const code = ref(defaultCode);
-const view = shallowRef<RunView>(emptyView());
-const rawJson = ref(false);
-const tab = ref<"requests" | "console">("requests");
-// A message about the shared link, such as one that could not be read
-const notice = ref("");
-const shareStatus = ref("");
-
-const { isDark } = useData();
+const code = ref(examples[0]!.code);
+const view = shallowRef<RunView>(emptyView(code.value, "ready"));
 const editorHost = ref<HTMLElement>();
-// The plain textarea stands in until Monaco loads
-const editorReady = ref(false);
 let editor: CodeEditor | undefined;
+let runner: Runner | undefined;
 let unmounted = false;
 
-let runner: Runner | undefined;
-let runTimer: ReturnType<typeof setTimeout> | undefined;
-let showTimer: ReturnType<typeof setTimeout> | undefined;
-let stuckTimer: ReturnType<typeof setTimeout> | undefined;
-// The latest run's view while it is not shown yet
-let next: RunView | undefined;
-
-function show() {
-  clearTimeout(showTimer);
-  if (next) view.value = next;
-  next = undefined;
-}
-
 function update(change: (current: RunView) => Partial<RunView>) {
-  if (next) next = { ...next, ...change(next) };
-  else view.value = { ...view.value, ...change(view.value) };
+  view.value = { ...view.value, ...change(view.value) };
 }
 
 function onEvent(event: RunnerEvent) {
   switch (event.type) {
     case "start":
-      next = { ...emptyView(), code: code.value };
-      clearTimeout(showTimer);
-      showTimer = setTimeout(show, SHOW_PARTIAL_AFTER_MS);
-      clearTimeout(stuckTimer);
-      stuckTimer = setTimeout(() => {
-        show();
-        update(({ status }) => (status === "running" ? { status: "stuck" } : {}));
-      }, STUCK_AFTER_MS);
       break;
     case "request":
       update(({ requests }) => {
@@ -109,11 +66,9 @@ function onEvent(event: RunnerEvent) {
       break;
     case "idle":
       update(() => ({ status: event.finished ? "finished" : "waiting" }));
-      show();
       break;
     case "diagnostics":
       update(() => ({ diagnostics: event.diagnostics, status: "failed" }));
-      show();
       break;
     case "error":
       update(({ errors, logs }) => ({
@@ -122,7 +77,6 @@ function onEvent(event: RunnerEvent) {
         logs: [...logs, { level: "error", text: event.message }],
         status: "failed",
       }));
-      show();
       break;
     case "compiled":
       update(() => ({ source: event.source }));
@@ -143,7 +97,7 @@ function onEvent(event: RunnerEvent) {
   }
 }
 
-// A real server, in memory only. While connected, code runs only on request.
+// A real server, in memory only
 const connection = shallowRef<Connection>();
 const connecting = ref(false);
 const server = computed(() => {
@@ -154,133 +108,50 @@ const server = computed(() => {
   }
 });
 
-function runNow() {
-  clearTimeout(runTimer);
+function run() {
+  view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
 }
-
-watch(code, () => {
-  clearTimeout(runTimer);
-  if (!connection.value) runTimer = setTimeout(runNow, RUN_DELAY_MS);
-});
 
 function connect(chosen: Connection) {
   connecting.value = false;
   connection.value = chosen;
-  clearTimeout(runTimer);
   runner?.stop();
-  // Results of the request-only run don't apply to the server
-  next = undefined;
-  const { code: ran, source } = view.value;
-  view.value = { ...emptyView(), status: "ready", code: ran, source };
+  // Results of a request-only run don't apply to the server
+  view.value = emptyView(code.value, "ready");
 }
 
 function disconnect() {
   // Dropping the reference and the worker that held a copy forgets the credentials
   connection.value = undefined;
   runner?.stop();
-  runNow();
+  view.value = emptyView(code.value, "ready");
 }
 
 function onRunShortcut(event: KeyboardEvent) {
-  if (!connection.value || event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+  if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
   event.preventDefault();
   event.stopPropagation();
-  runNow();
+  run();
 }
 
-watch(isDark, (dark) => editor?.setDark(dark));
-
-function setCode(value: string) {
-  if (editor) editor.setCode(value);
-  else code.value = value;
-}
-
-/**
- * Load the code a shared link holds, if any
- */
-async function loadFromHash() {
-  const shared = await decodeShare(location.hash);
-  if (shared.kind === "code") {
-    notice.value = "";
-    setCode(shared.code);
-  } else if (shared.kind === "invalid") {
-    notice.value = `The code in this link couldn't be read (${shared.reason}), so the default example is shown.`;
-    setCode(defaultCode);
-  }
-}
-
-function clearHash() {
-  history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-}
-
-let shareTimer: ReturnType<typeof setTimeout> | undefined;
-async function share() {
-  const hash = await encodeShare(code.value);
-  history.replaceState(history.state, "", `#${hash}`);
-  try {
-    await navigator.clipboard.writeText(location.href);
-    shareStatus.value = "Link copied";
-  } catch {
-    shareStatus.value = "Link in the address bar";
-  }
-  clearTimeout(shareTimer);
-  shareTimer = setTimeout(() => (shareStatus.value = ""), 2_000);
-}
-
-function reset() {
-  notice.value = "";
-  clearHash();
-  setCode(defaultCode);
-}
+const example = computed(() => findExample(code.value));
 
 function chooseExample(id: string) {
   const chosen = examples.find((candidate) => candidate.id === id);
-  if (chosen) setCode(chosen.code);
+  if (!chosen || !editor) return;
+  editor.setCode(chosen.code);
+  if (!connection.value) run();
 }
 
-const onHashChange = () => void loadFromHash();
+// Whether the code was edited since the last run
+const stale = computed(() => view.value.code !== code.value);
+const status = computed<RunStatus>(() => (stale.value ? "ready" : view.value.status));
 
-onMounted(async () => {
-  runner = createRunner(onEvent);
-  await loadFromHash();
-  runNow();
-  addEventListener("hashchange", onHashChange);
-  // Before the editor sees the keys
-  addEventListener("keydown", onRunShortcut, true);
-  const { createMonacoEditor } = await import("./monaco-editor.ts");
-  if (unmounted || !editorHost.value) return;
-  editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
-  editor.onChange((value) => (code.value = value));
-  editor.onHover((position) => {
-    editorHovered.value = position && lines.value ? labelsAt(lines.value, position) : [];
-  });
-  editor.setDecorations(decorations.value);
-  editorReady.value = true;
-});
-
-onBeforeUnmount(() => {
-  unmounted = true;
-  removeEventListener("hashchange", onHashChange);
-  removeEventListener("keydown", onRunShortcut, true);
-  connection.value = undefined;
-  clearTimeout(shareTimer);
-  clearTimeout(runTimer);
-  clearTimeout(showTimer);
-  clearTimeout(stuckTimer);
-  runner?.dispose();
-  editor?.dispose();
-});
-
-const example = computed(() => findExample(code.value));
-const requestCount = computed(() => view.value.requests.filter(Boolean).length);
-const logCount = computed(() => view.value.logs.length);
-
-// Source lines, while the code shown is the code that ran: an edit clears them
-// until the next run settles
+// Where the method calls were made, while the code shown is the code that ran
 const lines = computed(() => {
-  const { source, trace, requests, code: ran } = view.value;
-  if (!source || !trace || ran !== code.value) return undefined;
+  const { source, trace, requests } = view.value;
+  if (!source || !trace || stale.value) return undefined;
   const calls = buildTimeline(requests).flatMap((entry) =>
     entry.kind === "batch" ? entry.calls : [],
   );
@@ -297,34 +168,38 @@ watch(code, () => {
   panelHovered.value = undefined;
   editorHovered.value = [];
 });
-
-// The connection options a connected server replaces, while the code shown
-// is the code that ran
-const substituted = computed(() => {
-  const { source, code: ran } = view.value;
-  return connection.value?.substitute && source && ran === code.value
-    ? source.connectionOptions
-    : [];
+watch([panelHovered, lines], ([label, current]) => {
+  const range = label ? current?.calls[label] : undefined;
+  editor?.highlight(range ? [{ from: range.start.line, to: range.end.line }] : []);
 });
 
-const decorations = computed(() =>
-  editorDecorations(
-    lines.value,
-    new Set(panelHovered.value ? [panelHovered.value] : []),
-    substituted.value,
-  ),
-);
-watch(decorations, (next) => editor?.setDecorations(next));
+onMounted(async () => {
+  addEventListener("keydown", onRunShortcut, true);
+  const [{ createEditor }, { startTypeScriptWorker }] = await Promise.all([
+    import("./editor.ts"),
+    import("./ts-worker.ts"),
+  ]);
+  if (unmounted || !editorHost.value) return;
+  const worker = startTypeScriptWorker();
+  runner = createRunner((source) => worker.compile(source), onEvent);
+  editor = createEditor(editorHost.value, {
+    code: code.value,
+    worker,
+    onChange: (value) => (code.value = value),
+    onHover: (position) => {
+      editorHovered.value = position && lines.value ? labelsAt(lines.value, position) : [];
+    },
+  });
+  run();
+});
 
-function onKeydown(event: KeyboardEvent) {
-  // Indent with Tab rather than leaving the editor
-  if (event.key !== "Tab" || event.shiftKey) return;
-  event.preventDefault();
-  const target = event.currentTarget as HTMLTextAreaElement;
-  const { selectionStart, selectionEnd } = target;
-  target.setRangeText("  ", selectionStart, selectionEnd, "end");
-  code.value = target.value;
-}
+onBeforeUnmount(() => {
+  unmounted = true;
+  removeEventListener("keydown", onRunShortcut, true);
+  connection.value = undefined;
+  runner?.stop();
+  editor?.destroy();
+});
 </script>
 
 <template>
@@ -342,98 +217,35 @@ function onKeydown(event: KeyboardEvent) {
           </option>
         </select>
       </label>
-      <button v-if="connection" type="button" class="button run" @click="runNow">
-        ▶ Run <kbd>⌘↵</kbd>
+      <button type="button" class="button run" @click="run">▶ Run <kbd>⌘↵</kbd></button>
+      <span v-if="connection" class="connected">
+        <strong>Connected</strong> · {{ server }}
+        <button type="button" class="disconnect" @click="disconnect">Disconnect</button>
+      </span>
+      <button v-else type="button" class="button connect" @click="connecting = true">
+        Connect a server…
       </button>
-      <button type="button" class="button" @click="reset">Reset</button>
-      <button type="button" class="button" @click="share">Share</button>
-      <span class="share-status" role="status">{{ shareStatus }}</span>
-      <template v-if="connection">
-        <span class="mode connected-note"
-          >Auto-run is off while connected: this code acts on a real account.</span
-        >
-        <span class="connected">
-          <span class="mode-dot connected-dot" /><strong>Connected</strong> · {{ server }}
-          <button type="button" class="disconnect" @click="disconnect">Disconnect</button>
-        </span>
-      </template>
-      <template v-else>
-        <span class="mode"><span class="mode-dot" />Request-only · re-runs as you type</span>
-        <button type="button" class="button connect" @click="connecting = true">
-          Connect a server…
-        </button>
-      </template>
     </div>
     <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
-    <p v-if="notice" class="notice" role="alert">
-      {{ notice }}
-      <button type="button" class="dismiss" aria-label="Dismiss" @click="notice = ''">×</button>
-    </p>
     <div class="panes">
-      <section class="pane editor-pane" aria-label="Code">
-        <header class="pane-header">
-          <span class="pane-title">playground.ts</span>
-        </header>
-        <div v-show="editorReady" ref="editorHost" class="monaco-host" />
-        <textarea
-          v-if="!editorReady"
-          v-model="code"
-          class="editor"
-          spellcheck="false"
-          wrap="off"
-          autocapitalize="off"
-          autocomplete="off"
-          aria-label="TypeScript code"
-          @keydown="onKeydown"
-        />
+      <section class="pane" aria-label="Code">
+        <header class="pane-header">playground.ts</header>
+        <div ref="editorHost" class="editor" />
       </section>
 
-      <section class="pane output-pane" aria-label="Output">
-        <header class="pane-header">
-          <div class="tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              class="tab"
-              :aria-selected="tab === 'requests'"
-              @click="tab = 'requests'"
-            >
-              Requests <span class="count">{{ requestCount }}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="tab"
-              :aria-selected="tab === 'console'"
-              @click="tab = 'console'"
-            >
-              Console <span v-if="logCount" class="count">{{ logCount }}</span>
-            </button>
-          </div>
-          <label v-if="tab === 'requests'" class="toggle">
-            <input v-model="rawJson" type="checkbox" />
-            Raw JSON
-          </label>
-        </header>
+      <section class="pane" aria-label="Output">
+        <header class="pane-header">Requests</header>
         <div class="output" aria-live="polite">
-          <ConsolePanel
-            v-if="tab === 'console'"
-            :lines="view.logs"
-            :waiting="view.status === 'waiting'"
-          />
           <TimelinePanel
-            v-else
             :requests="view.requests"
             :responses="view.responses"
             :connected="server"
-            :status="view.status"
+            :status="status"
             :errors="view.errors"
             :diagnostics="view.diagnostics"
-            :raw-json="rawJson"
-            :example="example"
+            :logs="view.logs"
             :lines="lines"
             :highlighted="highlighted"
-            @show-batched="setCode"
             @hover-call="panelHovered = $event"
           />
         </div>
@@ -480,27 +292,7 @@ function onKeydown(event: KeyboardEvent) {
 .button {
   padding: 4px 12px;
   border-radius: 8px;
-  background: var(--vp-button-alt-bg);
-  color: var(--vp-c-text-1);
   font-weight: 500;
-}
-
-.button:hover {
-  background: var(--vp-button-alt-hover-bg);
-}
-
-.share-status {
-  color: var(--vp-c-text-2);
-  font-size: 13px;
-}
-
-.mode {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  color: var(--vp-c-text-2);
-  font-size: 13px;
 }
 
 .run {
@@ -520,14 +312,9 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .connect {
-  border: 1px solid var(--vp-c-tip-1);
-  background: transparent;
-  color: var(--vp-c-tip-1);
-}
-
-.connected-note {
-  margin-left: 0;
-  color: var(--vp-c-tip-1);
+  margin-left: auto;
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-1);
 }
 
 .connected {
@@ -535,49 +322,16 @@ function onKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 6px;
   margin-left: auto;
-  padding: 2px 4px 2px 12px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 999px;
   font-size: 13px;
-  color: var(--vp-c-tip-1);
-}
-
-.connected-dot {
-  background: var(--vp-c-tip-1);
+  color: var(--vp-c-text-2);
 }
 
 .disconnect {
   padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--vp-c-tip-soft);
-  color: var(--vp-c-tip-1);
-  font-size: 12px;
-}
-
-.mode-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--vp-c-green-1);
-}
-
-.notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0;
-  padding: 8px 12px;
   border-radius: 8px;
-  background: var(--vp-c-warning-soft);
-  color: var(--vp-c-warning-1);
-  font-size: 14px;
-}
-
-.dismiss {
-  font-size: 18px;
-  line-height: 1;
-  color: inherit;
+  background: var(--vp-button-alt-bg);
+  color: var(--vp-c-text-1);
+  font-size: 12px;
 }
 
 .panes {
@@ -609,78 +363,17 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 .pane-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
   font-size: 13px;
-}
-
-.pane-title {
   font-weight: 600;
-  color: var(--vp-c-text-1);
-}
-
-.count {
-  margin-left: 2px;
-  font-weight: 400;
-  color: var(--vp-c-text-2);
-}
-
-.tabs {
-  display: flex;
-  gap: 16px;
-  margin: -8px 0;
-}
-
-.tab {
-  padding: 8px 0 6px;
-  border-bottom: 2px solid transparent;
-  color: var(--vp-c-text-2);
-  font-weight: 500;
-}
-
-.tab[aria-selected="true"] {
-  border-bottom-color: var(--vp-c-brand-1);
-  color: var(--vp-c-text-1);
-  font-weight: 600;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--vp-c-text-2);
-  cursor: pointer;
 }
 
 .editor {
   flex: 1;
-  width: 100%;
   min-height: 320px;
-  padding: 12px;
-  border: none;
-  resize: none;
-  font-family: var(--vp-font-family-mono);
-  font-size: 14px;
-  line-height: 1.6;
-  tab-size: 2;
-  white-space: pre;
-  overflow: auto;
-  color: var(--vp-c-text-1);
-  background: var(--vp-c-bg);
-}
-
-.editor:focus {
-  outline: none;
-}
-
-.monaco-host {
-  flex: 1;
-  min-height: 320px;
+  overflow: hidden;
 }
 
 .output {
@@ -691,53 +384,76 @@ function onKeydown(event: KeyboardEvent) {
 </style>
 
 <style>
-/* Editor decorations; Monaco renders them outside this component's scope */
-.monaco-editor .pg-not-reached {
-  opacity: 0.4;
+/* CodeMirror, on the docs site's code colors; it renders outside this component's scope */
+.playground .cm-editor {
+  height: 100%;
+  font-size: 14px;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
 }
 
-.monaco-editor .pg-waiting-line {
-  background: var(--vp-c-yellow-soft);
-  box-shadow: inset 3px 0 var(--vp-c-yellow-1);
+.playground .cm-editor.cm-focused {
+  outline: none;
 }
 
-.monaco-editor .pg-hovered-line {
+.playground .cm-scroller {
+  font-family: var(--vp-font-family-mono);
+  line-height: 1.6;
+}
+
+.playground .cm-gutters {
+  border-right: none;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-3);
+}
+
+.playground .cm-activeLine,
+.playground .cm-activeLineGutter {
+  background: transparent;
+}
+
+.playground .cm-content {
+  caret-color: var(--vp-c-text-1);
+}
+
+.playground .pg-hovered-line {
   background: var(--vp-c-brand-soft);
   box-shadow: inset 3px 0 var(--vp-c-brand-1);
 }
 
-.monaco-editor .pg-substituted {
-  text-decoration: line-through;
-  opacity: 0.6;
+.playground .tok-keyword,
+.playground .tok-operatorKeyword {
+  color: var(--vp-c-brand-1);
 }
 
-.monaco-editor .pg-badge-substituted {
-  background: var(--vp-c-tip-soft);
+.playground .tok-string,
+.playground .tok-string2 {
   color: var(--vp-c-tip-1);
-  font-weight: 500;
 }
 
-.monaco-editor .pg-badge {
-  margin-left: 12px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-family: var(--vp-font-family-base);
-  font-size: 11px;
-  font-weight: 600;
+.playground .tok-number,
+.playground .tok-bool {
+  color: var(--vp-c-green-1);
 }
 
-.monaco-editor .pg-badge-call {
-  background: var(--vp-c-brand-1);
-  color: var(--vp-c-white);
+.playground .tok-comment {
+  color: var(--vp-c-text-3);
+  font-style: italic;
 }
 
-.monaco-editor .pg-badge-waiting {
-  background: var(--vp-c-yellow-soft);
-  color: var(--vp-c-yellow-1);
+.playground .tok-typeName,
+.playground .tok-className {
+  color: var(--vp-c-purple-1, var(--vp-c-indigo-1));
 }
 
-.monaco-editor .pg-badge-not-sent {
-  border: 1px dashed var(--vp-c-text-3);
-  color: var(--vp-c-text-2);
+.playground .cm-tooltip {
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-elv);
+  color: var(--vp-c-text-1);
+}
+
+.playground .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-text-1);
 }
 </style>

@@ -1,4 +1,4 @@
-import type { SourceInfo, SourceRange, Trace } from "./instrument.ts";
+import type { SourceInfo, SourcePosition, SourceRange, Trace } from "./instrument.ts";
 import type { TimelineCall } from "./timeline.ts";
 
 /**
@@ -9,14 +9,6 @@ export interface SourceLines {
   calls: Record<string, SourceRange>;
   /** Each `await` with pending awaits, in source order */
   waiting: WaitingAwait[];
-  /**
-   * Code that did not start although its function ran, so it was skipped or
-   * comes after a pending `await`. Statements of functions that never ran are
-   * left out: they were not skipped.
-   */
-  notReached: SourceRange[];
-  /** Method calls in code that was not reached */
-  notSent: { range: SourceRange; method: string }[];
 }
 
 export interface WaitingAwait {
@@ -59,32 +51,28 @@ export function sourceLines(
     })
     .toSorted((a, b) => compare(a.range.start, b.range.start));
 
-  const reached = new Set(trace.reached);
-  const entered = new Set(
-    source.statements.filter(({ loc }) => reached.has(loc)).map(({ fn }) => fn),
-  );
-  const skipped = source.statements
-    .filter(({ loc, fn }) => !reached.has(loc) && entered.has(fn))
-    .flatMap(({ loc }) => range(loc) ?? []);
-  // Only the outermost: a statement inside a skipped one is skipped too
-  const notReached = skipped.filter(
-    (inner) => !skipped.some((outer) => outer !== inner && contains(outer, inner)),
-  );
-
-  const notSent = source.methodCallSites.flatMap(({ loc, method }) => {
-    const found = range(loc);
-    return found && notReached.some((outer) => contains(outer, found))
-      ? [{ range: found, method }]
-      : [];
-  });
-
-  return { calls, waiting, notReached, notSent };
+  return { calls, waiting };
 }
 
 function compare(a: SourceRange["start"], b: SourceRange["start"]): number {
   return a.line - b.line || a.column - b.column;
 }
 
-function contains(outer: SourceRange, inner: SourceRange): boolean {
-  return compare(outer.start, inner.start) <= 0 && compare(inner.end, outer.end) <= 0;
+/**
+ * The labels of the method calls made at the innermost call site containing
+ * `position`
+ */
+export function labelsAt(lines: SourceLines, position: SourcePosition): string[] {
+  const containing = Object.entries(lines.calls).filter(([, range]) => contains(range, position));
+  if (!containing.length) return [];
+  const smallest = Math.min(...containing.map(([, range]) => size(range)));
+  return containing.filter(([, range]) => size(range) === smallest).map(([label]) => label);
+}
+
+function size({ start, end }: SourceRange): number {
+  return (end.line - start.line) * 10_000 + end.column - start.column;
+}
+
+function contains({ start, end }: SourceRange, position: SourcePosition): boolean {
+  return compare(start, position) <= 0 && compare(position, end) <= 0;
 }

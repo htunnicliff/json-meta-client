@@ -2,19 +2,11 @@
 import { onMounted, ref } from "vue";
 
 import { checkConnection } from "./connect.ts";
-import {
-  LOCAL_PASSWORD,
-  LOCAL_SESSION_URL,
-  LOCAL_USERNAME,
-  setupCommand,
-  startCommand,
-} from "./local-server.ts";
 import type { Connection } from "./protocol.ts";
 
 const emit = defineEmits<{ connect: [connection: Connection]; close: [] }>();
 
 const dialog = ref<HTMLDialogElement>();
-const source = ref<"own" | "local">("own");
 const sessionUrl = ref("");
 const method = ref<"bearer" | "basic">("bearer");
 const token = ref("");
@@ -23,27 +15,8 @@ const password = ref("");
 const substitute = ref(true);
 const checking = ref(false);
 const error = ref("");
-const copied = ref("");
 
 onMounted(() => dialog.value?.showModal());
-
-function useLocal() {
-  source.value = "local";
-  sessionUrl.value = LOCAL_SESSION_URL;
-  method.value = "basic";
-  username.value = LOCAL_USERNAME;
-  password.value = LOCAL_PASSWORD;
-}
-
-async function copy(text: string, which: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    copied.value = which;
-    setTimeout(() => (copied.value = ""), 1_500);
-  } catch {
-    // The text stays selectable
-  }
-}
 
 async function connect() {
   const connection: Connection = {
@@ -77,45 +50,6 @@ async function connect() {
         </p>
       </header>
 
-      <fieldset class="source" :class="{ selected: source === 'own' }">
-        <legend class="source-title">
-          <label><input v-model="source" type="radio" value="own" /> My own server</label>
-          <span class="source-note">Needs CORS for this site</span>
-        </legend>
-      </fieldset>
-
-      <fieldset class="source" :class="{ selected: source === 'local' }">
-        <legend class="source-title">
-          <label
-            ><input type="radio" value="local" :checked="source === 'local'" @change="useLocal" /> A
-            local test server</label
-          >
-          <span class="source-note">Stalwart in Docker</span>
-        </legend>
-        <div v-if="source === 'local'" class="steps">
-          <p>1. Start Stalwart:</p>
-          <div class="command">
-            <pre><code>{{ startCommand }}</code></pre>
-            <button type="button" class="copy" @click="copy(startCommand, 'start')">
-              {{ copied === "start" ? "Copied" : "Copy" }}
-            </button>
-          </div>
-          <p>
-            2. Once it answers, allow requests from this site, create a test account, and restart:
-          </p>
-          <div class="command">
-            <pre><code>{{ setupCommand }}</code></pre>
-            <button type="button" class="copy" @click="copy(setupCommand, 'setup')">
-              {{ copied === "setup" ? "Copied" : "Copy" }}
-            </button>
-          </div>
-          <p>
-            3. Connect with the details filled in below. Your browser may ask to allow access to
-            devices on your local network.
-          </p>
-        </div>
-      </fieldset>
-
       <div class="fields">
         <label class="field">
           Session URL
@@ -148,8 +82,8 @@ async function connect() {
       </div>
 
       <p class="privacy">
-        Your credentials stay in this tab's memory. They never go in the URL, in shared links or in
-        browser storage, and closing the tab or disconnecting forgets them.
+        Your credentials stay in this tab's memory. They never go in the URL or in browser storage,
+        and closing the tab or disconnecting forgets them.
       </p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
@@ -200,73 +134,6 @@ h2 {
 .lede {
   margin: 6px 0 0;
   color: var(--vp-c-text-2);
-}
-
-.source {
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-}
-
-.source.selected {
-  border-color: var(--vp-c-tip-1);
-  background: var(--vp-c-tip-soft);
-}
-
-.source-title {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0;
-  font-weight: 600;
-  float: left;
-}
-
-.source-title label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.source-note {
-  font-weight: 400;
-  color: var(--vp-c-text-2);
-}
-
-.steps {
-  clear: both;
-  padding-top: 8px;
-}
-
-.steps p {
-  margin: 8px 0 4px;
-}
-
-.command {
-  position: relative;
-}
-
-.command pre {
-  margin: 0;
-  padding: 8px 64px 8px 10px;
-  border-radius: 6px;
-  background: var(--vp-code-block-bg);
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.copy {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: var(--vp-button-alt-bg);
-  font-size: 12px;
 }
 
 .fields {

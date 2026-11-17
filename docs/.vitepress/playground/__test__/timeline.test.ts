@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import homeRequest from "../../../snippets/home-request.md?raw";
-import { PLACEHOLDER_ACCOUNT_ID } from "../../recorder/index.ts";
 import type { RecordedRequest } from "../../recorder/index.ts";
-import { annotateRequest, buildTimeline, compactJson } from "../timeline.ts";
+import { annotateRequest, buildTimeline } from "../timeline.ts";
 import type { BatchEntry } from "../timeline.ts";
 
 const homeBody: unknown = JSON.parse(
@@ -24,7 +23,7 @@ const batchOf = (entries: ReturnType<typeof buildTimeline>) =>
   entries.find((entry): entry is BatchEntry => entry.kind === "batch")!;
 
 describe(buildTimeline, () => {
-  it("labels method calls, tags filled-in account ids, and links result references", () => {
+  it("labels method calls and links result references", () => {
     const [session, batch] = buildTimeline(recorded(homeBody));
 
     expect(session).toEqual({
@@ -38,38 +37,15 @@ describe(buildTimeline, () => {
       kind: "batch",
       key: "batch-1",
       number: 1,
-      using: ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
-      references: 1,
       calls: [
         {
           label: "#1",
           name: "Email/query",
           callId: "Email/query::f3c9ebfd",
           referencedBy: ["#2"],
-          args: [
-            { key: "filter", value: { notKeyword: "$seen" } },
-            { key: "limit", value: 5 },
-            { key: "accountId", value: PLACEHOLDER_ACCOUNT_ID, fromSession: true },
-          ],
+          references: {},
         },
-        {
-          label: "#2",
-          name: "Email/get",
-          referencedBy: [],
-          args: [
-            {
-              key: "#ids",
-              reference: {
-                label: "#1",
-                name: "Email/query",
-                path: "/ids",
-                resultOf: "Email/query::f3c9ebfd",
-              },
-            },
-            { key: "properties", value: ["subject", "from"] },
-            { key: "accountId", fromSession: true },
-          ],
-        },
+        { label: "#2", name: "Email/get", referencedBy: [], references: { "#ids": "#1" } },
       ],
     });
   });
@@ -101,14 +77,6 @@ describe(buildTimeline, () => {
   });
 });
 
-describe(compactJson, () => {
-  it("writes JSON on one line, with plain keys unquoted", () => {
-    expect(compactJson({ notKeyword: "$seen", "a-b": [1, null], empty: {} })).toBe(
-      '{ notKeyword: "$seen", "a-b": [1, null], empty: {} }',
-    );
-  });
-});
-
 describe(annotateRequest, () => {
   it("writes the request exactly as sent", () => {
     const lines = annotateRequest(batchOf(buildTimeline(recorded(homeBody))));
@@ -116,19 +84,24 @@ describe(annotateRequest, () => {
     expect(lines.map(({ text }) => text).join("\n")).toBe(JSON.stringify(homeBody, null, 2));
   });
 
-  it("notes where values came from", () => {
+  it("notes method calls and the result references between them", () => {
     const lines = annotateRequest(batchOf(buildTimeline(recorded(homeBody))));
     const notes = lines.flatMap(({ text, note }) => (note ? [[text.trim(), note.text]] : []));
 
     expect(notes).toEqual([
-      ['"urn:ietf:params:jmap:core",', "always sent"],
-      ['"urn:ietf:params:jmap:mail"', "from the client's capabilities"],
       ["[", "#1 Email/query"],
-      ['"accountId": "<account-id>"', "from session.primaryAccounts"],
       ['"Email/query::f3c9ebfd"', "referenced by #2"],
       ["[", "#2 Email/get"],
       ['"#ids": {', "result of #1"],
-      ['"accountId": "<account-id>"', "from session.primaryAccounts"],
     ]);
+  });
+
+  it("ties each line of a method call to its label", () => {
+    const lines = annotateRequest(batchOf(buildTimeline(recorded(homeBody))));
+    const labelOf = (text: string) => lines.find((line) => line.text.trim() === text)?.call;
+
+    expect(labelOf('"using": [')).toBeUndefined();
+    expect(labelOf('"Email/query",')).toBe("#1");
+    expect(labelOf('"path": "/ids"')).toBe("#2");
   });
 });

@@ -18,11 +18,6 @@ export interface Example {
   id: string;
   title: string;
   code: string;
-  /**
-   * The same code written to send its method calls in one Batch, offered when
-   * this example stops after one
-   */
-  batched?: string;
 }
 
 const sequentialAwaits = `import { JsonMetaClient } from "json-meta-client";
@@ -53,12 +48,7 @@ for (const { subject, from } of emails.list) {
  */
 export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
-  {
-    id: "sequential-awaits",
-    title: "Sequential awaits",
-    code: sequentialAwaits,
-    batched: defaultExample,
-  },
+  { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");

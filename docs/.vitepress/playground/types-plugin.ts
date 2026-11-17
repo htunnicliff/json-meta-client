@@ -14,8 +14,8 @@ const typeFest = path.join(root, "node_modules", "type-fest");
 export const TYPES_MODULE = "virtual:playground-types";
 
 /**
- * The module that provides {@link collectLibs}' files to editors that bring
- * their own TypeScript, unlike Monaco
+ * The module that provides {@link collectLibs}' files to the editor's
+ * TypeScript worker
  */
 export const LIBS_MODULE = "virtual:playground-libs";
 

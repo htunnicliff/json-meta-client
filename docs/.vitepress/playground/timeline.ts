@@ -1,11 +1,10 @@
-import { PLACEHOLDER_ACCOUNT_ID } from "../recorder/index.ts";
 import type { RecordedKind, RecordedRequest } from "../recorder/index.ts";
 
 /**
- * Where a run is: ready to run on request while connected, still running, possibly stuck in a loop, waiting at a pending
- * `await`, finished, or stopped by an error
+ * Where a run is: not run since the code last changed, running, waiting at a
+ * pending `await`, finished, or stopped by an error
  */
-export type RunStatus = "ready" | "running" | "stuck" | "waiting" | "finished" | "failed";
+export type RunStatus = "ready" | "running" | "waiting" | "finished" | "failed";
 
 /**
  * The timeline the request panel shows, built from the recorded requests of a
@@ -35,10 +34,7 @@ export interface BatchEntry extends BaseEntry {
   kind: "batch";
   /** 1-based, in send order */
   number: number;
-  using: string[];
   calls: TimelineCall[];
-  /** How many result references the Batch's method calls hold */
-  references: number;
   /** The JMAP Request exactly as sent */
   body: unknown;
 }
@@ -48,26 +44,13 @@ export interface TimelineCall {
   label: string;
   name: string;
   callId: string;
-  args: TimelineArg[];
   /** Labels of later method calls that refer to this one's result */
   referencedBy: string[];
-}
-
-export interface TimelineArg {
-  key: string;
-  value: unknown;
-  /** Set when the client filled the value in from the Session */
-  fromSession?: boolean;
-  /** Set for a result reference argument, such as `#ids` */
-  reference?: ResultReference;
-}
-
-export interface ResultReference {
-  name: string;
-  path: string;
-  resultOf: string;
-  /** The label of the method call referred to, when it is in the timeline */
-  label?: string;
+  /**
+   * Result reference arguments, such as `#ids`, by key → the label of the
+   * method call referred to, or its call id when it is not in the timeline
+   */
+  references: Record<string, string>;
 }
 
 type Invocation = [name: string, args: Record<string, unknown>, callId: string];
@@ -86,13 +69,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asReference(value: unknown): Omit<ResultReference, "label"> | undefined {
+// The call id a result reference argument refers to
+function resultOf(value: unknown): string | undefined {
   if (!isObject(value)) return undefined;
   const { name, path, resultOf } = value;
-  if (typeof name !== "string" || typeof path !== "string" || typeof resultOf !== "string") {
-    return undefined;
-  }
-  return { name, path, resultOf };
+  return typeof name === "string" && typeof path === "string" && typeof resultOf === "string"
+    ? resultOf
+    : undefined;
 }
 
 /**
@@ -118,35 +101,20 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
     }
     const number = ++batches;
     const body = isObject(request.body) ? request.body : {};
-    const using = Array.isArray(body.using)
-      ? body.using.filter((urn) => typeof urn === "string")
-      : [];
     const invocations = Array.isArray(body.methodCalls)
       ? body.methodCalls.filter(isInvocation)
       : [];
-    let references = 0;
     const batchCalls = invocations.map(([name, args, callId]): TimelineCall => {
       const label = `#${labels.size + 1}`;
       labels.set(callId, label);
-      const call: TimelineCall = {
-        label,
-        name,
-        callId,
-        referencedBy: [],
-        args: Object.entries(args).map(([key, value]): TimelineArg => {
-          const reference = key.startsWith("#") ? asReference(value) : undefined;
-          if (reference) {
-            references++;
-            const target = labels.get(reference.resultOf);
-            calls.get(reference.resultOf)?.referencedBy.push(label);
-            return { key, value, reference: { ...reference, label: target } };
-          }
-          if (key === "accountId" && value === PLACEHOLDER_ACCOUNT_ID) {
-            return { key, value, fromSession: true };
-          }
-          return { key, value };
-        }),
-      };
+      const references: Record<string, string> = {};
+      for (const [key, value] of Object.entries(args)) {
+        const target = key.startsWith("#") ? resultOf(value) : undefined;
+        if (target === undefined) continue;
+        references[key] = labels.get(target) ?? target;
+        calls.get(target)?.referencedBy.push(label);
+      }
+      const call: TimelineCall = { label, name, callId, referencedBy: [], references };
       calls.set(callId, call);
       return call;
     });
@@ -155,50 +123,41 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
       kind: "batch",
       key: `batch-${number}`,
       number,
-      using,
       calls: batchCalls,
-      references,
       body: request.body,
     };
   });
 }
 
-const identifier = /^[A-Za-z_$][\w$]*$/;
-
 /**
- * A short, one-line form of a JSON value, as in `{ notKeyword: "$seen" }`
- */
-export function compactJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(compactJson).join(", ")}]`;
-  if (isObject(value)) {
-    const entries = Object.entries(value);
-    if (!entries.length) return "{}";
-    const fields = entries.map(
-      ([key, field]) =>
-        `${identifier.test(key) ? key : JSON.stringify(key)}: ${compactJson(field)}`,
-    );
-    return `{ ${fields.join(", ")} }`;
-  }
-  return JSON.stringify(value) ?? String(value);
-}
-
-export type NoteTone = "session" | "config" | "reference" | "label";
-
-/**
- * A line of a JMAP Request's JSON, with a note saying where its value came
- * from
+ * A line of a JMAP Request's JSON: the method call it belongs to, and a note
+ * on where a method call starts and on the result references between calls
  */
 export interface AnnotatedLine {
   text: string;
-  note?: { text: string; tone: NoteTone };
+  /** The label of the method call this line is part of */
+  call?: string;
+  note?: { text: string; tone: "label" | "reference" };
 }
 
-const CORE_URN = "urn:ietf:params:jmap:core";
+/**
+ * The note on the line at `path` within a method call: its label where it
+ * starts, and the result references it takes part in
+ */
+function note(path: readonly (string | number)[], call: TimelineCall): AnnotatedLine["note"] {
+  const [, , part, key] = path;
+  if (path.length === 2) return { text: `${call.label} ${call.name}`, tone: "label" };
+  if (part === 2 && path.length === 3 && call.referencedBy.length) {
+    return { text: `referenced by ${call.referencedBy.join(", ")}`, tone: "reference" };
+  }
+  const target = part === 1 && typeof key === "string" ? call.references[key] : undefined;
+  if (path.length === 4 && target) return { text: `result of ${target}`, tone: "reference" };
+  return undefined;
+}
 
 /**
  * The JMAP Request as `JSON.stringify(body, null, 2)` writes it, one line at a
- * time, with notes on the values that came from the Session, the client's
- * configuration, or result references
+ * time, with notes on its method calls and result references
  */
 export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
   const byId = new Map(batch.calls.map((call) => [call.callId, call]));
@@ -206,29 +165,11 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
     isObject(batch.body) && Array.isArray(batch.body.methodCalls) ? batch.body.methodCalls : [];
   const lines: AnnotatedLine[] = [];
 
-  function note(path: readonly (string | number)[], value: unknown): AnnotatedLine["note"] {
-    const [top, index, part, key] = path;
-    if (top === "using" && path.length === 2) {
-      return value === CORE_URN
-        ? { text: "always sent", tone: "config" }
-        : { text: "from the client's capabilities", tone: "config" };
-    }
+  function callAt(path: readonly (string | number)[]): TimelineCall | undefined {
+    const [top, index] = path;
     if (top !== "methodCalls" || typeof index !== "number") return undefined;
     const invocation = methodCalls[index];
-    const call = isInvocation(invocation) ? byId.get(invocation[2]) : undefined;
-    if (!call) return undefined;
-    if (path.length === 2) return { text: `${call.label} ${call.name}`, tone: "label" };
-    if (part === 2 && path.length === 3 && call.referencedBy.length) {
-      return { text: `referenced by ${call.referencedBy.join(", ")}`, tone: "reference" };
-    }
-    if (part !== 1 || path.length !== 4 || typeof key !== "string") return undefined;
-    const arg = call.args.find((candidate) => candidate.key === key);
-    if (arg?.fromSession) return { text: "from session.primaryAccounts", tone: "session" };
-    if (arg?.reference) {
-      const target = arg.reference.label ?? arg.reference.resultOf;
-      return { text: `result of ${target}`, tone: "reference" };
-    }
-    return undefined;
+    return isInvocation(invocation) ? byId.get(invocation[2]) : undefined;
   }
 
   function write(
@@ -239,8 +180,15 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
     suffix: string,
   ) {
     const pad = "  ".repeat(depth);
-    const push = (text: string, withNote: boolean) =>
-      lines.push(withNote ? { text, note: note(path, value) } : { text });
+    const call = callAt(path);
+    const push = (text: string, withNote: boolean) => {
+      const line: AnnotatedLine = { text };
+      if (call) {
+        line.call = call.label;
+        if (withNote) line.note = note(path, call);
+      }
+      lines.push(line);
+    };
     const entries: [string | number, unknown][] | undefined = Array.isArray(value)
       ? value.map((item, index) => [index, item])
       : isObject(value)

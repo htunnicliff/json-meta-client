@@ -21,4 +21,4 @@ export const editorCompilerOptions = {
 /**
  * Where the user's code lives in the editor's virtual file system
  */
-export const EDITOR_FILE = "file:///playground.ts";
+export const EDITOR_FILE = "/playground.ts";

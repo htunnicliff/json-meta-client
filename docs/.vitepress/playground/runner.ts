@@ -1,14 +1,7 @@
 /* oxlint-disable unicorn/require-post-message-target-origin -- workers take no target origin */
 import type { CompileOutput } from "./compile.ts";
 import type { SourceInfo } from "./instrument.ts";
-import type {
-  CompileRequest,
-  Connection,
-  CompileResult,
-  Diagnostic,
-  RunEvent,
-  RunRequest,
-} from "./protocol.ts";
+import type { Connection, Diagnostic, RunEvent, RunRequest } from "./protocol.ts";
 
 /**
  * What a runner reports about the latest run. Events of a run that a newer
@@ -26,46 +19,18 @@ export interface Runner {
   run(source: string, connection?: Connection): void;
   /** Stop the current run, ending its requests */
   stop(): void;
-  /** Stop the current run and the compiler */
-  dispose(): void;
 }
 
 /**
- * Run user code in workers: a long-lived one compiles it, and a fresh one runs
- * each version, so stopping a run is as simple as terminating its worker.
+ * Run user code: compile it with `compile`, then run each version in a fresh
+ * worker, so stopping a run is as simple as terminating its worker
  */
-export interface RunnerOptions {
-  /**
-   * Compile with this instead of the runner's own compiler worker, such as
-   * one that also hosts an editor's language service
-   */
-  compile?: (source: string) => Promise<CompileOutput>;
-}
-
 export function createRunner(
+  compile: (source: string) => Promise<CompileOutput>,
   onEvent: (event: RunnerEvent) => void,
-  options: RunnerOptions = {},
 ): Runner {
-  let compiler: Worker | undefined;
   let current: Worker | undefined;
   let latest = 0;
-
-  const compiled = new Map<number, (result: CompileResult) => void>();
-  function compile(source: string, id: number): Promise<CompileResult> {
-    if (options.compile) return options.compile(source).then((output) => ({ id, ...output }));
-    if (!compiler) {
-      compiler = new Worker(new URL("./compile.worker.ts", import.meta.url), { type: "module" });
-      compiler.addEventListener("message", ({ data }: MessageEvent<CompileResult>) => {
-        compiled.get(data.id)?.(data);
-        compiled.delete(data.id);
-      });
-    }
-    const worker = compiler;
-    return new Promise((resolve) => {
-      compiled.set(id, resolve);
-      worker.postMessage({ id, source } satisfies CompileRequest);
-    });
-  }
 
   function stop() {
     current?.terminate();
@@ -82,7 +47,7 @@ export function createRunner(
       const id = ++latest;
       stop();
       onEvent({ type: "start" });
-      const result = await compile(source, id);
+      const result = await compile(source);
       if (id !== latest) return;
       if ("diagnostics" in result) {
         onEvent({ type: "diagnostics", diagnostics: result.diagnostics });
@@ -98,12 +63,6 @@ export function createRunner(
         if (id === latest) onEvent({ type: "error", message: event.message || "The run failed" });
       });
       worker.postMessage({ code: result.code, connection } satisfies RunRequest);
-    },
-    dispose() {
-      latest++;
-      stop();
-      compiler?.terminate();
-      compiler = undefined;
     },
   };
 }

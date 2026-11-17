@@ -10,13 +10,7 @@ import ts from "typescript";
  *   stays legal. A call id drawn during the call maps to `loc`.
  * - Each `await e` becomes `await __playground.a(loc, e)`, which counts the
  *   awaits pending at `loc`.
- * - Each statement in a block, `case` clause or the top level is preceded by
- *   `__playground.r(loc)`, recording that it started. An expression-bodied
- *   arrow function gets the same as a comma expression.
  */
-
-/** The `fn` of top-level statements */
-export const TOP_LEVEL = -1;
 
 /** The global the instrumented code reports to */
 export const TRACER = "__playground";
@@ -36,21 +30,6 @@ export interface SourceRange {
 export interface SourceInfo {
   /** Every instrumented location, by its index */
   ranges: SourceRange[];
-  /**
-   * Instrumented statements, with the location of their enclosing function,
-   * or {@link TOP_LEVEL}
-   */
-  statements: { loc: number; fn: number }[];
-  /**
-   * Call sites that look like method calls, such as `client.api.Email.get(…)`,
-   * with the method they make
-   */
-  methodCallSites: { loc: number; method: string }[];
-  /**
-   * The `sessionUrl` and `auth` values of each `new JsonMetaClient({ … })`,
-   * which a connected server replaces
-   */
-  connectionOptions: SourceRange[];
 }
 
 /**
@@ -66,12 +45,7 @@ export interface Trace {
   pending: Record<number, number>;
   /** Await location → the call ids of the method calls it is waiting on, when known */
   awaited: Record<number, string[]>;
-  /** Locations of the statements that started */
-  reached: number[];
 }
-
-// A callee such as `client.api.Email.get` or `api.Mailbox.query`
-const methodCallee = /(?:^|\.)api\.([A-Z]\w*)\.(\w+)$/;
 
 /**
  * Create the transformer, and the {@link SourceInfo} it fills in as it runs
@@ -80,12 +54,7 @@ export function instrument(): {
   transformer: ts.TransformerFactory<ts.SourceFile>;
   info: SourceInfo;
 } {
-  const info: SourceInfo = {
-    ranges: [],
-    statements: [],
-    methodCallSites: [],
-    connectionOptions: [],
-  };
+  const info: SourceInfo = { ranges: [] };
 
   const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => (file) => {
     const { factory } = context;
@@ -105,71 +74,8 @@ export function instrument(): {
       return { start: position(node.getStart(file)), end: position(node.getEnd()) };
     };
     const locate = (node: ts.Node): number => info.ranges.push(rangeOf(node)) - 1;
-    // The location of the function being visited, or TOP_LEVEL
-    let fn = TOP_LEVEL;
-
-    // `__playground.r(loc)`, recording that the statement started
-    const marker = (statement: ts.Statement): ts.Statement => {
-      const loc = locate(statement);
-      info.statements.push({ loc, fn });
-      return factory.createExpressionStatement(tracer("r", [literal(loc)]));
-    };
-    const statements = (list: ts.NodeArray<ts.Statement>): ts.Statement[] =>
-      list.flatMap((statement) => {
-        const visited = ts.visitNode(statement, visit, ts.isStatement);
-        // Declarations that do not run as statements stay as they are
-        if (
-          ts.isFunctionDeclaration(statement) ||
-          ts.isImportDeclaration(statement) ||
-          ts.isExportDeclaration(statement) ||
-          ts.isInterfaceDeclaration(statement) ||
-          ts.isTypeAliasDeclaration(statement) ||
-          ts.isEmptyStatement(statement)
-        ) {
-          return [visited];
-        }
-        return [marker(statement), visited];
-      });
 
     function visit(node: ts.Node): ts.Node {
-      if (ts.isFunctionLike(node) && "body" in node && node.body) {
-        const outer = fn;
-        fn = locate(node);
-        try {
-          return visitFunction(node);
-        } finally {
-          fn = outer;
-        }
-      }
-      if (ts.isBlock(node)) {
-        return factory.updateBlock(node, statements(node.statements));
-      }
-      if (ts.isCaseClause(node)) {
-        return factory.updateCaseClause(
-          node,
-          ts.visitNode(node.expression, visit, ts.isExpression),
-          statements(node.statements),
-        );
-      }
-      if (ts.isDefaultClause(node)) {
-        return factory.updateDefaultClause(node, statements(node.statements));
-      }
-      if (
-        ts.isNewExpression(node) &&
-        /(?:^|\.)JsonMetaClient$/.test(node.expression.getText(file))
-      ) {
-        const [options] = node.arguments ?? [];
-        if (options && ts.isObjectLiteralExpression(options)) {
-          for (const property of options.properties) {
-            const name = property.name && ts.isIdentifier(property.name) ? property.name.text : "";
-            if (name !== "sessionUrl" && name !== "auth") continue;
-            if (ts.isPropertyAssignment(property))
-              info.connectionOptions.push(rangeOf(property.initializer));
-            if (ts.isShorthandPropertyAssignment(property))
-              info.connectionOptions.push(rangeOf(property));
-          }
-        }
-      }
       if (ts.isAwaitExpression(node)) {
         const loc = locate(node);
         const expression = ts.visitNode(node.expression, visit, ts.isExpression);
@@ -177,9 +83,6 @@ export function instrument(): {
       }
       if (ts.isCallExpression(node) && isInstrumentableCall(node)) {
         const loc = locate(node);
-        const callee = node.expression.getText(file).replaceAll(/\s+/g, "");
-        const method = methodCallee.exec(callee);
-        if (method) info.methodCallSites.push({ loc, method: `${method[1]}/${method[2]}` });
         const updated = ts.visitEachChild(node, visit, context);
         const args = [
           factory.createSpreadElement(
@@ -199,28 +102,7 @@ export function instrument(): {
       return ts.visitEachChild(node, visit, context);
     }
 
-    function visitFunction(node: ts.SignatureDeclaration & { body?: ts.Node }): ts.Node {
-      if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
-        // `() => expr` becomes `() => (r(loc), expr)`
-        const loc = locate(node.body);
-        info.statements.push({ loc, fn });
-        const body = ts.visitNode(node.body, visit, ts.isExpression);
-        return factory.updateArrowFunction(
-          node,
-          node.modifiers,
-          node.typeParameters,
-          node.parameters,
-          node.type,
-          node.equalsGreaterThanToken,
-          factory.createParenthesizedExpression(
-            factory.createCommaListExpression([tracer("r", [literal(loc)]), body]),
-          ),
-        );
-      }
-      return ts.visitEachChild(node, visit, context);
-    }
-
-    return factory.updateSourceFile(file, statements(file.statements));
+    return ts.visitEachChild(file, visit, context);
   };
 
   return { transformer, info };
@@ -236,11 +118,10 @@ function isInstrumentableCall(node: ts.CallExpression): boolean {
  * keeps
  */
 export function createTracer() {
-  const trace: Trace = { calls: {}, pending: {}, awaited: {}, reached: [] };
-  const reached = new Set<number>();
+  const trace: Trace = { calls: {}, pending: {}, awaited: {} };
   let current: number | undefined;
   return {
-    trace: (): Trace => ({ ...trace, reached: [...reached] }),
+    trace: (): Trace => ({ ...trace }),
     /** Record the call site of a call id suffix the library just drew */
     onCallId: (suffix: string) => {
       if (current !== undefined) trace.calls[suffix] = current;
@@ -262,9 +143,6 @@ export function createTracer() {
           }
         };
         return Promise.resolve(value).finally(done);
-      },
-      r(loc: number): void {
-        reached.add(loc);
       },
     },
   };

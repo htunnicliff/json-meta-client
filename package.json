@@ -82,7 +82,6 @@
     "comlink": "4.4.2",
     "cspell": "10.5.0",
     "husky": "9.1.7",
-    "monaco-editor": "0.57.0",
     "nock": "15.0.6",
     "oxfmt": "0.78.0",
     "oxlint": "1.93.0",

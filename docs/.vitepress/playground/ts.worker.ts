@@ -5,13 +5,12 @@ import ts from "typescript";
 import libFiles from "virtual:playground-libs";
 import typeFiles from "virtual:playground-types";
 
-import { compile } from "../compile.ts";
-import { editorCompilerOptions } from "../editor-options.ts";
+import { compile } from "./compile.ts";
+import { editorCompilerOptions } from "./editor-options.ts";
 
 /**
- * The TypeScript of inline embeds, in one worker for every embed on a page:
- * a language service for CodeMirror, and the compiler the runner needs, so
- * the page loads TypeScript once
+ * The playground's TypeScript, in one worker: a language service for the
+ * editor, and the compiler the runner needs
  */
 const worker = {
   ...createWorker(() => {
@@ -30,6 +29,6 @@ const worker = {
   compile,
 };
 
-export type EmbedWorker = typeof worker;
+export type TypeScriptWorker = typeof worker;
 
 Comlink.expose(worker);

@@ -1,5 +1,5 @@
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
-import type { SourceInfo, Trace } from "./instrument.ts";
+import type { Trace } from "./instrument.ts";
 
 /**
  * The specifier that compiled code imports the library from. The run worker
@@ -14,14 +14,9 @@ export const SHIM_SPECIFIER = "playground:json-meta-client";
 export const FILE_NAME = "playground.ts";
 
 /**
- * Messages between the playground page and its workers. The compiler worker
- * lives as long as the page; a fresh run worker runs each version of the code.
+ * Messages between the playground page and its run workers. A fresh run
+ * worker runs each version of the code.
  */
-
-export interface CompileRequest {
-  id: number;
-  source: string;
-}
 
 export interface Diagnostic {
   message: string;
@@ -29,10 +24,6 @@ export interface Diagnostic {
   line?: number;
   column?: number;
 }
-
-export type CompileResult =
-  | { id: number; code: string; source: SourceInfo }
-  | { id: number; diagnostics: Diagnostic[] };
 
 export interface RunRequest {
   /** The compiled module, importing the library through the shim specifier */
