@@ -56,7 +56,17 @@
 - `call.resultRef("/pointer")` passes one call's output to another in the same request
 - Pointer is type-checked against the source call's output, including the `*`
   array wildcard (RFC 8620 section 3.7); the pointed-to value is checked against the argument type
-- Refs can be nested anywhere in arguments; the client rewrites `key` to `#key`
+- A ref must be a whole, top-level argument; the client rewrites `key` to
+  `#key`. The types reject a ref nested in an object value or an array item,
+  and at runtime that call rejects with `ResultReferenceError` (`"nested"`)
+- Passing both `foo` and a ref for `foo` (or a literal `"#foo"`) rejects with
+  `ResultReferenceError` (`"duplicate-argument"`)
+- The referenced call must be made in the same tick, without awaiting in
+  between, so both land in one batch; otherwise the referencing call rejects
+  with `ResultReferenceError` (`"cross-batch"`) and the rest of its batch is
+  still sent
+- Method call IDs must be unique within a batch; a call reusing an ID set with
+  `{ id }` rejects with `ResultReferenceError` (`"duplicate-id"`)
 - One call can be referenced more than once
 - Show the request JSON next to the example
 :::

@@ -13,7 +13,7 @@ import type { JsonObject } from "type-fest";
 import { UnknownEntityError } from "../errors/index.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
-import { addRefMethod, replaceNestedResultRefKeys } from "./ref.ts";
+import { addRefMethod, markResultRefs } from "./ref.ts";
 import type { AugmentedOptions } from "./types.ts";
 
 interface ApiOptions {
@@ -108,14 +108,14 @@ function createMethod(
 }
 
 /**
- * Rewrite the key of each result reference in a method call's arguments
+ * Rewrite the key of each top-level result reference in a method call's
+ * arguments
  */
 function prepareArguments(args: JsonObject): object {
-  const prepared = replaceNestedResultRefKeys(args);
-  if (typeof prepared !== "object" || prepared === null || Array.isArray(prepared)) {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) {
     throw new TypeError("JMAP method arguments must be an object");
   }
-  return prepared;
+  return markResultRefs(args);
 }
 
 /**

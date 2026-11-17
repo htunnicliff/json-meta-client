@@ -6,7 +6,8 @@
 - Base class `JsonMetaError`
 - Subclasses: `ConfigurationError` (and its subclass `CapabilityConfigurationError`),
   `HttpError`, `NetworkError`, `JmapError`, `MethodCallError`, `CancellationError`,
-  `StateChangeError`, `InvalidUriTemplateError`, `UnknownEntityError`, `UnknownError`
+  `StateChangeError`, `InvalidUriTemplateError`, `ResultReferenceError`,
+  `UnknownEntityError`, `UnknownError`
 :::
 
 ## One section per class
@@ -23,6 +24,10 @@
   - `CapabilityConfigurationError`: `givenCapability`, `availableBuiltIns`
   - `UnknownEntityError`: `entity`, `method`; the returned promise rejects when an API call
     names an entity no capability declares, and the call is never sent
+  - `ResultReferenceError`: `reason`, `methodCall`; the call rejects before it
+    is sent when it breaks a result reference rule (RFC 8620 section 3.7), and
+    the rest of its batch proceeds. `reason` is `"nested"`,
+    `"duplicate-argument"`, `"cross-batch"` or `"duplicate-id"`
   - `InvalidUriTemplateError`: `uriTemplate`, `givenParameters`, `availableParameters`
 :::
 

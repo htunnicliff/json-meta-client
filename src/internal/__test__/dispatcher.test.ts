@@ -324,8 +324,7 @@ describe(Dispatcher, () => {
     });
 
     it("sends no request and runs no hooks when every method call is rejected", async () => {
-      const beforeJmapRequest =
-        vi.fn<({ jmapRequest: request }: { jmapRequest: JmapRequest }) => JmapRequest>();
+      const beforeJmapRequest = vi.fn<(args: { jmapRequest: JmapRequest }) => JmapRequest>();
       const { dispatcher, requests } = setupAccounts({
         hooks: { beforeJmapRequest: [beforeJmapRequest] },
       });

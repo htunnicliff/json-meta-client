@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { IsUnknown, JsonValue } from "type-fest";
+import type { IsUnknown } from "type-fest";
 
 import type { ResultReference } from "../rfc-types/core/index.ts";
 import type { ExtractByPointer, PointerPaths } from "./types.ts";
@@ -58,25 +58,19 @@ export function addRefMethod<Output, T extends object>(
 }
 
 /**
- * Recursively detect any objects containing result references,
- * updating their keys to use a # prefix
+ * Prefix the name of each top-level argument that is a result reference
+ * with `#` (RFC 8620 §3.7)
  */
-export function replaceNestedResultRefKeys(payload: JsonValue): JsonValue {
-  if (Array.isArray(payload)) {
-    return payload.map((item) => replaceNestedResultRefKeys(item));
-  }
+export function markResultRefs(args: object): object {
+  return Object.fromEntries(
+    Object.entries(args).map(([key, value]) => [isRef(value) ? `#${key}` : key, value]),
+  );
+}
 
-  if (typeof payload === "object" && payload !== null) {
-    return Object.fromEntries(
-      Object.entries(payload).map(([key, value]) => {
-        if (isRef(value)) {
-          return [`#${key}`, value];
-        }
-
-        return [key, replaceNestedResultRefKeys(value)];
-      }),
-    );
-  }
-
-  return payload;
+/**
+ * Whether a result reference appears anywhere inside `value`
+ */
+export function containsRef(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  return Object.values(value).some((item) => isRef(item) || containsRef(item));
 }

@@ -14,7 +14,9 @@ import {
   ConfigurationError,
   JmapError,
   MethodCallError,
+  ResultReferenceError,
 } from "../errors/index.ts";
+import type { ResultReferenceErrorReason } from "../errors/index.ts";
 import type {
   Invocation,
   Request as JmapRequest,
@@ -25,6 +27,7 @@ import type { CapabilityOption, Config } from "../types.ts";
 import type { FindMethodOwner } from "./capability-index.ts";
 import { resolveDefaultAccount } from "./capability-index.ts";
 import type { MethodCall } from "./method-call.ts";
+import { containsRef, isRef } from "./ref.ts";
 
 /**
  * Sends a JMAP Request envelope and returns the server's Response envelope
@@ -106,15 +109,21 @@ export class Dispatcher {
 
   /**
    * Send a batch and settle its method calls, rejecting every method call
-   * with the same error when the batch fails as a whole. A method call whose
-   * default account is ambiguous is rejected on its own and left out of the
-   * Request.
+   * with the same error when the batch fails as a whole. A method call that
+   * breaks a result reference rule, or whose default account is ambiguous,
+   * is rejected on its own and left out of the Request.
    */
   async #dispatch(batch: PendingMethodCall[]): Promise<void> {
-    let unsettled = batch;
+    const earlierIds = new Set<string>();
+    let unsettled = batch.filter(({ methodCall, handle }) => {
+      const reason = brokenResultRefRule(methodCall, earlierIds);
+      earlierIds.add(methodCall.id);
+      if (reason) handle.reject(new ResultReferenceError(reason, methodCall));
+      return !reason;
+    });
     try {
       const session = await this.#options.session();
-      unsettled = batch.filter((pending) => this.#addDefaultAccount(pending, session));
+      unsettled = unsettled.filter((pending) => this.#addDefaultAccount(pending, session));
       if (unsettled.length === 0) return;
 
       const response = await this.#sendBatch(
@@ -188,6 +197,27 @@ export class Dispatcher {
     }
     return response;
   }
+}
+
+/**
+ * The RFC 8620 §3.7 result reference rule that a method call breaks, if any.
+ * A reference to a method call that the client rejects is still sent, and
+ * the server answers it with `invalidResultReference`.
+ */
+function brokenResultRefRule(
+  { id, args }: MethodCall<object>,
+  earlierIds: ReadonlySet<string>,
+): ResultReferenceErrorReason | undefined {
+  if (earlierIds.has(id)) return "duplicate-id";
+  for (const [key, value] of Object.entries(args)) {
+    if (isRef(value)) {
+      if (!earlierIds.has(value.resultOf)) return "cross-batch";
+    } else if (containsRef(value)) {
+      return "nested";
+    }
+    if (key.startsWith("#") && Object.hasOwn(args, key.slice(1))) return "duplicate-argument";
+  }
+  return undefined;
 }
 
 /**
