@@ -41,8 +41,6 @@ const kindLabels: Record<Exclude<TimelineEntry["kind"], "batch">, string> = {
   unknown: "Request",
 };
 
-const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
-
 function formatBody(body: unknown): string {
   return typeof body === "string" ? body : JSON.stringify(body, null, 2);
 }
@@ -97,49 +95,52 @@ const waitingHint = computed(() => {
       </li>
     </ul>
 
-    <template v-for="entry in entries" :key="entry.key">
-      <article v-if="entry.kind === 'batch'" class="batch">
-        <header class="batch-header">
-          <span class="batch-title">Batch {{ entry.number }}</span>
-          <span class="summary">{{ count(entry.calls.length, "method call") }}</span>
-          <span v-if="responses?.[entry.index]" class="status">
-            HTTP {{ responses[entry.index]!.status || "failed" }}
+    <ol v-if="entries.length" class="entries" aria-label="Requests">
+      <li v-for="(entry, position) in entries" :key="entry.key" class="entry">
+        <span class="step" aria-hidden="true">{{ position + 1 }}</span>
+        <header class="entry-header">
+          <span class="entry-title">{{
+            entry.kind === "batch" ? `Batch ${entry.number}` : kindLabels[entry.kind]
+          }}</span>
+          <code class="method" :data-method="entry.method">{{ entry.method }}</code>
+          <span class="target">
+            <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
+            <span v-if="responses?.[entry.index]" class="aside">
+              HTTP {{ responses[entry.index]!.status || "failed" }}
+            </span>
+            <span v-else-if="entry.kind === 'session' && !connected" class="aside"
+              >answered by the playground</span
+            >
           </span>
         </header>
-        <RawJson
-          :batch="entry"
-          label="JMAP Request as sent"
-          :highlighted="highlighted"
-          @hover-call="emit('hoverCall', $event)"
-        />
-        <template v-if="responses?.[entry.index]?.body !== undefined">
-          <h4 class="response-heading">Response</h4>
-          <pre
-            v-if="typeof responses![entry.index]!.body === 'string'"
-            class="body response"
-          ><code>{{ responses![entry.index]!.body }}</code></pre>
-          <RawJson v-else :body="responses![entry.index]!.body" label="JMAP Response" />
+        <template v-if="entry.kind === 'batch'">
+          <RawJson
+            class="entry-body"
+            :batch="entry"
+            label="JMAP Request as sent"
+            :highlighted="highlighted"
+            @hover-call="emit('hoverCall', $event)"
+          />
+          <template v-if="responses?.[entry.index]?.body !== undefined">
+            <h4 class="response-heading">Response</h4>
+            <pre
+              v-if="typeof responses![entry.index]!.body === 'string'"
+              class="entry-body plain"
+            ><code>{{ responses![entry.index]!.body }}</code></pre>
+            <RawJson
+              v-else
+              class="entry-body"
+              :body="responses![entry.index]!.body"
+              label="JMAP Response"
+            />
+          </template>
         </template>
-      </article>
-
-      <div v-else class="request" :data-kind="entry.kind">
-        <div class="request-line">
-          <code class="method">{{ entry.method }}</code>
-          <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
-          <span class="kind">{{ kindLabels[entry.kind] }}</span>
-          <span v-if="responses?.[entry.index]" class="status">
-            HTTP {{ responses[entry.index]!.status || "failed" }}
-          </span>
-          <span v-else-if="entry.kind === 'session' && !connected" class="note"
-            >answered by the playground</span
-          >
-        </div>
         <pre
-          v-if="entry.kind !== 'session' && entry.body !== undefined"
-          class="body"
+          v-else-if="entry.kind !== 'session' && entry.body !== undefined"
+          class="entry-body plain"
         ><code>{{ formatBody(entry.body) }}</code></pre>
-      </div>
-    </template>
+      </li>
+    </ol>
 
     <ul v-if="errors.length" class="problems">
       <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
@@ -164,89 +165,129 @@ const waitingHint = computed(() => {
   gap: 12px;
 }
 
-.batch {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.batch-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
-  font-size: 13px;
-}
-
-.batch-title {
-  font-weight: 600;
-}
-
-.summary {
-  color: var(--vp-c-text-2);
-}
-
-.status {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--vp-c-text-2);
-}
-
-.response-heading {
+/*
+ * The steps share one grid: each entry is a subgrid row, so the title and
+ * method columns are as wide as the widest title and method in this run.
+ */
+.entries {
+  display: grid;
+  grid-template-columns: 21px max-content max-content minmax(0, 1fr);
+  gap: 12px 8px;
   margin: 0;
-  padding: 6px 12px;
-  border-top: 1px solid var(--vp-c-divider);
-  font-size: 13px;
-  font-weight: 600;
+  padding: 0;
+  list-style: none;
 }
 
-.request-line {
-  display: flex;
-  flex-wrap: wrap;
+.entry {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 8px;
+  min-width: 0;
+}
+
+/* The rail joining each step to the next */
+.entry:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 21px;
+  bottom: -12px;
+  left: 10px;
+  border-left: 1px solid var(--vp-c-border);
+}
+
+.step {
+  display: grid;
+  grid-column: 1;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 50%;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-2);
+  font-size: 11px;
+}
+
+.entry-header {
+  display: grid;
+  grid-column: 2 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 6px 10px;
+  min-width: 0;
   font-size: 13px;
+  line-height: 21px;
+}
+
+.entry-title {
+  white-space: nowrap;
+  font-weight: 600;
 }
 
 .method {
+  justify-self: start;
   padding: 0 6px;
   border-radius: 4px;
   background: var(--vp-c-green-soft);
   color: var(--vp-c-green-1);
   font-size: 12px;
   font-weight: 600;
+  line-height: 18px;
+}
+
+.method[data-method="POST"] {
+  background: var(--vp-c-indigo-soft);
+  color: var(--vp-c-indigo-1);
+}
+
+.target {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .url {
-  overflow-wrap: anywhere;
-  color: var(--vp-c-text-1);
-}
-
-.kind,
-.note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--vp-c-text-2);
-}
-
-.note {
-  margin-left: auto;
   font-size: 12px;
 }
 
-.body {
-  margin: 6px 0 0;
-  padding: 8px 12px;
+.aside {
+  flex: none;
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+/* Bodies and responses span from the title column to the end */
+.entry > :not(.step, .entry-header) {
+  grid-column: 2 / -1;
+  min-width: 0;
+}
+
+.entry-body {
   border-radius: 6px;
   background: var(--vp-code-block-bg);
+}
+
+.plain {
+  margin: 0;
+  padding: 8px 12px;
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
+  line-height: 1.6;
   overflow-x: auto;
 }
 
-.body.response {
-  margin: 0;
-  border-radius: 0;
+.response-heading {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .problems {
