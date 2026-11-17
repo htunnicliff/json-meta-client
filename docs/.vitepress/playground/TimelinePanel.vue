@@ -88,15 +88,24 @@ const statusLine = computed(() => {
       return "Finished";
     case "failed":
       return "Failed";
-    case "waiting": {
-      const awaits = (props.lines?.waiting ?? []).map(({ range, calls }) => {
-        const awaited = calls.map(({ label, name }) => `${label} ${name}`).join(", ");
-        return `${awaited || "a response"} (line ${range.start.line})`;
-      });
-      return `Waiting on ${awaits.join("; ") || "a response"}`;
-    }
+    case "waiting":
+      return `Waiting on ${waitingOn.value}`;
   }
 });
+
+// What the run awaits, such as "#1 Email/query (line 9)"
+const waitingOn = computed(() => {
+  const awaits = (props.lines?.waiting ?? []).map(({ range, calls }) => {
+    const awaited = calls.map(({ label, name }) => `${label} ${name}`).join(", ");
+    return `${awaited || "a response"} (line ${range.start.line})`;
+  });
+  return awaits.join("; ") || "a response";
+});
+
+// After requests, waiting shows as the timeline's next, unfinished step
+const waitingStep = computed(
+  () => props.status === "waiting" && !runningHook.value && entries.value.length > 0,
+);
 
 // Without a server, awaited responses never arrive, so code after the first
 // such await, its console output included, never runs
@@ -104,7 +113,7 @@ const waitingHint = computed(() => {
   if (props.status !== "waiting" || props.connected || runningHook.value) return undefined;
   const line = props.lines?.waiting[0]?.range.start.line;
   const after = line === undefined ? "Code after this await" : `Code after line ${line}`;
-  return `${after} runs only when a server responds. Connect to a server to run it.`;
+  return `${after} runs only when a server responds. Connect a server to proceed.`;
 });
 </script>
 
@@ -179,13 +188,21 @@ const waitingHint = computed(() => {
         </template>
         <HookRows v-if="entry.after.length" :calls="entry.after" phase="after" />
       </li>
+      <li v-if="waitingStep" class="entry waiting" role="status">
+        <span class="step" aria-hidden="true"></span>
+        <header class="entry-header">
+          <span class="entry-title">Waiting</span>
+          <span class="waiting-on">on {{ waitingOn }}</span>
+        </header>
+        <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
+      </li>
     </ol>
 
     <ul v-if="errors.length" class="problems">
       <li v-for="(error, index) in errors" :key="index">{{ error }}</li>
     </ul>
 
-    <div class="status">
+    <div v-if="!waitingStep" class="status">
       <p class="status-line" :data-status="status" role="status">
         {{ statusLine }}
         <code v-if="status === 'ready' && connected">{{ connected }}</code>
@@ -247,6 +264,11 @@ const waitingHint = computed(() => {
   bottom: -12px;
   left: 10px;
   border-left: 1px solid var(--vp-c-border);
+}
+
+/* Dashed toward a step that hasn't happened yet */
+.entry:has(+ .waiting)::before {
+  border-left: 1px dashed var(--vp-c-yellow-1);
 }
 
 .step {
@@ -328,6 +350,29 @@ const waitingHint = computed(() => {
   line-height: 18px;
   text-transform: uppercase;
   cursor: help;
+}
+
+.waiting .step {
+  border-style: dashed;
+  border-color: var(--vp-c-yellow-1);
+}
+
+.waiting .entry-title {
+  color: var(--vp-c-yellow-1);
+}
+
+.waiting-on {
+  grid-column: 3 / -1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+}
+
+.waiting .hint {
+  max-width: none;
 }
 
 /* Bodies and responses span from the title column to the end */
