@@ -50,10 +50,6 @@ onMounted(() => dialog.value?.showModal());
 <style scoped src="./dialog.css"></style>
 
 <style scoped>
-.dialog {
-  width: min(440px, calc(100vw - 32px));
-}
-
 .button.danger {
   background: var(--vp-c-danger-1);
   color: var(--vp-c-bg);
