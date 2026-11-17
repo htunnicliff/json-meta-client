@@ -61,20 +61,20 @@ for (const mailbox of getMailboxes.list) {
         },
         "accountId": "<account-id>"
       },
-      "Mailbox/query::f3c9ebfd"
+      "queryMailboxes"
     ],
     [
       "Mailbox/get",
       {
         "#ids": {
           "name": "Mailbox/query",
-          "resultOf": "Mailbox/query::f3c9ebfd",
+          "resultOf": "queryMailboxes",
           "path": "/ids"
         },
         "properties": ["id", "name"],
         "accountId": "<account-id>"
       },
-      "Mailbox/get::2b30f05c"
+      "getMailboxes"
     ]
   ]
 }
@@ -134,20 +134,20 @@ for (const email of getEmails.list) {
         },
         "accountId": "<account-id>"
       },
-      "Email/query::f3c9ebfd"
+      "queryEmails"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::f3c9ebfd",
+          "resultOf": "queryEmails",
           "path": "/ids"
         },
         "properties": ["from", "subject", "sentAt"],
         "accountId": "<account-id>"
       },
-      "Email/get::2b30f05c"
+      "getEmails"
     ]
   ]
 }
@@ -193,14 +193,14 @@ const identity = identities.list[0]!;
         },
         "accountId": "<account-id>"
       },
-      "Mailbox/query::f3c9ebfd"
+      "mailboxes"
     ],
     [
       "Identity/get",
       {
         "accountId": "<account-id>"
       },
-      "Identity/get::2b30f05c"
+      "identities"
     ]
   ]
 }
@@ -314,7 +314,7 @@ await client.api.EmailSubmission.set({
         },
         "accountId": "<account-id>"
       },
-      "Email/set::f3c9ebfd"
+      "draft"
     ],
     [
       "EmailSubmission/set",
@@ -327,7 +327,7 @@ await client.api.EmailSubmission.set({
         "onSuccessDestroyEmail": ["#submission"],
         "accountId": "<account-id>"
       },
-      "EmailSubmission/set::2b30f05c"
+      "EmailSubmission/set"
     ]
   ]
 }

@@ -160,12 +160,74 @@ console.log(list.map(({ name }) => name));
 /**
  * The examples the playground offers, the first being its default
  */
+const header = `import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>",
+  auth: "<credentials>",
+  capabilities: ["mail"],
+});
+`;
+
+// A chain of result references: each call takes its input from the one before
+const followThread = `${header}
+// These calls go out in one request, each taking its input
+// from the result of the one before. Hover a dotted line in
+// the request to see what it passes along.
+const latest = client.api.Email.query({
+  sort: [{ property: "receivedAt", isAscending: false }],
+  limit: 1,
+});
+
+const latestEmail = client.api.Email.get({
+  ids: latest.resultRef("/ids"),
+  properties: ["threadId"],
+});
+
+const thread = client.api.Thread.get({
+  ids: latestEmail.resultRef("/list/*/threadId"),
+});
+
+const conversation = await client.api.Email.get({
+  ids: thread.resultRef("/list/*/emailIds"),
+  properties: ["subject", "from", "receivedAt"],
+});
+
+for (const { subject, from } of conversation.list) {
+  console.log(subject, from);
+}
+`;
+
+// One result feeding two calls
+const searchSnippets = `${header}
+// One query feeds two calls in the same request: the emails
+// it matched, and a highlighted snippet of each match.
+const filter = { text: "invoice" };
+
+const matches = client.api.Email.query({ filter, limit: 10 });
+
+const [emails, snippets] = await Promise.all([
+  client.api.Email.get({
+    ids: matches.resultRef("/ids"),
+    properties: ["subject", "from"],
+  }),
+  client.api.SearchSnippet.get({
+    filter,
+    emailIds: matches.resultRef("/ids"),
+  }),
+]);
+
+console.log(emails.list, snippets.list);
+`;
+
 export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
   { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
   { id: "event-source", title: "Event source", code: eventSource },
   { id: "rewrite-email-query", title: "Rewrite an email query", code: rewriteEmailQuery },
   { id: "log-http-traffic", title: "Log HTTP traffic", code: logHttpTraffic },
+  { id: "follow-a-thread", title: "Follow a thread", code: followThread },
+  { id: "search-snippets", title: "Search with snippets", code: searchSnippets },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");

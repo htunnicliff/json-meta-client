@@ -6,6 +6,7 @@ import { Worker } from "node:worker_threads";
 
 import ts from "typescript";
 
+import { instrument } from "../../playground/instrument.ts";
 import type { RunExampleInput, RunExampleOutput } from "./run-example.ts";
 
 const root = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -208,9 +209,12 @@ function typeCheck(examples: readonly OptedInExample[]): string[] {
 
 /**
  * Turn an example into a module that imports the package from source, with
- * the placeholders of the clients it constructs filled in
+ * the placeholders of the clients it constructs filled in. It is instrumented
+ * as in the playground, so its method calls are named after the variables
+ * they are bound to.
  */
 function toModule(example: OptedInExample): string {
+  const { transformer } = instrument();
   const { outputText } = ts.transpileModule(withInherited(example), {
     fileName: "example.ts",
     compilerOptions: {
@@ -218,6 +222,7 @@ function toModule(example: OptedInExample): string {
       module: ts.ModuleKind.ESNext,
       verbatimModuleSyntax: false,
     },
+    transformers: { before: [transformer] },
   });
   const library = JSON.stringify(pathToFileURL(libraryRuntime).href);
   const code = outputText.replaceAll(

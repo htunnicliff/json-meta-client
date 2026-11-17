@@ -3,7 +3,9 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import { docsClientOptions } from "../../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../../src/index.ts";
+import { createTracer, TRACER } from "../../playground/tracer.ts";
 import { fillPlaceholders, recordingFetch, seedCallIds } from "../../recorder/index.ts";
+import { useMethodCallIds } from "../../recorder/placeholder-library.ts";
 
 /**
  * Runs one documentation example in a worker thread, with a placeholder
@@ -28,9 +30,16 @@ async function run({ code }: RunExampleInput): Promise<unknown[]> {
   const recorder = recordingFetch();
   seedCallIds(callIdSeed);
   globalThis.fetch = recorder.fetch;
+  // Name method calls after the variables they are bound to, as the playground does
+  const tracer = createTracer();
+  useMethodCallIds(tracer.generateMethodCallId);
   // The ambient `client` of docs-client.ts; an example's own `client` shadows it.
   Object.assign(globalThis, {
-    client: new JsonMetaClient(fillPlaceholders(docsClientOptions)),
+    [TRACER]: tracer.runtime,
+    client: new JsonMetaClient({
+      ...fillPlaceholders(docsClientOptions),
+      generateMethodCallId: tracer.generateMethodCallId,
+    }),
   });
 
   let outcome: { error: unknown } | "done" | undefined;

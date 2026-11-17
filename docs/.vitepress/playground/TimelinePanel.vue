@@ -9,7 +9,7 @@ import RawJson from "./RawJson.vue";
 import type { SourceLines } from "./source-lines.ts";
 import { timelineOptions } from "./timeline-options.ts";
 import type { TimelineOptions } from "./timeline-options.ts";
-import { buildTimelineSteps } from "./timeline.ts";
+import { buildTimelineSteps, describeCall } from "./timeline.ts";
 import type { RunStatus, TimelineEntry } from "./timeline.ts";
 
 const props = defineProps<{
@@ -73,7 +73,7 @@ const runningHook = computed(() => {
   }
 });
 
-// One line about where the run is, such as "Waiting on #1 Email/query (line 9)"
+// One line about where the run is, such as "Waiting on unread (line 9)"
 const statusLine = computed(() => {
   if (runningHook.value && (props.status === "running" || props.status === "waiting")) {
     return `Running ${runningHook.value.name}…`;
@@ -93,10 +93,10 @@ const statusLine = computed(() => {
   }
 });
 
-// What the run awaits, such as "#1 Email/query (line 9)"
+// What the run awaits, such as "unread (line 9)"
 const waitingOn = computed(() => {
   const awaits = (props.lines?.waiting ?? []).map(({ range, calls }) => {
-    const awaited = calls.map(({ label, name }) => `${label} ${name}`).join(", ");
+    const awaited = calls.map(describeCall).join(", ");
     return `${awaited || "a response"} (line ${range.start.line})`;
   });
   return awaits.join("; ") || "a response";
@@ -157,7 +157,7 @@ const waitingHint = computed(() => {
               label="JMAP Request as sent"
               :highlighted="highlighted"
               :line-numbers="show.lineNumbers"
-              :notes="show.callLabels"
+              :links="show.callLabels"
               @hover-call="emit('hoverCall', $event)"
             />
           </ClipBox>

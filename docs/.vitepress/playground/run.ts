@@ -97,13 +97,17 @@ export function run(
   const shim = createShim((urns) => urns.forEach((urn) => customUrns.add(urn)), server, {
     Client,
     observeHooks,
+    generateMethodCallId: tracer.generateMethodCallId,
   });
   const shimKey = "__jsonMetaClientShim";
   Object.assign(globalThis, {
     [shimKey]: shim,
     [TRACER]: tracer.runtime,
     // The ambient `client` of docs examples; the code's own `client` shadows it
-    client: new JsonMetaClient(fillPlaceholders(docsClientOptions, server)),
+    client: new JsonMetaClient({
+      ...fillPlaceholders(docsClientOptions, server),
+      generateMethodCallId: tracer.generateMethodCallId,
+    }),
   });
   const shimModule = `const { ${Object.keys(shim).join(", ")} } = globalThis.${shimKey};\nexport { ${Object.keys(shim).join(", ")} };\n`;
   const module = code.replaceAll(

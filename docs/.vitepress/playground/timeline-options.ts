@@ -12,7 +12,7 @@ export interface TimelineOptions {
   responses: boolean;
   /** Line numbers in JSON */
   lineNumbers: boolean;
-  /** Labels of method calls and their result references in JMAP Requests */
+  /** Lines joining method calls to the result references to them in JMAP Requests */
   callLabels: boolean;
   /** Long bodies cut to a few lines until expanded */
   clipLong: boolean;
@@ -35,7 +35,7 @@ export const timelineOptions: OptionSet<TimelineOptions> = {
     requestBodies: "Request bodies",
     responses: "Responses",
     lineNumbers: "Line numbers",
-    callLabels: "Method call labels",
+    callLabels: "Result reference lines",
     clipLong: "Clip long bodies",
   },
   storageKey: "json-meta-client:playground:timeline",

@@ -4,7 +4,8 @@ export const TRACER = "__playground";
 /** What a run reports about the instrumented code */
 export interface Trace {
   /**
-   * The random suffix of each JMAP call id, as in `f3c9ebfd` for
+   * Each JMAP call id the playground named, such as `unread`, or the random
+   * suffix of one the library drew, as in `f3c9ebfd` for
    * `Email/query::f3c9ebfd` → the location of the call that made it
    */
   calls: Record<string, number>;
@@ -21,15 +22,32 @@ export interface Trace {
 export function createTracer() {
   const trace: Trace = { calls: {}, pending: {}, awaited: {} };
   let current: number | undefined;
+  let currentName: string | undefined;
+  const usedIds = new Set<string>();
   return {
     trace: (): Trace => ({ ...trace }),
+    /**
+     * A method call id named after the variable the call is bound to, such as
+     * `unread`, or else after its method, such as `Email/get`. Ids repeat
+     * nowhere in a run: a repeat gets a suffix, as in `unread-2`.
+     */
+    generateMethodCallId: (method: string): string => {
+      const base = currentName ?? method;
+      currentName = undefined;
+      let id = base;
+      for (let count = 2; usedIds.has(id); count++) id = `${base}-${count}`;
+      usedIds.add(id);
+      if (current !== undefined) trace.calls[id] = current;
+      return id;
+    },
     /** Record the call site of a call id suffix the library just drew */
     onCallId: (suffix: string) => {
       if (current !== undefined) trace.calls[suffix] = current;
     },
     runtime: {
-      m(loc: number, args: unknown[]): unknown[] {
+      m(loc: number, args: unknown[], name?: string): unknown[] {
         current = loc;
+        currentName = name;
         return args;
       },
       a(loc: number, value: unknown): Promise<unknown> {
