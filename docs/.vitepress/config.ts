@@ -99,6 +99,8 @@ export default defineConfig({
     plugins: [groupIconVitePlugin(), playgroundTypes()],
     // The playground's workers import the library, which loads
     // `eventsource-client` on demand, so they need code splitting.
-    worker: { format: "es" },
+    // Workers are built with their own plugins: the embeds' TypeScript
+    // worker imports the editor's declarations.
+    worker: { format: "es", plugins: () => [playgroundTypes()] },
   },
 });

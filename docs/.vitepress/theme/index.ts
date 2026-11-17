@@ -5,6 +5,7 @@ import DefaultTheme from "vitepress/theme";
 import { h } from "vue";
 
 import HomeRequest from "./HomeRequest.vue";
+import PlaygroundEmbed from "./PlaygroundEmbed.vue";
 
 import "virtual:group-icons.css";
 import "./style.css";
@@ -17,7 +18,7 @@ export default {
       "home-features-after": () => h(HomeRequest),
     });
   },
-  enhanceApp(_options) {
-    // ...
+  enhanceApp({ app }) {
+    app.component("PlaygroundEmbed", PlaygroundEmbed);
   },
 } satisfies Theme;

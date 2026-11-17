@@ -2,6 +2,29 @@
 
 ## How batching works
 
+Method calls made in the same synchronous turn go in one Batch, sent as a
+single JMAP Request. Each `resultRef` becomes a `#`-prefixed argument that the
+server resolves, so the calls below need one round trip. Try adding an `await`
+before the first call and watch the Batch change.
+
+<PlaygroundEmbed>
+
+```ts
+const unread = client.api.Email.query({
+  filter: { notKeyword: "$seen" },
+  limit: 5,
+});
+const emails = client.api.Email.get({
+  ids: unread.resultRef("/ids"),
+  properties: ["threadId"],
+});
+const { list } = await client.api.Thread.get({
+  ids: emails.resultRef("/list/*/threadId"),
+});
+```
+
+</PlaygroundEmbed>
+
 :::warning TODO
 - Calls made in the same synchronous turn are queued and sent as one request in a microtask
 - A call made after an `await` goes in a separate request

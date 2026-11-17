@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
+import { editorCompilerOptions } from "./editor-options.ts";
+
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const typeFest = path.join(root, "node_modules", "type-fest");
 
@@ -10,6 +12,12 @@ const typeFest = path.join(root, "node_modules", "type-fest");
  * The module that provides {@link collectTypes}' files to the editor
  */
 export const TYPES_MODULE = "virtual:playground-types";
+
+/**
+ * The module that provides {@link collectLibs}' files to editors that bring
+ * their own TypeScript, unlike Monaco
+ */
+export const LIBS_MODULE = "virtual:playground-libs";
 
 /**
  * Declaration files for the playground's editor, by path in its virtual file
@@ -29,16 +37,45 @@ interface VitePlugin {
 }
 
 /**
- * Provides {@link TYPES_MODULE}, built when first imported
+ * Provides {@link TYPES_MODULE} and {@link LIBS_MODULE}, each built when
+ * first imported
  */
 export function playgroundTypes(): VitePlugin {
-  const resolved = `\0${TYPES_MODULE}`;
+  const modules: Record<string, () => TypeFiles> = {
+    [`\0${TYPES_MODULE}`]: collectTypes,
+    [`\0${LIBS_MODULE}`]: collectLibs,
+  };
   return {
     name: "json-meta-client:playground-types",
-    resolveId: (source) => (source === TYPES_MODULE ? resolved : undefined),
-    load: (id) =>
-      id === resolved ? `export default ${JSON.stringify(collectTypes())};` : undefined,
+    resolveId: (source) =>
+      source === TYPES_MODULE || source === LIBS_MODULE ? `\0${source}` : undefined,
+    load: (id) => {
+      const collect = modules[id];
+      return collect ? `export default ${JSON.stringify(collect())};` : undefined;
+    },
   };
+}
+
+/**
+ * TypeScript's lib files for the editor's compiler options, by file name,
+ * such as `lib.esnext.d.ts`, with every lib file they reference
+ */
+export function collectLibs(): TypeFiles {
+  const root = "/virtual/empty.ts";
+  const options: ts.CompilerOptions = { lib: [...editorCompilerOptions.lib], noEmit: true };
+  const host = ts.createCompilerHost(options);
+  const readFile = host.readFile.bind(host);
+  const fileExists = host.fileExists.bind(host);
+  host.readFile = (file) => (file === root ? "" : readFile(file));
+  host.fileExists = (file) => file === root || fileExists(file);
+  const program = ts.createProgram([root], options, host);
+  const libDirectory = path.dirname(ts.getDefaultLibFilePath(options));
+  return Object.fromEntries(
+    program
+      .getSourceFiles()
+      .filter(({ fileName }) => path.dirname(fileName) === libDirectory)
+      .map(({ fileName, text }) => [path.basename(fileName), text]),
+  );
 }
 
 /**

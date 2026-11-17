@@ -1,4 +1,5 @@
 /* oxlint-disable unicorn/require-post-message-target-origin -- workers take no target origin */
+import type { CompileOutput } from "./compile.ts";
 import type { SourceInfo } from "./instrument.ts";
 import type {
   CompileRequest,
@@ -33,13 +34,25 @@ export interface Runner {
  * Run user code in workers: a long-lived one compiles it, and a fresh one runs
  * each version, so stopping a run is as simple as terminating its worker.
  */
-export function createRunner(onEvent: (event: RunnerEvent) => void): Runner {
+export interface RunnerOptions {
+  /**
+   * Compile with this instead of the runner's own compiler worker, such as
+   * one that also hosts an editor's language service
+   */
+  compile?: (source: string) => Promise<CompileOutput>;
+}
+
+export function createRunner(
+  onEvent: (event: RunnerEvent) => void,
+  options: RunnerOptions = {},
+): Runner {
   let compiler: Worker | undefined;
   let current: Worker | undefined;
   let latest = 0;
 
   const compiled = new Map<number, (result: CompileResult) => void>();
   function compile(source: string, id: number): Promise<CompileResult> {
+    if (options.compile) return options.compile(source).then((output) => ({ id, ...output }));
     if (!compiler) {
       compiler = new Worker(new URL("./compile.worker.ts", import.meta.url), { type: "module" });
       compiler.addEventListener("message", ({ data }: MessageEvent<CompileResult>) => {
