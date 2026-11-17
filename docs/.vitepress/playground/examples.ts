@@ -184,11 +184,18 @@ const latestEmail = client.api.Email.get({
   properties: ["threadId"],
 });
 
-const thread = await client.api.Thread.get({
+const thread = client.api.Thread.get({
   ids: latestEmail.resultRef("/list/*/threadId"),
 });
 
-console.log(thread.list[0]!.emailIds);
+const conversation = await client.api.Email.get({
+  ids: thread.resultRef("/list/*/emailIds"),
+  properties: ["subject", "from", "receivedAt"],
+});
+
+for (const { subject, from } of conversation.list) {
+  console.log(subject, from);
+}
 `;
 
 // One result feeding two calls
