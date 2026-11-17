@@ -126,7 +126,7 @@ function resizeByKey(event: KeyboardEvent) {
 }
 watch(codeChoices, (chosen) => {
   saveOptions(codeOptions, chosen);
-  editor?.setLineWrapping(chosen.wrapLines);
+  editor?.configure(chosen);
 });
 let editor: CodeEditor | undefined;
 let runner: Runner | undefined;
@@ -290,6 +290,7 @@ onMounted(async () => {
   runner = createRunner((source) => worker.compile(source), onEvent);
   editor = createEditor(editorHost.value, {
     code: code.value,
+    behavior: codeChoices.value,
     worker,
     onChange: (value) => (code.value = value),
     onHover: (position) => {
@@ -297,7 +298,6 @@ onMounted(async () => {
     },
   });
   showPlaceholderFill();
-  editor.setLineWrapping(codeChoices.value.wrapLines);
   // Code runs against a real server only when the user asks
   if (!connection.value) void run({ byUser: false });
 });
@@ -873,6 +873,62 @@ onBeforeUnmount(() => {
 
 .playground .cm-editor .cm-completionIcon-text {
   --letter: "t";
+}
+
+/*
+ * Type information on hover: the signature as code, kept to a scrolling panel.
+ * CodeMirror sets the tooltip's height to the room it has; the cap and the
+ * column keep the frame to the content.
+ */
+.playground .cm-editor .cm-tooltip.cm-tooltip-hover {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+}
+
+.playground .cm-editor .cm-tooltip-hover .cm-tooltip-section {
+  min-height: 0;
+  max-width: min(560px, 90vw);
+  overflow: auto;
+  padding: 8px 12px;
+  color: var(--vp-c-text-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  scrollbar-width: thin;
+  scrollbar-color: var(--vp-c-divider) transparent;
+}
+
+.playground .cm-editor .cm-tooltip-hover .quick-info-keyword {
+  color: var(--vp-c-brand-1);
+}
+
+.playground .cm-editor .cm-tooltip-hover .quick-info-className,
+.playground .cm-editor .cm-tooltip-hover .quick-info-interfaceName,
+.playground .cm-editor .cm-tooltip-hover .quick-info-typeParameterName,
+.playground .cm-editor .cm-tooltip-hover .quick-info-enumName,
+.playground .cm-editor .cm-tooltip-hover .quick-info-aliasName {
+  color: var(--vp-c-purple-1, var(--vp-c-indigo-1));
+}
+
+.playground .cm-editor .cm-tooltip-hover .quick-info-stringLiteral {
+  color: var(--vp-c-tip-1);
+}
+
+.playground .cm-editor .cm-tooltip-hover .quick-info-numericLiteral {
+  color: var(--vp-c-green-1);
+}
+
+/* Punctuation and labels such as `(property)` recede behind the names */
+.playground .cm-editor .cm-tooltip-hover .quick-info-punctuation,
+.playground .cm-editor .cm-tooltip-hover .quick-info-operator,
+.playground .cm-editor .cm-tooltip-hover .quick-info-moduleName {
+  color: var(--vp-c-text-2);
+}
+
+.playground .cm-editor .cm-tooltip-hover .quick-info-text {
+  color: var(--vp-c-text-3);
 }
 
 /* Documentation beside the menu */

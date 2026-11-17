@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { codeOptions } from "../code-options.ts";
 import { loadCode, saveCode } from "../code-storage.ts";
-import { examples } from "../examples.ts";
+import { defaultExample, examples } from "../examples.ts";
+import { loadOptions, saveOptions } from "../stored-options.ts";
 
-const first = examples[0].code;
+const first = defaultExample;
 const items = new Map<string, string>();
 
 beforeEach(() => {
@@ -35,10 +37,17 @@ describe("stored code", () => {
     expect(loadCode()).toBe(example.code);
   });
 
+  it("keeps the code apart from the editor's options", () => {
+    saveCode("console.log(1);\n");
+    saveOptions(codeOptions, { ...codeOptions.defaults, wrapLines: true });
+    expect(loadCode()).toBe("console.log(1);\n");
+    expect(loadOptions(codeOptions).wrapLines).toBe(true);
+  });
+
   it("falls back to the first example when storage holds something else", () => {
-    items.set("json-meta-client:playground:code", '{"example":"gone"}');
+    items.set("json-meta-client:playground:source", '{"example":"gone"}');
     expect(loadCode()).toBe(first);
-    items.set("json-meta-client:playground:code", "not json");
+    items.set("json-meta-client:playground:source", "not json");
     expect(loadCode()).toBe(first);
   });
 

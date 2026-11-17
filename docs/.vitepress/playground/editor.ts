@@ -2,7 +2,7 @@ import { autocompletion } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
 import { syntaxHighlighting } from "@codemirror/language";
 import { Compartment, Prec, StateEffect, StateField } from "@codemirror/state";
-import type { Range } from "@codemirror/state";
+import type { Extension, Range } from "@codemirror/state";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
@@ -42,12 +42,26 @@ export interface CodeEditor {
    * whether the code parsed; code that doesn't is left as is.
    */
   format(): Promise<boolean>;
-  setLineWrapping(wrap: boolean): void;
+  /** Switch the editor's optional behavior */
+  configure(behavior: EditorBehavior): void;
   destroy(): void;
+}
+
+/**
+ * What the user can switch on and off in the editor
+ */
+export interface EditorBehavior {
+  /** Wrap lines longer than the editor is wide */
+  wrapLines: boolean;
+  /** Suggest completions as the user types, and on Ctrl-Space */
+  suggestions: boolean;
+  /** Show the type of what is under the pointer */
+  typesOnHover: boolean;
 }
 
 export interface EditorOptions {
   code: string;
+  behavior: EditorBehavior;
   /** The TypeScript worker that type-checks the code */
   worker: WorkerShape;
   onChange(code: string): void;
@@ -78,13 +92,39 @@ const highlighted = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+const wrapping = new Compartment();
+const completions = new Compartment();
+const hovers = new Compartment();
+
+/**
+ * Each switchable behavior's compartment, with the extension for its setting.
+ * `basicSetup` turns completion on, so switching suggestions off leaves it no
+ * sources and no typing trigger.
+ */
+function behaviorParts({
+  wrapLines,
+  suggestions,
+  typesOnHover,
+}: EditorBehavior): [Compartment, Extension][] {
+  return [
+    [wrapping, wrapLines ? EditorView.lineWrapping : []],
+    [
+      completions,
+      autocompletion(
+        suggestions
+          ? { override: [tsAutocompleteWorker()] }
+          : { override: [], activateOnTyping: false },
+      ),
+    ],
+    [hovers, typesOnHover ? tsHoverWorker() : []],
+  ];
+}
+
 /**
  * A CodeMirror editor for TypeScript, with types, hovers and completions from
  * the playground's TypeScript worker
  */
 export function createEditor(parent: HTMLElement, options: EditorOptions): CodeEditor {
-  const wrapping = new Compartment();
-
   async function format(): Promise<boolean> {
     const before = view.state.doc.toString();
     let formatted;
@@ -116,11 +156,9 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       tsFacetWorker.of({ worker: options.worker, path: EDITOR_FILE }),
       tsSyncWorker(),
       tsLinterWorker(),
-      autocompletion({ override: [tsAutocompleteWorker()] }),
-      tsHoverWorker(),
+      behaviorParts(options.behavior).map(([compartment, extension]) => compartment.of(extension)),
       highlighted,
       placeholderMarks,
-      wrapping.of([]),
       Prec.high(
         keymap.of([
           {
@@ -156,8 +194,12 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       view.dispatch({ effects: setHighlight.of(ranges) });
     },
     format,
-    setLineWrapping(wrap) {
-      view.dispatch({ effects: wrapping.reconfigure(wrap ? EditorView.lineWrapping : []) });
+    configure(behavior) {
+      view.dispatch({
+        effects: behaviorParts(behavior).map(([compartment, extension]) =>
+          compartment.reconfigure(extension),
+        ),
+      });
     },
     setPlaceholderFill(fill) {
       view.dispatch({ effects: setPlaceholderFill.of(fill) });

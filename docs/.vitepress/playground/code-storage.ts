@@ -1,6 +1,6 @@
-import { examples, findExample } from "./examples.ts";
+import { defaultExample, examples, findExample } from "./examples.ts";
 
-const STORAGE_KEY = "json-meta-client:playground:code";
+const STORAGE_KEY = "json-meta-client:playground:source";
 
 /**
  * What this browser keeps of the code: an example by its ID, so the playground
@@ -18,7 +18,7 @@ function isStoredCode(value: unknown): value is StoredCode {
  * The code last in the playground in this browser, or the first example
  */
 export function loadCode(): string {
-  const fallback = examples[0].code;
+  const fallback = defaultExample;
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
     if (!isStoredCode(stored)) return fallback;
