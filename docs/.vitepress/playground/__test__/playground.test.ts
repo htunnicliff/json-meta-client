@@ -229,7 +229,7 @@ describe(createShim, () => {
       auth: "secret",
     });
     const client = clientRecording(urls, shim, {
-      sessionUrl: "<server>/.well-known/jmap",
+      sessionUrl: "<server>",
       auth: "<token>",
     });
 
@@ -258,12 +258,12 @@ describe(createShim, () => {
       urls,
       createShim(() => {}),
       {
-        sessionUrl: "<server>/.well-known/jmap",
+        sessionUrl: "<server>",
         auth: "<token>",
       },
     );
 
     await expect(client.session).rejects.toThrow("stop");
-    expect(urls).toEqual(["https://jmap.example.com/.well-known/jmap Bearer <token>"]);
+    expect(urls).toEqual(["https://jmap.example.com/ Bearer <token>"]);
   });
 });
