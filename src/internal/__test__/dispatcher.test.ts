@@ -239,7 +239,7 @@ describe(Dispatcher, () => {
       const { dispatcher } = setupAccounts({
         hooks: {
           beforeJmapRequest: [
-            ({ request }) => {
+            ({ jmapRequest: request }) => {
               seen.push(structuredClone(request.methodCalls));
               return request;
             },
@@ -324,7 +324,8 @@ describe(Dispatcher, () => {
     });
 
     it("sends no request and runs no hooks when every method call is rejected", async () => {
-      const beforeJmapRequest = vi.fn<({ request }: { request: JmapRequest }) => JmapRequest>();
+      const beforeJmapRequest =
+        vi.fn<({ jmapRequest: request }: { jmapRequest: JmapRequest }) => JmapRequest>();
       const { dispatcher, requests } = setupAccounts({
         hooks: { beforeJmapRequest: [beforeJmapRequest] },
       });
@@ -385,7 +386,7 @@ describe(Dispatcher, () => {
         },
         hooks: {
           beforeJmapRequest: [
-            ({ request }) => {
+            ({ jmapRequest: request }) => {
               events.push("beforeJmapRequest");
               return request;
             },
@@ -403,11 +404,11 @@ describe(Dispatcher, () => {
       const { dispatcher, requests } = setup({
         hooks: {
           beforeJmapRequest: [
-            async ({ request }) => {
+            async ({ jmapRequest: request }) => {
               seen.push(request);
               return { ...request, using: [...request.using, "urn:first"] };
             },
-            ({ request }) => {
+            ({ jmapRequest: request }) => {
               seen.push(request);
               return { ...request, createdIds: { local: "remote" } };
             },
@@ -428,13 +429,13 @@ describe(Dispatcher, () => {
       const seen: { request: JmapRequest; response: JmapResponse }[] = [];
       const { dispatcher, requests } = setup({
         hooks: {
-          beforeJmapRequest: [({ request }) => ({ ...request, createdIds: {} })],
+          beforeJmapRequest: [({ jmapRequest: request }) => ({ ...request, createdIds: {} })],
           afterJmapResponse: [
-            async ({ request, response }) => {
+            async ({ jmapRequest: request, jmapResponse: response }) => {
               seen.push({ request, response });
               return { ...response, methodResponses: [["Core/echo", { changed: 1 }, "a"]] };
             },
-            ({ request, response }) => {
+            ({ jmapRequest: request, jmapResponse: response }) => {
               seen.push({ request, response });
               return { ...response, methodResponses: [["Core/echo", { changed: 2 }, "a"]] };
             },

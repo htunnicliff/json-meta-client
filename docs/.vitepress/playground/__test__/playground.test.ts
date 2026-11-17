@@ -160,15 +160,15 @@ describe(run, () => {
       const client = new JsonMetaClient({
         auth: "<token>", sessionUrl: "<server>/.well-known/jmap", capabilities: ["mail"],
         hooks: {
-          beforeJmapRequest: [function first({ request }) { return request; }, ({ request }) => request],
-          beforeFetch: [async ({ request }) => new Request(request.url + "?rewrite", {
+          beforeJmapRequest: [function first({ jmapRequest }) { return jmapRequest; }, ({ jmapRequest }) => jmapRequest],
+          beforeFetch: [async ({ httpRequest: request }) => new Request(request.url + "?rewrite", {
             method: request.method,
             headers: request.headers,
             body: request.body ? await request.text() : undefined,
           })],
-          afterFetch: [({ response }) => response],
-          afterJmapResponse: [({ response }) => response],
-          beforeEventSourceConnect: [({ request }) => request],
+          afterFetch: [({ httpResponse: response }) => response],
+          afterJmapResponse: [({ jmapResponse: response }) => response],
+          beforeEventSourceConnect: [({ httpRequest: request }) => request],
         },
       });
       await client.api.Mailbox.get({});
@@ -228,7 +228,7 @@ describe(run, () => {
       import { JsonMetaClient } from "json-meta-client";
       const client = new JsonMetaClient({
         auth: "<token>", sessionUrl: "<server>/.well-known/jmap", capabilities: ["mail"],
-        hooks: { beforeJmapRequest: [async ({ request }) => {
+        hooks: { beforeJmapRequest: [async ({ jmapRequest: request }) => {
           if (request.methodCalls[0][0] === "Mailbox/get") await new Promise(() => {});
           return request;
         }] },
@@ -310,7 +310,7 @@ function clientRecording(
     ...options,
     hooks: {
       beforeFetch: [
-        ({ request }) => {
+        ({ httpRequest: request }) => {
           urls.push(`${request.url} ${request.headers.get("authorization")}`);
           throw new Error("stop");
         },

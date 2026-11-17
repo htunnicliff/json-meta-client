@@ -24,7 +24,7 @@ test("find inbox query", async () => {
     capabilities: ["mail"],
     hooks: {
       beforeFetch: [
-        async ({ request }) => {
+        async ({ httpRequest: request }) => {
           if (request.url === sessionUrl) {
             return request;
           }

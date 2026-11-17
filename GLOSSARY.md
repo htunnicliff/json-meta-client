@@ -13,6 +13,12 @@ _Avoid_: invocation (reserve for the RFC 8620 wire tuple), job
 The method calls made in the same tick, sent together as one JMAP Request.
 _Avoid_: queue, bundle
 
+**JMAP Request**:
+The JMAP envelope that carries a batch in the body of an HTTP request.
+
+**JMAP Response**:
+The JMAP envelope in an HTTP response body that carries the results of a batch.
+
 **Dispatcher**:
 The client's owner of batches: it collects method calls into a batch, sends it,
 and settles each method call from the Response.

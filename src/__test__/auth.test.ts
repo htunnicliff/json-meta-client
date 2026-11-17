@@ -118,7 +118,7 @@ describe("authentication", () => {
       },
       hooks: {
         beforeFetch: [
-          ({ request }) => {
+          ({ httpRequest: request }) => {
             expect(request.headers.get("authorization")).toBe("Custom signed");
             observed.push(request);
             request.headers.set("x-hook", "after-auth");
@@ -189,7 +189,7 @@ describe("authentication", () => {
       },
       hooks: {
         beforeFetch: [
-          ({ request }) => {
+          ({ httpRequest: request }) => {
             if (new URL(request.url).pathname === "/events") {
               hookCredentials.push(request.headers.get("authorization"));
               return new Request(request, {

@@ -81,20 +81,20 @@ import type { HookTrace, ObserveHooks } from "../../docs/.vitepress/playground/h
       [
         `for (const hook of this.#options.hooks?.beforeJmapRequest ?? []) {
       // oxlint-disable-next-line no-await-in-loop
-      request = await hook({ request });
+      request = await hook({ jmapRequest: request });
     }
     let response = await this.#options.transport(request, session);
     for (const hook of this.#options.hooks?.afterJmapResponse ?? []) {
       // oxlint-disable-next-line no-await-in-loop
-      response = await hook({ request, response });
+      response = await hook({ jmapRequest: request, jmapResponse: response });
     }`,
         `const trace = this.#options.observeHooks?.({ kind: "batch", method: "POST", url: session.apiUrl });
     for (const [index, hook] of (this.#options.hooks?.beforeJmapRequest ?? []).entries()) {
-      request = await callHook(trace, "beforeJmapRequest", index, hook, { request });
+      request = await callHook(trace, "beforeJmapRequest", index, hook, { jmapRequest: request });
     }
     let response = await this.#options.transport(request, session, trace);
     for (const [index, hook] of (this.#options.hooks?.afterJmapResponse ?? []).entries()) {
-      response = await callHook(trace, "afterJmapResponse", index, hook, { request, response });
+      response = await callHook(trace, "afterJmapResponse", index, hook, { jmapRequest: request, jmapResponse: response });
     }`,
       ],
     ],
@@ -141,17 +141,17 @@ type Hooks = NonNullable`,
       ];
       for (const hook of beforeHooks) {
         // oxlint-disable-next-line no-await-in-loop
-        request = await hook({ request });
+        request = await hook({ httpRequest: request });
       }
       requestClone = request.clone();`,
         `trace ??= this.#observeHooks?.({ kind, method: request.method, url: request.url });
       const beforeFetch = [...(hooks.beforeFetch ?? [])];
       const beforeConnect = eventSource ? [...(hooks.beforeEventSourceConnect ?? [])] : [];
       for (const [index, hook] of beforeFetch.entries()) {
-        request = await callHook(trace, "beforeFetch", index, hook, { request });
+        request = await callHook(trace, "beforeFetch", index, hook, { httpRequest: request });
       }
       for (const [index, hook] of beforeConnect.entries()) {
-        request = await callHook(trace, "beforeEventSourceConnect", index, hook, { request });
+        request = await callHook(trace, "beforeEventSourceConnect", index, hook, { httpRequest: request });
       }
       requestClone = request.clone();
       trace?.send(request);`,
@@ -159,16 +159,16 @@ type Hooks = NonNullable`,
       [
         `for (const hook of hooks.afterFetch ?? []) {
         // oxlint-disable-next-line no-await-in-loop
-        response = await hook({ request: requestClone, response });`,
+        response = await hook({ httpRequest: requestClone, httpResponse: response });`,
         `for (const [index, hook] of (hooks.afterFetch ?? []).entries()) {
-        response = await callHook(trace, "afterFetch", index, hook, { request: requestClone, response });`,
+        response = await callHook(trace, "afterFetch", index, hook, { httpRequest: requestClone, httpResponse: response });`,
       ],
       [
         `for (const hook of hooks.afterEventSourceConnect ?? []) {
           // oxlint-disable-next-line no-await-in-loop
-          await hook({ request: requestClone, response });`,
+          await hook({ httpRequest: requestClone, httpResponse: response });`,
         `for (const [index, hook] of (hooks.afterEventSourceConnect ?? []).entries()) {
-          await callHook(trace, "afterEventSourceConnect", index, hook, { request: requestClone, response });`,
+          await callHook(trace, "afterEventSourceConnect", index, hook, { httpRequest: requestClone, httpResponse: response });`,
       ],
       [
         `fetchJson = async <T>(url: string | URL, options: RequestInit = {}): Promise<T> => {`,

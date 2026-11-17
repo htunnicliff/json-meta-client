@@ -107,13 +107,13 @@ try {
 const rewriteEmailQuery = `import { JsonMetaClient } from "json-meta-client";
 import type { BeforeJmapRequestHook } from "json-meta-client";
 
-const setEmailQueryLimit: BeforeJmapRequestHook = ({ request }) => {
-  for (const [method, args] of request.methodCalls) {
+const setEmailQueryLimit: BeforeJmapRequestHook = ({ jmapRequest }) => {
+  for (const [method, args] of jmapRequest.methodCalls) {
     if (method === "Email/query") {
       Object.assign(args, { limit: 5 });
     }
   }
-  return request;
+  return jmapRequest;
 };
 
 const client = new JsonMetaClient({
@@ -133,14 +133,14 @@ console.log(ids);
 const logHttpTraffic = `import { JsonMetaClient } from "json-meta-client";
 import type { AfterFetchHook, BeforeFetchHook } from "json-meta-client";
 
-const logRequest: BeforeFetchHook = ({ request }) => {
-  console.log(request.method, new URL(request.url).pathname);
-  return request;
+const logRequest: BeforeFetchHook = ({ httpRequest }) => {
+  console.log(httpRequest.method, new URL(httpRequest.url).pathname);
+  return httpRequest;
 };
 
-const logResponse: AfterFetchHook = ({ request, response }) => {
-  console.log(response.status, new URL(request.url).pathname);
-  return response;
+const logResponse: AfterFetchHook = ({ httpRequest, httpResponse }) => {
+  console.log(httpResponse.status, new URL(httpRequest.url).pathname);
+  return httpResponse;
 };
 
 const client = new JsonMetaClient({

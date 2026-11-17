@@ -77,25 +77,28 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
 
 //#region hook-before-fetch
 export interface BeforeFetchHook {
-  (params: { request: Request }): Request | Promise<Request>;
+  (params: { httpRequest: Request }): Request | Promise<Request>;
 }
 //#endregion
 
 //#region hook-after-fetch
 export interface AfterFetchHook {
-  (params: { request: Request; response: Response }): Response | Promise<Response>;
+  (params: { httpRequest: Request; httpResponse: Response }): Response | Promise<Response>;
 }
 //#endregion
 
 //#region hook-before-jmap-request
 export interface BeforeJmapRequestHook {
-  (params: { request: JmapRequest }): JmapRequest | Promise<JmapRequest>;
+  (params: { jmapRequest: JmapRequest }): JmapRequest | Promise<JmapRequest>;
 }
 //#endregion
 
 //#region hook-after-jmap-response
 export interface AfterJmapResponseHook {
-  (params: { request: JmapRequest; response: JmapResponse }): JmapResponse | Promise<JmapResponse>;
+  (params: {
+    jmapRequest: JmapRequest;
+    jmapResponse: JmapResponse;
+  }): JmapResponse | Promise<JmapResponse>;
 }
 //#endregion
 
@@ -106,7 +109,7 @@ export type BeforeEventSourceConnectHook = BeforeFetchHook;
 //#region hook-after-event-source-connect
 /** Observe headers only; leave the response body available for streaming. */
 export interface AfterEventSourceConnectHook {
-  (params: { request: Request; response: Response }): void | Promise<void>;
+  (params: { httpRequest: Request; httpResponse: Response }): void | Promise<void>;
 }
 //#endregion
 
