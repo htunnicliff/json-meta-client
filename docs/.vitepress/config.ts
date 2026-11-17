@@ -42,7 +42,6 @@ export default defineConfig({
       { text: "Getting Started", link: "/getting-started" },
       { text: "API Reference", link: "/reference/api" },
       { text: "Playground", link: "/playground" },
-      { text: "JMAP Standard", link: "https://jmap.io/" },
     ],
     sidebar: [
       {
