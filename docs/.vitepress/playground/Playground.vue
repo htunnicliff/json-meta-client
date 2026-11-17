@@ -54,6 +54,74 @@ const editorHost = ref<HTMLElement>();
 const shownInTimeline = ref(loadOptions(timelineOptions));
 watch(shownInTimeline, (chosen) => saveOptions(timelineOptions, chosen));
 const codeChoices = ref(loadOptions(codeOptions));
+
+// The console's share of the column it shares with the code, on wide screens
+const CONSOLE_SHARE_KEY = "json-meta-client:playground:console-share";
+const DEFAULT_CONSOLE_SHARE = 0.25;
+const MIN_CONSOLE_SHARE = 0.1;
+const MAX_CONSOLE_SHARE = 0.75;
+const clampShare = (share: number) =>
+  Math.min(MAX_CONSOLE_SHARE, Math.max(MIN_CONSOLE_SHARE, share));
+
+function loadConsoleShare(): number {
+  try {
+    const stored = Number(localStorage.getItem(CONSOLE_SHARE_KEY));
+    return stored ? clampShare(stored) : DEFAULT_CONSOLE_SHARE;
+  } catch {
+    return DEFAULT_CONSOLE_SHARE;
+  }
+}
+
+const consoleShare = ref(loadConsoleShare());
+watch(consoleShare, (share) => {
+  try {
+    localStorage.setItem(CONSOLE_SHARE_KEY, String(share));
+  } catch {
+    // Storage can be unavailable; the size lasts the visit
+  }
+});
+const codePane = ref<HTMLElement>();
+const consolePane = ref<HTMLElement>();
+const resizing = ref(false);
+
+// Drag the handle between the code and the console to share the column
+function startResize(event: PointerEvent) {
+  if (event.button !== 0 || !codePane.value || !consolePane.value) return;
+  event.preventDefault();
+  const handle = event.currentTarget as HTMLElement;
+  const top = codePane.value.getBoundingClientRect().top;
+  const bottom = consolePane.value.getBoundingClientRect().bottom;
+  const room = bottom - top - handle.offsetHeight;
+  if (room <= 0) return;
+  handle.setPointerCapture(event.pointerId);
+  resizing.value = true;
+  const move = (moved: PointerEvent) => {
+    consoleShare.value = clampShare((bottom - moved.clientY - handle.offsetHeight / 2) / room);
+  };
+  const end = () => {
+    resizing.value = false;
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+// Arrow keys move the handle; Home and End go to the limits
+function resizeByKey(event: KeyboardEvent) {
+  const step = event.shiftKey ? 0.1 : 0.05;
+  const next: Record<string, number> = {
+    ArrowUp: consoleShare.value + step,
+    ArrowDown: consoleShare.value - step,
+    Home: MAX_CONSOLE_SHARE,
+    End: MIN_CONSOLE_SHARE,
+  };
+  if (!(event.key in next)) return;
+  event.preventDefault();
+  consoleShare.value = clampShare(next[event.key]!);
+}
 watch(codeChoices, (chosen) => {
   saveOptions(codeOptions, chosen);
   editor?.setLineWrapping(chosen.wrapLines);
@@ -270,8 +338,12 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
-    <div class="panes">
-      <section class="pane code-pane" aria-label="Code">
+    <div
+      class="panes"
+      :class="{ resizing }"
+      :style="{ '--code-share': `${1 - consoleShare}fr`, '--console-share': `${consoleShare}fr` }"
+    >
+      <section ref="codePane" class="pane code-pane" aria-label="Code">
         <header class="pane-header">
           playground.ts
           <OptionsMenu v-model="codeChoices" :set="codeOptions" title="Editor">
@@ -312,7 +384,22 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="pane console-pane" aria-label="Console">
+      <div
+        class="split"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Console height"
+        aria-valuemin="10"
+        aria-valuemax="75"
+        :aria-valuenow="Math.round(consoleShare * 100)"
+        tabindex="0"
+        title="Drag to resize the console; double-click to reset"
+        @pointerdown="startResize"
+        @keydown="resizeByKey"
+        @dblclick="consoleShare = DEFAULT_CONSOLE_SHARE"
+      />
+
+      <section ref="consolePane" class="pane console-pane" aria-label="Console">
         <header class="pane-header">
           Console
           <span v-if="view.logs.length" class="count">{{ view.logs.length }}</span>
@@ -439,11 +526,7 @@ onBeforeUnmount(() => {
   }
 
   .panes {
-    grid-template-areas:
-      "code requests"
-      "console requests";
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
   }
 }
 
@@ -499,6 +582,67 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow: auto;
   padding: 12px;
+}
+
+.split {
+  display: none;
+}
+
+/*
+ * Wide: the code and the console share the left column, split by a handle
+ * in the gap between them that moves the split
+ */
+@media (min-width: 960px) {
+  .panes {
+    grid-template-areas:
+      "code requests"
+      "split requests"
+      "console requests";
+    grid-template-rows: minmax(0, var(--code-share)) 16px minmax(0, var(--console-share));
+    row-gap: 0;
+  }
+
+  .code-pane,
+  .console-pane,
+  .editor {
+    min-height: 0;
+  }
+
+  .console-pane {
+    height: auto;
+  }
+
+  .split {
+    display: grid;
+    grid-area: split;
+    place-items: center;
+    cursor: row-resize;
+    touch-action: none;
+  }
+
+  .split::after {
+    content: "";
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--vp-c-divider);
+    transition: background-color 0.15s;
+  }
+
+  .split:hover::after,
+  .split:focus-visible::after,
+  .resizing .split::after {
+    background: var(--vp-c-brand-1);
+  }
+
+  .split:focus-visible {
+    outline: none;
+  }
+
+  .resizing {
+    cursor: row-resize;
+    user-select: none;
+  }
 }
 </style>
 
