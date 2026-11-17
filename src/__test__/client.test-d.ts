@@ -232,6 +232,33 @@ describe(JsonMetaClient, () => {
       expectTypeOf(mailbox).not.toHaveProperty("isSubscribed");
     });
 
+    describe("wildcard result references", () => {
+      it("collects a non-array value from each element", () => {
+        const emails = client.api.Email.get({ ids: ["<pretend-email-id>"] });
+
+        expectTypeOf(emails.resultRef("/list/*/threadId")).toEqualTypeOf<Ref<string[]>>();
+      });
+
+      it("flattens array values from each element (RFC 8620 section 3.7)", () => {
+        const threads = client.api.Thread.get({ ids: ["<pretend-thread-id>"] });
+        const emailIds = threads.resultRef("/list/*/emailIds");
+
+        expectTypeOf(emailIds).toEqualTypeOf<Ref<string[]>>();
+        void client.api.Email.get({ ids: emailIds });
+      });
+
+      it("rejects a flattened array where a single value is expected", () => {
+        const threads = client.api.Thread.get({ ids: ["<pretend-thread-id>"] });
+        const emailIds = threads.resultRef("/list/*/emailIds");
+
+        expectTypeOf(emailIds).not.toExtend<AllowRefs<string>>();
+        void client.api.Email.query({
+          // @ts-expect-error A list of email IDs is not a mailbox ID.
+          filter: { inMailbox: emailIds },
+        });
+      });
+    });
+
     describe("when using a custom capability", () => {
       interface Example {
         some: string;
