@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="224" viewBox="0 0 960 224">
+  <!-- cspell:words Menlo Consolas -->
+  <title>json-meta-client</title>
+  <desc>
+    A TypeScript client for JMAP
+  </desc>
+  <defs>
+    <clipPath id="a">
+      <rect width="960" height="224" rx="16"/>
+    </clipPath>
+    <pattern id="b" width="88" height="10" y="214" patternUnits="userSpaceOnUse">
+      <path fill="#b22234" d="M0 10 12 0h30L30 10Z"/>
+      <path fill="#1f4e9c" d="M44 10 56 0h30L74 10Z"/>
+    </pattern>
+  </defs>
+  <g clip-path="url(#a)">
+    <path fill="#faf7f0" d="M0 0h960v224H0z"/>
+    <path fill="url(#b)" d="M0 214h960v10H0z"/>
+    <g transform="translate(60 43)">
+      <rect width="128" height="128" fill="#b22234" rx="25"/>
+      <path fill="#faf7f0" d="M45 27H22v74h23v-9H31V36h14Zm38 0h23v74H83v-9h14V36H83ZM50 48h32v9H50zm0 23h24v9H50z"/>
+    </g>
+    <text x="228" y="107" fill="#192d50" font-family="Menlo, Consolas, monospace" font-size="58" font-weight="700">json-meta-client</text>
+    <text x="231" y="150" fill="#1f4e9c" font-family="system-ui, sans-serif" font-size="28">A TypeScript client for JMAP</text>
+  </g>
+  <rect width="959" height="223" x=".5" y=".5" fill="none" stroke="#e2d9c2" rx="15.5"/>
+</svg>

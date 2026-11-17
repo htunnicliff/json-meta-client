@@ -1,4 +1,4 @@
-# json-meta-client
+# ![json-meta-client](https://json-meta-client.dev/readme-banner.svg)
 
 [![npm](https://img.shields.io/npm/v/json-meta-client?style=for-the-badge)](https://npmx.dev/package/json-meta-client)
 [![License](https://img.shields.io/npm/l/json-meta-client?style=for-the-badge&color=1d4ed8)](./LICENSE)
