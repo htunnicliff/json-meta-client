@@ -436,6 +436,11 @@ onBeforeUnmount(() => {
   color: var(--vp-c-green-1);
 }
 
+/* JSON in the output pane: keys stay plain, punctuation recedes */
+.playground .raw .tok-punctuation {
+  color: var(--vp-c-text-3);
+}
+
 .playground .tok-comment {
   color: var(--vp-c-text-3);
   font-style: italic;

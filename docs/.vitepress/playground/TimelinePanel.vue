@@ -99,14 +99,17 @@ const statusLine = computed(() => {
         </header>
         <RawJson
           :batch="entry"
+          label="JMAP Request as sent"
           :highlighted="highlighted"
           @hover-call="emit('hoverCall', $event)"
         />
         <template v-if="responses?.[entry.index]?.body !== undefined">
           <h4 class="response-heading">Response</h4>
           <pre
+            v-if="typeof responses![entry.index]!.body === 'string'"
             class="body response"
-          ><code>{{ formatBody(responses![entry.index]!.body) }}</code></pre>
+          ><code>{{ responses![entry.index]!.body }}</code></pre>
+          <RawJson v-else :body="responses![entry.index]!.body" label="JMAP Response" />
         </template>
       </article>
 

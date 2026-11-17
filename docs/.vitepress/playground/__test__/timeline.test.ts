@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import homeRequest from "../../../snippets/home-request.md?raw";
 import type { RecordedRequest } from "../../recorder/index.ts";
-import { annotateRequest, buildTimeline } from "../timeline.ts";
+import { annotateRequest, buildTimeline, jsonLines } from "../timeline.ts";
 import type { BatchEntry } from "../timeline.ts";
 
 const homeBody: unknown = JSON.parse(
@@ -103,5 +103,53 @@ describe(annotateRequest, () => {
     expect(labelOf('"using": [')).toBeUndefined();
     expect(labelOf('"Email/query",')).toBe("#1");
     expect(labelOf('"path": "/ids"')).toBe("#2");
+  });
+});
+
+describe(jsonLines, () => {
+  it("writes any value exactly as JSON.stringify does", () => {
+    const value = { a: [1, true, null], b: {}, c: [], "d e": "f" };
+
+    expect(
+      jsonLines(value)
+        .map(({ text }) => text)
+        .join("\n"),
+    ).toBe(JSON.stringify(value, null, 2));
+  });
+
+  it("splits each line into tokens for highlighting", () => {
+    const kinds = jsonLines({ id: "a", n: 1, ok: false, list: [null] }).map(({ tokens }) =>
+      tokens.flatMap(({ text, kind }) => (kind ? [[kind, text]] : [])),
+    );
+
+    expect(kinds).toEqual([
+      [["punctuation", "{"]],
+      [
+        ["key", '"id"'],
+        ["punctuation", ":"],
+        ["string", '"a"'],
+        ["punctuation", ","],
+      ],
+      [
+        ["key", '"n"'],
+        ["punctuation", ":"],
+        ["number", "1"],
+        ["punctuation", ","],
+      ],
+      [
+        ["key", '"ok"'],
+        ["punctuation", ":"],
+        ["literal", "false"],
+        ["punctuation", ","],
+      ],
+      [
+        ["key", '"list"'],
+        ["punctuation", ":"],
+        ["punctuation", "["],
+      ],
+      [["literal", "null"]],
+      [["punctuation", "]"]],
+      [["punctuation", "}"]],
+    ]);
   });
 });

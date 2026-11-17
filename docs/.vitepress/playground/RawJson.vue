@@ -1,22 +1,37 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { annotateRequest } from "./timeline.ts";
-import type { BatchEntry } from "./timeline.ts";
+import { annotateRequest, jsonLines } from "./timeline.ts";
+import type { AnnotatedLine, BatchEntry, TokenKind } from "./timeline.ts";
 
 const props = defineProps<{
-  batch: BatchEntry;
+  /** A JMAP Request, shown with notes on its method calls */
+  batch?: BatchEntry;
+  /** Any other JSON value, shown when there is no `batch` */
+  body?: unknown;
+  label: string;
   /** Labels of the method calls to highlight */
   highlighted?: ReadonlySet<string>;
 }>();
 
 const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 
-const lines = computed(() => annotateRequest(props.batch));
+const lines = computed<AnnotatedLine[]>(() =>
+  props.batch ? annotateRequest(props.batch) : jsonLines(props.body),
+);
+
+// The editor's highlight classes, so both panes share one color scheme
+const tokenClasses: Record<TokenKind, string> = {
+  key: "tok-propertyName",
+  string: "tok-string",
+  number: "tok-number",
+  literal: "tok-bool",
+  punctuation: "tok-punctuation",
+};
 </script>
 
 <template>
-  <div class="raw" role="region" aria-label="JMAP Request as sent">
+  <div class="raw" role="region" :aria-label="label">
     <div
       v-for="(line, index) in lines"
       :key="index"
@@ -26,7 +41,14 @@ const lines = computed(() => annotateRequest(props.batch));
       @mouseleave="emit('hoverCall', undefined)"
     >
       <span class="number">{{ index + 1 }}</span>
-      <code class="text">{{ line.text }}</code>
+      <code class="text"
+        ><span
+          v-for="(token, tokenIndex) in line.tokens"
+          :key="tokenIndex"
+          :class="token.kind && tokenClasses[token.kind]"
+          >{{ token.text }}</span
+        ></code
+      >
       <span v-if="line.note" class="note" :data-tone="line.note.tone">{{ line.note.text }}</span>
     </div>
   </div>

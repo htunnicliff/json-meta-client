@@ -130,11 +130,94 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
 }
 
 /**
+ * What a piece of a JSON line is, for syntax highlighting. Whitespace has no
+ * kind.
+ */
+export type TokenKind = "key" | "string" | "number" | "literal" | "punctuation";
+
+export interface Token {
+  text: string;
+  kind?: TokenKind;
+}
+
+/**
+ * A line of JSON as `JSON.stringify(value, null, 2)` writes it
+ */
+export interface JsonLine {
+  text: string;
+  tokens: Token[];
+}
+
+interface WrittenLine extends JsonLine {
+  /** Where the value the line opens or holds is, as keys and indexes */
+  path: (string | number)[];
+  /** Whether the line only closes an object or array */
+  closing: boolean;
+}
+
+function scalarKind(value: unknown): TokenKind {
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  return "literal";
+}
+
+/**
+ * Write a JSON value one line at a time, split into tokens
+ */
+function writeJson(value: unknown): WrittenLine[] {
+  const lines: WrittenLine[] = [];
+
+  function write(item: unknown, path: (string | number)[], depth: number, last: boolean) {
+    const key = path.at(-1);
+    const head: Token[] = [];
+    if (depth) head.push({ text: "  ".repeat(depth) });
+    if (typeof key === "string") {
+      head.push({ text: JSON.stringify(key), kind: "key" }, { text: ":", kind: "punctuation" });
+      head.push({ text: " " });
+    }
+    const comma: Token[] = last ? [] : [{ text: ",", kind: "punctuation" }];
+    const push = (tokens: Token[], closing: boolean) =>
+      lines.push({ text: tokens.map(({ text }) => text).join(""), tokens, path, closing });
+
+    const entries: [string | number, unknown][] | undefined = Array.isArray(item)
+      ? item.map((element, index) => [index, element])
+      : isObject(item)
+        ? Object.entries(item)
+        : undefined;
+    if (!entries) {
+      push([...head, { text: JSON.stringify(item), kind: scalarKind(item) }, ...comma], false);
+      return;
+    }
+    const [open, close] = Array.isArray(item) ? ["[", "]"] : ["{", "}"];
+    if (!entries.length) {
+      push([...head, { text: `${open}${close}`, kind: "punctuation" }, ...comma], false);
+      return;
+    }
+    push([...head, { text: open, kind: "punctuation" }], false);
+    entries.forEach(([entryKey, entry], index) =>
+      write(entry, [...path, entryKey], depth + 1, index === entries.length - 1),
+    );
+    const indent: Token[] = depth ? [{ text: "  ".repeat(depth) }] : [];
+    push([...indent, { text: close, kind: "punctuation" }, ...comma], true);
+  }
+
+  write(value, [], 0, true);
+  return lines;
+}
+
+/**
+ * Any JSON value, as `JSON.stringify(value, null, 2)` writes it, one line at
+ * a time, split into tokens for highlighting
+ */
+export function jsonLines(value: unknown): JsonLine[] {
+  return writeJson(value).map(({ text, tokens }) => ({ text, tokens }));
+}
+
+/**
  * A line of a JMAP Request's JSON: the method call it belongs to, and a note
  * on where a method call starts and on the result references between calls
  */
-export interface AnnotatedLine {
-  text: string;
+export interface AnnotatedLine extends JsonLine {
   /** The label of the method call this line is part of */
   call?: string;
   note?: { text: string; tone: "label" | "reference" };
@@ -163,7 +246,6 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
   const byId = new Map(batch.calls.map((call) => [call.callId, call]));
   const methodCalls: unknown[] =
     isObject(batch.body) && Array.isArray(batch.body.methodCalls) ? batch.body.methodCalls : [];
-  const lines: AnnotatedLine[] = [];
 
   function callAt(path: readonly (string | number)[]): TimelineCall | undefined {
     const [top, index] = path;
@@ -172,46 +254,13 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
     return isInvocation(invocation) ? byId.get(invocation[2]) : undefined;
   }
 
-  function write(
-    value: unknown,
-    path: (string | number)[],
-    depth: number,
-    prefix: string,
-    suffix: string,
-  ) {
-    const pad = "  ".repeat(depth);
+  return writeJson(batch.body).map(({ text, tokens, path, closing }): AnnotatedLine => {
+    const line: AnnotatedLine = { text, tokens };
     const call = callAt(path);
-    const push = (text: string, withNote: boolean) => {
-      const line: AnnotatedLine = { text };
-      if (call) {
-        line.call = call.label;
-        if (withNote) line.note = note(path, call);
-      }
-      lines.push(line);
-    };
-    const entries: [string | number, unknown][] | undefined = Array.isArray(value)
-      ? value.map((item, index) => [index, item])
-      : isObject(value)
-        ? Object.entries(value)
-        : undefined;
-    if (!entries) {
-      push(`${pad}${prefix}${JSON.stringify(value)}${suffix}`, true);
-      return;
+    if (call) {
+      line.call = call.label;
+      if (!closing) line.note = note(path, call);
     }
-    const [open, close] = Array.isArray(value) ? ["[", "]"] : ["{", "}"];
-    if (!entries.length) {
-      push(`${pad}${prefix}${open}${close}${suffix}`, true);
-      return;
-    }
-    push(`${pad}${prefix}${open}`, true);
-    entries.forEach(([key, item], index) => {
-      const itemPrefix = typeof key === "string" ? `${JSON.stringify(key)}: ` : "";
-      const itemSuffix = index < entries.length - 1 ? "," : "";
-      write(item, [...path, key], depth + 1, itemPrefix, itemSuffix);
-    });
-    push(`${pad}${close}${suffix}`, false);
-  }
-
-  write(batch.body, [], 0, "", "");
-  return lines;
+    return line;
+  });
 }
