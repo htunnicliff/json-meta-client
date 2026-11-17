@@ -652,6 +652,20 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
+/*
+ * Inline code in prose, as on the docs pages. VitePress styles it only
+ * inside `.vp-doc`, which the `page` layout leaves out. Code with a class,
+ * such as a request's method and URL, has its own styles.
+ */
+.playground :not(pre) > code:not([class]) {
+  border-radius: 4px;
+  padding: 3px 6px;
+  background-color: var(--vp-code-bg);
+  color: var(--vp-code-color);
+  font-size: var(--vp-code-font-size);
+  unicode-bidi: plaintext;
+}
+
 /* CodeMirror, on the docs site's code colors; it renders outside this component's scope */
 .playground .cm-editor {
   height: 100%;

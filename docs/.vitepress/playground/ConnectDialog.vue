@@ -44,7 +44,7 @@ async function connect() {
       <header>
         <h2 id="connect-title">Connect a server</h2>
         <p class="lede">
-          Responses come from a real JMAP server, so your code runs past its <code>await</code>s.
+          Responses come from a real JMAP server, so your code runs past each <code>await</code>.
           The playground itself never answers method calls.
         </p>
       </header>
