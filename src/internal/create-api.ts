@@ -22,6 +22,7 @@ interface ApiOptions {
    * Whether any capability declares the entity
    */
   isKnownEntity: (entity: string) => boolean;
+  generateMethodCallId: (method: string) => string;
 }
 
 /**
@@ -70,7 +71,11 @@ function createEntity(entity: string, options: ApiOptions): object {
  * Create the function that makes a method call and returns its pending
  * result, augmented with the call's details and reference helpers
  */
-function createMethod(entity: string, method: string, { dispatcher, isKnownEntity }: ApiOptions) {
+function createMethod(
+  entity: string,
+  method: string,
+  { dispatcher, isKnownEntity, generateMethodCallId }: ApiOptions,
+) {
   const name = `${entity}/${method}`;
 
   return (args: JsonObject, options?: AugmentedOptions) => {
@@ -81,7 +86,7 @@ function createMethod(entity: string, method: string, { dispatcher, isKnownEntit
     const methodCall = new MethodCall({
       method: name,
       args: known ? prepareArguments(args) : args,
-      id: options?.id,
+      id: options?.id ?? generateMethodCallId(name),
     });
 
     const pendingResult = known

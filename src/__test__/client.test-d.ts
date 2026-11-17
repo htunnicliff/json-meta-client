@@ -36,6 +36,21 @@ const client = new JsonMetaClient({
 type DefaultEntities = DefaultCapabilities[number]["entities"][number];
 
 describe(JsonMetaClient, () => {
+  it("accepts optional synchronous method call ID generators that return strings", () => {
+    type Generator = Config<readonly ["mail"]>["generateMethodCallId"];
+
+    assertType<Generator>(undefined);
+    assertType<Generator>(() => "call-id");
+    assertType<Generator>((method) => {
+      expectTypeOf(method).toBeString();
+      return `${method}::call-id`;
+    });
+    // @ts-expect-error - The generator must return a string.
+    assertType<Generator>(() => 1);
+    // @ts-expect-error - The generator must return synchronously.
+    assertType<Generator>(async () => "call-id");
+  });
+
   it("exposes built-in capability details on the session", async () => {
     const session = await client.session;
     const contactsSession = await new JsonMetaClient({
