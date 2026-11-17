@@ -113,7 +113,7 @@ const waitingHint = computed(() => {
               v-if="entry.kind === 'session' && !connected"
               class="mocked"
               title="Not sent: a placeholder Session"
-              >Mocked</span
+              >Mocked<span class="visually-hidden">: not sent, a placeholder Session</span></span
             >
             <span v-else-if="responses?.[entry.index]" class="aside">
               HTTP {{ responses[entry.index]!.status || "failed" }}

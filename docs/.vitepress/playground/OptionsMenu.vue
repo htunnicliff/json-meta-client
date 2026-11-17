@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
 }
 
 .actions :slotted(kbd) {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
   font-family: inherit;
   font-size: 12px;
 }

@@ -41,7 +41,7 @@ defineProps<{ logs: readonly ConsoleLine[] }>();
 }
 
 .level {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 .log[data-level="warn"] {
@@ -63,6 +63,6 @@ defineProps<{ logs: readonly ConsoleLine[] }>();
   margin: auto;
   text-align: center;
   font-size: 13px;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 </style>

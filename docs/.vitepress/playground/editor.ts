@@ -65,7 +65,10 @@ export interface EditorOptions {
   /** The TypeScript worker that type-checks the code */
   worker: WorkerShape;
   onChange(code: string): void;
-  /** The position under the pointer, or `undefined` when it is over no code */
+  /**
+   * The position under the pointer, or at the cursor while the editor has
+   * focus, or `undefined` when neither is over code
+   */
   onHover(position: SourcePosition | undefined): void;
 }
 
@@ -170,8 +173,17 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
           },
         ]),
       ),
+      EditorView.contentAttributes.of({ "aria-label": "Code" }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) options.onChange(update.state.doc.toString());
+        // Keyboard users get the cursor's highlights, as pointer users get the hover's
+        if ((update.selectionSet || update.focusChanged) && update.view.hasFocus) {
+          const offset = update.state.selection.main.head;
+          const line = update.state.doc.lineAt(offset);
+          options.onHover({ line: line.number, column: offset - line.from + 1 });
+        } else if (update.focusChanged) {
+          options.onHover(undefined);
+        }
       }),
       EditorView.domEventHandlers({
         mousemove(event, editor) {

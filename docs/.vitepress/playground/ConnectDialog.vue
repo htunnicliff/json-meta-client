@@ -129,7 +129,7 @@ async function connect() {
 
 .field input {
   padding: 6px 10px;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--site-c-control-border);
   border-radius: 8px;
   background: var(--vp-c-bg);
   font-family: var(--vp-font-family-mono);

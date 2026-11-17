@@ -85,6 +85,18 @@ watch(consoleShare, (share) => {
   }
 });
 const codePane = ref<HTMLElement>();
+
+// Editable text always matches :focus-visible, so the editor's ring follows
+// how focus arrived instead: a pointer press just before focus means a click
+const editorKeyboardFocus = ref(false);
+let pointerPressed = false;
+
+function onEditorFocusIn(event: FocusEvent) {
+  if ((event.target as Element).classList.contains("cm-content")) {
+    editorKeyboardFocus.value = !pointerPressed;
+  }
+  pointerPressed = false;
+}
 const consolePane = ref<HTMLElement>();
 const resizing = ref(false);
 
@@ -336,11 +348,16 @@ onBeforeUnmount(() => {
         </select>
       </label>
       <!-- Icons from Lucide (ISC license): play, plug and unplug -->
-      <button type="button" class="button run" @click="run()">
+      <button
+        type="button"
+        class="button run"
+        aria-keyshortcuts="Meta+Enter Control+Enter"
+        @click="run()"
+      >
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 3l14 9-14 9Z" fill="currentColor" />
         </svg>
-        Run <kbd>⌘↵</kbd>
+        Run <kbd aria-hidden="true">⌘↵</kbd>
       </button>
       <div class="connection">
         <span
@@ -350,6 +367,7 @@ onBeforeUnmount(() => {
           title="Fills in <server> and <token>"
         >
           <strong>Connected</strong> · {{ server }}
+          <span class="visually-hidden">. Fills in &lt;server&gt; and &lt;token&gt;</span>
         </span>
         <span
           v-else
@@ -358,6 +376,7 @@ onBeforeUnmount(() => {
           title="Placeholder Session; method calls go unanswered"
         >
           <strong>Mocked</strong> · {{ mockedServer }}
+          <span class="visually-hidden">. Placeholder Session; method calls go unanswered</span>
         </span>
         <button
           v-if="connection"
@@ -399,19 +418,28 @@ onBeforeUnmount(() => {
       :class="{ resizing }"
       :style="{ '--code-share': `${1 - consoleShare}fr`, '--console-share': `${consoleShare}fr` }"
     >
-      <section ref="codePane" class="pane code-pane" aria-label="Code">
+      <section
+        ref="codePane"
+        class="pane code-pane"
+        :class="{ 'keyboard-focus': editorKeyboardFocus }"
+        aria-label="Code"
+        @pointerdown="pointerPressed = true"
+        @focusin="onEditorFocusIn"
+        @focusout="editorKeyboardFocus = false"
+      >
         <header class="pane-header">
           playground.ts
           <OptionsMenu v-model="codeChoices" :set="codeOptions" title="Editor">
             <template #actions="{ close }">
               <button
                 type="button"
+                aria-keyshortcuts="Shift+Alt+F"
                 @click="
                   close();
                   formatNow();
                 "
               >
-                Format now <kbd>⇧⌥F</kbd>
+                Format now <kbd aria-hidden="true">⇧⌥F</kbd>
               </button>
             </template>
           </OptionsMenu>
@@ -424,7 +452,7 @@ onBeforeUnmount(() => {
           Requests
           <OptionsMenu v-model="shownInTimeline" :set="timelineOptions" title="Timeline" />
         </header>
-        <div class="output" aria-live="polite">
+        <div class="output">
           <TimelinePanel
             :requests="view.requests"
             :responses="view.responses"
@@ -508,7 +536,7 @@ onBeforeUnmount(() => {
 
 .example select {
   padding: 0 28px 0 10px;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--site-c-control-border);
   border-radius: 8px;
   background: var(--vp-c-bg)
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E")
@@ -541,9 +569,10 @@ onBeforeUnmount(() => {
   stroke-linejoin: round;
 }
 
+/* Like the site's brand buttons, which keep white text readable in both modes */
 .run {
-  background: var(--vp-c-brand-1);
-  color: var(--vp-c-white);
+  background: var(--vp-button-brand-bg);
+  color: var(--vp-button-brand-text);
 }
 
 .run .icon {
@@ -553,7 +582,13 @@ onBeforeUnmount(() => {
 }
 
 .run:hover {
-  background: var(--vp-c-brand-2);
+  background: var(--vp-button-brand-hover-bg);
+  color: var(--vp-button-brand-hover-text);
+}
+
+.run:active {
+  background: var(--vp-button-brand-active-bg);
+  color: var(--vp-button-brand-active-text);
 }
 
 .run kbd {
@@ -742,7 +777,7 @@ onBeforeUnmount(() => {
     width: 32px;
     height: 4px;
     border-radius: 2px;
-    background: var(--vp-c-divider);
+    background: var(--site-c-control-border);
     transition: background-color 0.15s;
   }
 
@@ -752,8 +787,14 @@ onBeforeUnmount(() => {
     background: var(--vp-c-brand-1);
   }
 
+  /* The handle is small, so a ring around it shows focus */
   .split:focus-visible {
     outline: none;
+  }
+
+  .split:focus-visible::after {
+    outline: 2px solid var(--vp-c-brand-1);
+    outline-offset: 2px;
   }
 
   .resizing {
@@ -786,8 +827,14 @@ onBeforeUnmount(() => {
   color: var(--vp-c-text-1);
 }
 
+/* The pane shows keyboard focus, so the editor needs no outline of its own */
 .playground .cm-editor.cm-focused {
   outline: none;
+}
+
+.playground .code-pane.keyboard-focus {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: -1px;
 }
 
 .playground .cm-scroller {
@@ -850,11 +897,11 @@ onBeforeUnmount(() => {
 
 /* JSON in the output pane: keys stay plain, punctuation recedes */
 .playground .raw .tok-punctuation {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 .playground .tok-comment {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
   font-style: italic;
 }
 
@@ -914,7 +961,7 @@ onBeforeUnmount(() => {
 .playground .cm-editor .cm-completionDetail {
   margin-left: auto;
   padding-left: 16px;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
   font-style: normal;
 }
 
@@ -1057,7 +1104,7 @@ onBeforeUnmount(() => {
 }
 
 .playground .cm-editor .cm-tooltip-hover .quick-info-text {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 /* Documentation beside the menu */
