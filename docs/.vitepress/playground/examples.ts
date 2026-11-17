@@ -105,24 +105,23 @@ try {
 `;
 
 const rewriteEmailQuery = `import { JsonMetaClient } from "json-meta-client";
+import type { BeforeJmapRequestHook } from "json-meta-client";
+
+const setEmailQueryLimit: BeforeJmapRequestHook = ({ request }) => {
+  for (const [method, args] of request.methodCalls) {
+    if (method === "Email/query") {
+      Object.assign(args, { limit: 5 });
+    }
+  }
+  return request;
+};
 
 const client = new JsonMetaClient({
-  sessionUrl: "<server>/.well-known/jmap",
-  auth: "<token>",
+  sessionUrl: "<server>",
+  auth: "<credentials>",
   capabilities: ["mail"],
   hooks: {
-    beforeJmapRequest: [
-      function setEmailQueryLimit({ request }) {
-        return {
-          ...request,
-          methodCalls: request.methodCalls.map(([method, args, id]) => [
-            method,
-            method === "Email/query" ? { ...args, limit: 5 } : args,
-            id,
-          ]),
-        };
-      },
-    ],
+    beforeJmapRequest: [setEmailQueryLimit],
   },
 });
 
@@ -132,24 +131,25 @@ console.log(ids);
 `;
 
 const logHttpTraffic = `import { JsonMetaClient } from "json-meta-client";
+import type { AfterFetchHook, BeforeFetchHook } from "json-meta-client";
+
+const logRequest: BeforeFetchHook = ({ request }) => {
+  console.log(request.method, new URL(request.url).pathname);
+  return request;
+};
+
+const logResponse: AfterFetchHook = ({ request, response }) => {
+  console.log(response.status, new URL(request.url).pathname);
+  return response;
+};
 
 const client = new JsonMetaClient({
-  sessionUrl: "<server>/.well-known/jmap",
-  auth: "<token>",
+  sessionUrl: "<server>",
+  auth: "<credentials>",
   capabilities: ["mail"],
   hooks: {
-    beforeFetch: [
-      function logRequest({ request }) {
-        console.log(request.method, new URL(request.url).pathname);
-        return request;
-      },
-    ],
-    afterFetch: [
-      function logResponse({ request, response }) {
-        console.log(response.status, new URL(request.url).pathname);
-        return response;
-      },
-    ],
+    beforeFetch: [logRequest],
+    afterFetch: [logResponse],
   },
 });
 
