@@ -41,7 +41,10 @@ export interface BatchEntry extends BaseEntry {
 }
 
 export interface TimelineCall {
-  /** A label that stays the same between runs, such as `#1`, in send order */
+  /**
+   * A label that stays the same between runs: the call id when the playground
+   * named it, such as `unread`, or else its place in send order, such as `#1`
+   */
   label: string;
   name: string;
   callId: string;
@@ -131,6 +134,22 @@ function resultOf(value: unknown): string | undefined {
 }
 
 /**
+ * Whether a call id reads as a name, such as `unread`, rather than the
+ * library's default of method and random suffix, `Email/query::f3c9ebfd`
+ */
+function isNamedCallId(callId: string): boolean {
+  return !callId.includes("::");
+}
+
+/**
+ * How to refer to a method call in prose: its name, such as `unread`, or its
+ * label and method, such as `#1 Email/query`
+ */
+export function describeCall({ label, name }: Pick<TimelineCall, "label" | "name">): string {
+  return label.startsWith("#") ? `${label} ${name}` : label;
+}
+
+/**
  * Build the timeline of recorded requests, given in send order. Requests
  * still being recorded may leave gaps.
  */
@@ -157,7 +176,7 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
       ? body.methodCalls.filter(isInvocation)
       : [];
     const batchCalls = invocations.map(([name, args, callId]): TimelineCall => {
-      const label = `#${labels.size + 1}`;
+      const label = isNamedCallId(callId) ? callId : `#${labels.size + 1}`;
       labels.set(callId, label);
       const references: Record<string, string> = {};
       for (const [key, value] of Object.entries(args)) {
@@ -281,12 +300,12 @@ export interface AnnotatedLine extends JsonLine {
  */
 function note(path: readonly (string | number)[], call: TimelineCall): AnnotatedLine["note"] {
   const [, , part, key] = path;
-  if (path.length === 2) return { text: `${call.label} ${call.name}`, tone: "label" };
+  if (path.length === 2) return { text: describeCall(call), tone: "label" };
   if (part === 2 && path.length === 3 && call.referencedBy.length) {
-    return { text: `referenced by ${call.referencedBy.join(", ")}`, tone: "reference" };
+    return { text: `used by ${call.referencedBy.join(", ")}`, tone: "reference" };
   }
   const target = part === 1 && typeof key === "string" ? call.references[key] : undefined;
-  if (path.length === 4 && target) return { text: `result of ${target}`, tone: "reference" };
+  if (path.length === 4 && target) return { text: `from ${target}`, tone: "reference" };
   return undefined;
 }
 

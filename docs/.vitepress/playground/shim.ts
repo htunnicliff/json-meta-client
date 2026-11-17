@@ -32,7 +32,12 @@ function customUrns(capabilities: unknown): string[] {
 export function createShim(
   reportUrns: (urns: string[]) => void,
   server?: PlaceholderServer,
-  instrumentation?: { Client: typeof library.JsonMetaClient; observeHooks: ObserveHooks },
+  instrumentation?: {
+    Client: typeof library.JsonMetaClient;
+    observeHooks: ObserveHooks;
+    /** Readable method call ids, for clients that do not generate their own */
+    generateMethodCallId?: (method: string) => string;
+  },
 ): typeof library {
   const Client = instrumentation?.Client ?? library.JsonMetaClient;
   class JsonMetaClient extends Client<any, any> {
@@ -40,6 +45,9 @@ export function createShim(
       const urns = customUrns(options?.capabilities);
       if (urns.length) reportUrns(urns);
       const filled = fillPlaceholders(options, server);
+      if (instrumentation?.generateMethodCallId && !filled.generateMethodCallId) {
+        filled.generateMethodCallId = instrumentation.generateMethodCallId;
+      }
       if (instrumentation && filled.hooks) hookObservers.set(filled, instrumentation.observeHooks);
       super(filled);
     }

@@ -39,32 +39,37 @@ describe(buildTimeline, () => {
       number: 1,
       calls: [
         {
-          label: "#1",
+          label: "unread",
           name: "Email/query",
-          callId: "Email/query::f3c9ebfd",
-          referencedBy: ["#2"],
+          callId: "unread",
+          referencedBy: ["emails"],
           references: {},
         },
-        { label: "#2", name: "Email/get", referencedBy: [], references: { "#ids": "#1" } },
+        {
+          label: "emails",
+          name: "Email/get",
+          referencedBy: [],
+          references: { "#ids": "unread" },
+        },
       ],
     });
   });
 
-  it("numbers method calls across Batches, and gives other requests their own entries", () => {
+  it("numbers unnamed method calls across Batches, and gives other requests their own entries", () => {
     const entries = buildTimeline([
       { kind: "session", method: "GET", url: sessionUrl },
       {
         kind: "request",
         method: "POST",
         url: apiUrl,
-        body: { using: [], methodCalls: [call("A/get", "a")] },
+        body: { using: [], methodCalls: [call("A/get", "A/get::0a1b2c3d")] },
       },
       { kind: "upload", method: "POST", url: "https://jmap.example.com/upload", body: "hello" },
       {
         kind: "request",
         method: "POST",
         url: apiUrl,
-        body: { using: [], methodCalls: [call("B/get", "b")] },
+        body: { using: [], methodCalls: [call("B/get", "B/get::4e5f6a7b")] },
       },
     ]);
 
@@ -78,6 +83,24 @@ describe(buildTimeline, () => {
 });
 
 describe(annotateRequest, () => {
+  it("notes unnamed method calls by number and method", () => {
+    const body = {
+      using: [],
+      methodCalls: [
+        ["Email/query", {}, "Email/query::0a1b2c3d"],
+        [
+          "Email/get",
+          { "#ids": { name: "Email/query", path: "/ids", resultOf: "Email/query::0a1b2c3d" } },
+          "Email/get::4e5f6a7b",
+        ],
+      ],
+    };
+    const lines = annotateRequest(batchOf(buildTimeline(recorded(body))));
+    const notes = lines.flatMap(({ note }) => (note ? [note.text] : []));
+
+    expect(notes).toEqual(["#1 Email/query", "used by #2", "#2 Email/get", "from #1"]);
+  });
+
   it("writes the request exactly as sent", () => {
     const lines = annotateRequest(batchOf(buildTimeline(recorded(homeBody))));
 
@@ -89,10 +112,10 @@ describe(annotateRequest, () => {
     const notes = lines.flatMap(({ text, note }) => (note ? [[text.trim(), note.text]] : []));
 
     expect(notes).toEqual([
-      ["[", "#1 Email/query"],
-      ['"Email/query::f3c9ebfd"', "referenced by #2"],
-      ["[", "#2 Email/get"],
-      ['"#ids": {', "result of #1"],
+      ["[", "unread"],
+      ['"unread"', "used by emails"],
+      ["[", "emails"],
+      ['"#ids": {', "from unread"],
     ]);
   });
 
@@ -101,8 +124,8 @@ describe(annotateRequest, () => {
     const labelOf = (text: string) => lines.find((line) => line.text.trim() === text)?.call;
 
     expect(labelOf('"using": [')).toBeUndefined();
-    expect(labelOf('"Email/query",')).toBe("#1");
-    expect(labelOf('"path": "/ids"')).toBe("#2");
+    expect(labelOf('"Email/query",')).toBe("unread");
+    expect(labelOf('"path": "/ids"')).toBe("emails");
   });
 });
 

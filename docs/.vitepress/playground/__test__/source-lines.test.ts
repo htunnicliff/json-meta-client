@@ -48,10 +48,10 @@ describe(sourceLines, () => {
     const { lines } = await linesOf(examples[1].code);
 
     expect(lines.calls).toEqual({
-      "#1": expect.objectContaining({ start: { line: 9, column: 22 } }),
+      unread: expect.objectContaining({ start: { line: 9, column: 22 } }),
     });
     expect(lines.waiting).toEqual([
-      expect.objectContaining({ count: 1, calls: [{ label: "#1", name: "Email/query" }] }),
+      expect.objectContaining({ count: 1, calls: [{ label: "unread", name: "Email/query" }] }),
     ]);
     expect(lineOf(lines.waiting[0].range)).toBe(9);
   });
@@ -59,10 +59,33 @@ describe(sourceLines, () => {
   it("maps a multi-line call to its first line, not the result reference's", async () => {
     const { lines } = await linesOf(examples[0].code);
 
-    expect(lineOf(lines.calls["#1"])).toBe(9);
-    expect(lineOf(lines.calls["#2"])).toBe(14);
+    expect(lineOf(lines.calls.unread)).toBe(9);
+    expect(lineOf(lines.calls.emails)).toBe(14);
     expect(lines.waiting.map(({ range, calls }) => [lineOf(range), calls])).toEqual([
-      [14, [{ label: "#2", name: "Email/get" }]],
+      [14, [{ label: "emails", name: "Email/get" }]],
+    ]);
+  });
+
+  it("names method calls after the variables they are bound to", async () => {
+    const { calls } = await linesOf(`
+      const unread = client.api.Email.query({});
+      void client.api.Identity.get({});
+      for (const id of ["a", "b"]) {
+        const mailbox = client.api.Mailbox.get({ ids: [id] });
+      }
+      const [threads, emails] = await Promise.all([
+        client.api.Thread.get({ ids: [] }),
+        client.api.Email.get({ ids: [] }),
+      ]);
+    `);
+
+    expect(calls.map(({ callId }) => callId)).toEqual([
+      "unread",
+      "Identity/get",
+      "mailbox",
+      "mailbox-2",
+      "threads",
+      "emails",
     ]);
   });
 
