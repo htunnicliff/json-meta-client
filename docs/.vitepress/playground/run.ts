@@ -1,17 +1,11 @@
 import { docsClientOptions } from "../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../src/index.ts";
-import { recordingFetch, seedCallIds } from "../recorder/index.ts";
+import { fillPlaceholders, recordingFetch, seedCallIds } from "../recorder/index.ts";
 import { formatConsoleArgs } from "./format.ts";
 import { createTracer, TRACER } from "./instrument.ts";
 import { SHIM_SPECIFIER } from "./protocol.ts";
 import type { ConsoleLevel, Connection, RunEvent } from "./protocol.ts";
 import { createShim } from "./shim.ts";
-
-/**
- * The server that `<server>` in the docs' ambient client stands for, as in
- * the docs build
- */
-export const PLACEHOLDER_SERVER = "https://jmap.example.com";
 
 /**
  * The seed of call ids, the same as the docs build's, so a docs example shows
@@ -54,21 +48,13 @@ export function run(code: string, post: (event: RunEvent) => void, connection?: 
   };
 
   const server = connection && { sessionUrl: connection.sessionUrl, auth: connection.auth };
-  const shim = createShim(
-    (urns) => urns.forEach((urn) => customUrns.add(urn)),
-    connection?.substitute ? server : undefined,
-  );
+  const shim = createShim((urns) => urns.forEach((urn) => customUrns.add(urn)), server);
   const shimKey = "__jsonMetaClientShim";
   Object.assign(globalThis, {
     [shimKey]: shim,
     [TRACER]: tracer.runtime,
     // The ambient `client` of docs examples; the code's own `client` shadows it
-    client: new JsonMetaClient({
-      ...docsClientOptions,
-      sessionUrl: docsClientOptions.sessionUrl.replace("<server>", PLACEHOLDER_SERVER),
-      // Its options are placeholders, so a connected server always replaces them
-      ...server,
-    }),
+    client: new JsonMetaClient(fillPlaceholders(docsClientOptions, server)),
   });
   const shimModule = `const { ${Object.keys(shim).join(", ")} } = globalThis.${shimKey};\nexport { ${Object.keys(shim).join(", ")} };\n`;
   const module = code.replaceAll(

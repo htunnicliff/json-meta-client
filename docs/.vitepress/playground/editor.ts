@@ -18,6 +18,8 @@ import { basicSetup } from "codemirror";
 
 import { EDITOR_FILE } from "./editor-options.ts";
 import type { SourcePosition } from "./instrument.ts";
+import { placeholderMarks, setPlaceholderFill } from "./placeholder-marks.ts";
+import type { PlaceholderFill } from "./placeholder-marks.ts";
 
 /**
  * Lines of the code, 1-based and inclusive
@@ -32,6 +34,8 @@ export interface CodeEditor {
   setCode(code: string): void;
   /** Highlight these lines, replacing any lines highlighted before */
   highlight(ranges: readonly LineRange[]): void;
+  /** Show what fills in the code's placeholders: a connected server, or none */
+  setPlaceholderFill(fill: PlaceholderFill | undefined): void;
   destroy(): void;
 }
 
@@ -85,6 +89,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       autocompletion({ override: [tsAutocompleteWorker()] }),
       tsHoverWorker(),
       highlighted,
+      placeholderMarks,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) options.onChange(update.state.doc.toString());
       }),
@@ -107,6 +112,9 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
     },
     highlight(ranges) {
       view.dispatch({ effects: setHighlight.of(ranges) });
+    },
+    setPlaceholderFill(fill) {
+      view.dispatch({ effects: setPlaceholderFill.of(fill) });
     },
     destroy() {
       view.destroy();

@@ -4,7 +4,7 @@ import { onMounted, ref } from "vue";
 import { checkConnection } from "./connect.ts";
 import type { Connection } from "./protocol.ts";
 
-const emit = defineEmits<{ connect: [connection: Connection]; close: [] }>();
+const emit = defineEmits<{ connect: [connection: Connection, remember: boolean]; close: [] }>();
 
 const dialog = ref<HTMLDialogElement>();
 const sessionUrl = ref("");
@@ -12,7 +12,7 @@ const method = ref<"bearer" | "basic">("bearer");
 const token = ref("");
 const username = ref("");
 const password = ref("");
-const substitute = ref(true);
+const remember = ref(false);
 const checking = ref(false);
 const error = ref("");
 
@@ -25,13 +25,12 @@ async function connect() {
       method.value === "bearer"
         ? token.value
         : { username: username.value, password: password.value },
-    substitute: substitute.value,
   };
   checking.value = true;
   error.value = "";
   try {
     const result = await checkConnection(connection);
-    if (result.ok) emit("connect", connection);
+    if (result.ok) emit("connect", connection, remember.value);
     else error.value = result.message;
   } finally {
     checking.value = false;
@@ -81,18 +80,29 @@ async function connect() {
         </template>
       </div>
 
-      <p class="privacy">
+      <p class="placeholders">
+        Connecting fills in the placeholders of your code: a <code>sessionUrl</code> with
+        <code>&lt;server&gt;</code> becomes this Session URL, and <code>auth: "&lt;token&gt;"</code>
+        these credentials. Other values are used as written.
+      </p>
+
+      <label class="remember">
+        <input v-model="remember" type="checkbox" />
+        Remember on this device
+      </label>
+      <p v-if="remember" class="privacy warning">
+        Your credentials are saved in plain text in this browser's local storage, so you stay
+        connected after reloading. Anything that can read this site's storage in this browser can
+        read them. Disconnecting forgets them. Prefer a token you can revoke.
+      </p>
+      <p v-else class="privacy">
         Your credentials stay in this tab's memory. They never go in the URL or in browser storage,
         and closing the tab or disconnecting forgets them.
       </p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
       <footer class="footer">
-        <label class="substitute">
-          <input v-model="substitute" type="checkbox" />
-          Use for <code>sessionUrl</code> and <code>auth</code> in my code
-        </label>
-        <button type="button" class="button" @click="dialog?.close()">Cancel</button>
+        <button type="button" class="button cancel" @click="dialog?.close()">Cancel</button>
         <button type="submit" class="button primary" :disabled="checking">
           {{ checking ? "Connecting…" : "Connect" }}
         </button>
@@ -169,6 +179,17 @@ h2 {
   gap: 6px;
 }
 
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.privacy.warning {
+  color: var(--vp-c-warning-1);
+}
+
+.placeholders,
 .privacy {
   margin: 0;
   color: var(--vp-c-text-2);
@@ -193,11 +214,8 @@ h2 {
   background: var(--vp-c-bg-soft);
 }
 
-.substitute {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
+.cancel {
+  margin-left: auto;
 }
 
 .button {

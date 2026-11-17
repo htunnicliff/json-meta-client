@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import ConnectDialog from "./ConnectDialog.vue";
+import { forgetConnection, loadConnection, saveConnection } from "./connection-storage.ts";
 import ConsolePanel from "./ConsolePanel.vue";
 import type { ConsoleLine } from "./ConsolePanel.vue";
 import type { CodeEditor } from "./editor.ts";
@@ -102,8 +103,8 @@ function onEvent(event: RunnerEvent) {
   }
 }
 
-// A real server, in memory only
-const connection = shallowRef<Connection>();
+// A real server: in memory only, unless the user chose to remember it
+const connection = shallowRef<Connection | undefined>(loadConnection());
 const connecting = ref(false);
 const server = computed(() => {
   try {
@@ -113,14 +114,28 @@ const server = computed(() => {
   }
 });
 
+// Show in the editor what fills in the code's placeholders
+function showPlaceholderFill() {
+  const current = connection.value;
+  editor?.setPlaceholderFill(
+    current && {
+      sessionUrl: current.sessionUrl,
+      credentials: typeof current.auth === "string" ? "token" : "password",
+    },
+  );
+}
+watch(connection, showPlaceholderFill);
+
 function run() {
   view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
 }
 
-function connect(chosen: Connection) {
+function connect(chosen: Connection, remember: boolean) {
   connecting.value = false;
   connection.value = chosen;
+  if (remember) saveConnection(chosen);
+  else forgetConnection();
   runner?.stop();
   // Results of a request-only run don't apply to the server
   view.value = emptyView(code.value, "ready");
@@ -129,6 +144,7 @@ function connect(chosen: Connection) {
 function disconnect() {
   // Dropping the reference and the worker that held a copy forgets the credentials
   connection.value = undefined;
+  forgetConnection();
   runner?.stop();
   view.value = emptyView(code.value, "ready");
 }
@@ -195,7 +211,9 @@ onMounted(async () => {
       editorHovered.value = position && lines.value ? labelsAt(lines.value, position) : [];
     },
   });
-  run();
+  showPlaceholderFill();
+  // Code runs against a real server only when the user asks
+  if (!connection.value) run();
 });
 
 onBeforeUnmount(() => {
@@ -223,7 +241,11 @@ onBeforeUnmount(() => {
         </select>
       </label>
       <button type="button" class="button run" @click="run">▶ Run <kbd>⌘↵</kbd></button>
-      <span v-if="connection" class="connected">
+      <span
+        v-if="connection"
+        class="connected"
+        title="Fills in <server> and <token> in your code's client options"
+      >
         <strong>Connected</strong> · {{ server }}
         <button type="button" class="disconnect" @click="disconnect">Disconnect</button>
       </span>
@@ -467,6 +489,24 @@ onBeforeUnmount(() => {
 .playground .pg-hovered-line {
   background: var(--vp-c-brand-soft);
   box-shadow: inset 3px 0 var(--vp-c-brand-1);
+}
+
+/* `<server>` and `<token>`, and what fills them in */
+.playground .pg-placeholder {
+  text-decoration: underline dotted var(--vp-c-warning-1);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.playground .pg-fill {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--vp-c-tip-soft);
+  color: var(--vp-c-tip-1);
+  font-family: var(--vp-font-family-base);
+  font-size: 12px;
+  cursor: help;
 }
 
 .playground .tok-keyword,

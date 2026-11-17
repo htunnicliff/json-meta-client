@@ -28,7 +28,10 @@ export interface Diagnostic {
 export interface RunRequest {
   /** The compiled module, importing the library through the shim specifier */
   code: string;
-  /** A real server to send requests to, instead of recording them only */
+  /**
+   * A real server to send requests to, instead of recording them only, and to
+   * fill in the code's `<server>` and `<token>` placeholders with
+   */
   connection?: Connection;
 }
 
@@ -39,8 +42,6 @@ export interface Connection {
   sessionUrl: string;
   /** A bearer token, or Basic credentials */
   auth: string | { username: string; password: string };
-  /** Whether to replace `sessionUrl` and `auth` in the clients the code constructs */
-  substitute: boolean;
 }
 
 /**
