@@ -23,7 +23,8 @@ export interface PlaceholderFill {
 /** Set or clear the connected server */
 export const setPlaceholderFill = StateEffect.define<PlaceholderFill | undefined>();
 
-const fill = StateField.define<PlaceholderFill | undefined>({
+/** The connected server, or `undefined` without one */
+export const placeholderFill = StateField.define<PlaceholderFill | undefined>({
   create: () => undefined,
   update(value, transaction) {
     for (const effect of transaction.effects) {
@@ -72,7 +73,7 @@ function propertyName(state: EditorState, string: SyntaxNode): string | undefine
 }
 
 function decorations(state: EditorState): DecorationSet {
-  const server = state.field(fill);
+  const server = state.field(placeholderFill);
   const ranges: Range<Decoration>[] = [];
   syntaxTree(state).iterate({
     enter(node) {
@@ -124,7 +125,7 @@ const marks = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       if (
         update.docChanged ||
-        update.startState.field(fill) !== update.state.field(fill) ||
+        update.startState.field(placeholderFill) !== update.state.field(placeholderFill) ||
         syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.decorations = decorations(update.state);
@@ -138,4 +139,4 @@ const marks = ViewPlugin.fromClass(
  * Marks the `<server>` and `<credentials>` placeholders of client options and
  * shows how the playground fills them in
  */
-export const placeholderMarks: Extension = [fill, marks];
+export const placeholderMarks: Extension = [placeholderFill, marks];

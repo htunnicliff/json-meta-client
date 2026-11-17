@@ -906,6 +906,22 @@ onBeforeUnmount(() => {
   cursor: help;
 }
 
+/* Code that never runs without a server, and why */
+.playground .pg-unreached-line {
+  opacity: 0.5;
+}
+
+.playground .pg-await-note {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-warning-1);
+  font-family: var(--vp-font-family-base);
+  font-size: 12px;
+  cursor: help;
+}
+
 .playground .tok-keyword,
 .playground .tok-operatorKeyword {
   color: var(--vp-c-brand-1);
