@@ -8,8 +8,8 @@ import type { RecordedRequest } from "../../recorder/index.ts";
 import { compile } from "../compile.ts";
 import { defaultExample } from "../examples.ts";
 import { SHIM_SPECIFIER } from "../protocol.ts";
+import type { RunEvent } from "../protocol.ts";
 import { run } from "../run.ts";
-import type { NodeRunMessage } from "./node-run-worker.ts";
 
 function compiled(source: string): string {
   const output = compile(source);
@@ -24,23 +24,23 @@ async function runUntilIdle(source: string) {
   const worker = new Worker(new URL("node-run-worker.ts", import.meta.url), {
     workerData: { code: compiled(source) },
   });
-  const messages: NodeRunMessage[] = [];
+  const messages: RunEvent[] = [];
   try {
     const { finished } = await new Promise<{ finished: boolean }>((resolve, reject) => {
       worker.on("error", reject);
-      worker.on("message", (message: NodeRunMessage) => {
+      worker.on("message", (message: RunEvent) => {
         messages.push(message);
         if (message.type === "idle") resolve(message);
         if (message.type === "error") reject(new Error(message.message));
       });
     });
     const requests: RecordedRequest[] = [];
-    const warnings: string[] = [];
+    const logs: string[] = [];
     for (const message of messages) {
       if (message.type === "request") requests[message.index] = message.request;
-      if (message.type === "warn") warnings.push(message.message);
+      if (message.type === "console") logs.push(`${message.level}: ${message.text}`);
     }
-    return { finished, requests, warnings };
+    return { finished, requests, logs };
   } finally {
     await worker.terminate();
   }
@@ -111,7 +111,7 @@ describe(run, () => {
   });
 
   it("adds custom capabilities to the placeholder Session, so no warning appears", async () => {
-    const { requests, warnings } = await runUntilIdle(`
+    const { requests, logs } = await runUntilIdle(`
       import { defineCapability, JsonMetaClient } from "json-meta-client";
 
       const tasks = defineCapability({ urn: "urn:example:tasks", entities: ["Task"] });
@@ -132,7 +132,7 @@ describe(run, () => {
         ],
       },
     ]);
-    expect(warnings).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it("records blob and event-stream requests and leaves them pending", async () => {
@@ -156,6 +156,39 @@ describe(run, () => {
 
     expect(finished).toBe(true);
     expect(requests.map(({ kind }) => kind)).toEqual(["session", "request"]);
+  });
+
+  it("forwards console calls as readable text", async () => {
+    const { logs } = await runUntilIdle(`
+      console.log("found", { subject: "Hi", ids: [1, 2] });
+      console.warn(new Map([["a", 1]]));
+    `);
+
+    expect(logs).toEqual([
+      'log: found { subject: "Hi", ids: [1, 2] }',
+      'warn: Map(1) { "a" => 1 }',
+    ]);
+  });
+
+  it("forwards the library's capability warning", async () => {
+    const { logs } = await runUntilIdle(`
+      const original = globalThis.fetch;
+      globalThis.fetch = async (input, init) => {
+        const response = await original(input, init);
+        if (new Request(input).url.endsWith("/.well-known/jmap")) {
+          const session = await response.json();
+          delete session.capabilities["urn:ietf:params:jmap:mail"];
+          for (const account of Object.values(session.accounts)) {
+            delete account.accountCapabilities["urn:ietf:params:jmap:mail"];
+          }
+          return Response.json(session);
+        }
+        return response;
+      };
+      await client.api.Email.query({});
+    `);
+
+    expect(logs).toEqual([expect.stringMatching(/^warn: ConfigurationError: .*NOT found/)]);
   });
 
   it("reports an error the code throws", async () => {

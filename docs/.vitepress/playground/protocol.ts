@@ -44,4 +44,8 @@ export type RunEvent =
    * timer.
    */
   | { type: "idle"; finished: boolean }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** A `console` call, its arguments already formatted as text */
+  | { type: "console"; level: ConsoleLevel; text: string };
+
+export type ConsoleLevel = "log" | "info" | "warn" | "error" | "debug";

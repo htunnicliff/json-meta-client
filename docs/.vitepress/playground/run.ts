@@ -1,8 +1,9 @@
 import { docsClientOptions } from "../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../src/index.ts";
 import { recordingFetch, seedCallIds } from "../recorder/index.ts";
+import { formatConsoleArgs } from "./format.ts";
 import { SHIM_SPECIFIER } from "./protocol.ts";
-import type { RunEvent } from "./protocol.ts";
+import type { ConsoleLevel, RunEvent } from "./protocol.ts";
 import { createShim } from "./shim.ts";
 
 /**
@@ -32,6 +33,7 @@ const dataUrl = (code: string) => `data:text/javascript;charset=utf-8,${encodeUR
  */
 export function run(code: string, post: (event: RunEvent) => void): void {
   seedCallIds(CALL_ID_SEED);
+  forwardConsole(post);
   const customUrns = new Set<string>();
   const recorder = recordingFetch({
     extraUrns: () => [...customUrns],
@@ -91,6 +93,25 @@ export function run(code: string, post: (event: RunEvent) => void): void {
     },
     (error: unknown) => post({ type: "error", message: describeError(error) }),
   );
+}
+
+const consoleLevels: readonly ConsoleLevel[] = ["log", "info", "warn", "error", "debug"];
+
+/**
+ * Post each `console` call, including the library's own warnings, as text
+ */
+function forwardConsole(post: (event: RunEvent) => void) {
+  for (const level of consoleLevels) {
+    console[level] = (...args: unknown[]) => {
+      let text: string;
+      try {
+        text = formatConsoleArgs(args);
+      } catch (error) {
+        text = `[Could not format: ${describeError(error)}]`;
+      }
+      post({ type: "console", level, text });
+    };
+  }
 }
 
 /**

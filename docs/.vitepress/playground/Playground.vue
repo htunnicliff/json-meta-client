@@ -3,11 +3,14 @@ import { useData } from "vitepress";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import type { RecordedRequest } from "../recorder/index.ts";
+import ConsolePanel from "./ConsolePanel.vue";
+import type { ConsoleLine } from "./ConsolePanel.vue";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
+import { decodeShare, encodeShare } from "./share.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
 
@@ -26,14 +29,26 @@ interface RunView {
   requests: RecordedRequest[];
   diagnostics: Diagnostic[];
   errors: string[];
+  logs: ConsoleLine[];
   status: RunStatus;
 }
 
-const emptyView = (): RunView => ({ requests: [], diagnostics: [], errors: [], status: "running" });
+const emptyView = (): RunView => ({
+  requests: [],
+  diagnostics: [],
+  errors: [],
+  logs: [],
+  status: "running",
+});
 
-const code = ref(examples[0]!.code);
+const defaultCode = examples[0]!.code;
+const code = ref(defaultCode);
 const view = shallowRef<RunView>(emptyView());
 const rawJson = ref(false);
+const tab = ref<"requests" | "console">("requests");
+// A message about the shared link, such as one that could not be read
+const notice = ref("");
+const shareStatus = ref("");
 
 const { isDark } = useData();
 const editorHost = ref<HTMLElement>();
@@ -88,8 +103,15 @@ function onEvent(event: RunnerEvent) {
       show();
       break;
     case "error":
-      update(({ errors }) => ({ errors: [...errors, event.message], status: "failed" }));
+      update(({ errors, logs }) => ({
+        errors: [...errors, event.message],
+        logs: [...logs, { level: "error", text: event.message }],
+        status: "failed",
+      }));
       show();
+      break;
+    case "console":
+      update(({ logs }) => ({ logs: [...logs, { level: event.level, text: event.text }] }));
       break;
   }
 }
@@ -111,9 +133,56 @@ function setCode(value: string) {
   else code.value = value;
 }
 
+/**
+ * Load the code a shared link holds, if any
+ */
+async function loadFromHash() {
+  const shared = await decodeShare(location.hash);
+  if (shared.kind === "code") {
+    notice.value = "";
+    setCode(shared.code);
+  } else if (shared.kind === "invalid") {
+    notice.value = `The code in this link couldn't be read (${shared.reason}), so the default example is shown.`;
+    setCode(defaultCode);
+  }
+}
+
+function clearHash() {
+  history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+}
+
+let shareTimer: ReturnType<typeof setTimeout> | undefined;
+async function share() {
+  const hash = await encodeShare(code.value);
+  history.replaceState(history.state, "", `#${hash}`);
+  try {
+    await navigator.clipboard.writeText(location.href);
+    shareStatus.value = "Link copied";
+  } catch {
+    shareStatus.value = "Link in the address bar";
+  }
+  clearTimeout(shareTimer);
+  shareTimer = setTimeout(() => (shareStatus.value = ""), 2_000);
+}
+
+function reset() {
+  notice.value = "";
+  clearHash();
+  setCode(defaultCode);
+}
+
+function chooseExample(id: string) {
+  const chosen = examples.find((candidate) => candidate.id === id);
+  if (chosen) setCode(chosen.code);
+}
+
+const onHashChange = () => void loadFromHash();
+
 onMounted(async () => {
   runner = createRunner(onEvent);
+  await loadFromHash();
   runNow();
+  addEventListener("hashchange", onHashChange);
   const { createMonacoEditor } = await import("./monaco-editor.ts");
   if (unmounted || !editorHost.value) return;
   editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
@@ -123,6 +192,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unmounted = true;
+  removeEventListener("hashchange", onHashChange);
+  clearTimeout(shareTimer);
   clearTimeout(runTimer);
   clearTimeout(showTimer);
   clearTimeout(stuckTimer);
@@ -132,6 +203,7 @@ onBeforeUnmount(() => {
 
 const example = computed(() => findExample(code.value));
 const requestCount = computed(() => view.value.requests.filter(Boolean).length);
+const logCount = computed(() => view.value.logs.length);
 
 function onKeydown(event: KeyboardEvent) {
   // Indent with Tab rather than leaving the editor
@@ -146,60 +218,198 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="playground">
-    <section class="pane editor-pane" aria-label="Code">
-      <header class="pane-header">
-        <span class="pane-title">playground.ts</span>
-      </header>
-      <div v-show="editorReady" ref="editorHost" class="monaco-host" />
-      <textarea
-        v-if="!editorReady"
-        v-model="code"
-        class="editor"
-        spellcheck="false"
-        wrap="off"
-        autocapitalize="off"
-        autocomplete="off"
-        aria-label="TypeScript code"
-        @keydown="onKeydown"
-      />
-    </section>
-
-    <section class="pane output-pane" aria-label="Requests">
-      <header class="pane-header">
-        <span class="pane-title"> Requests <span class="count">{{ requestCount }}</span> </span>
-        <label class="toggle">
-          <input v-model="rawJson" type="checkbox" />
-          Raw JSON
-        </label>
-      </header>
-      <div class="output" aria-live="polite">
-        <TimelinePanel
-          :requests="view.requests"
-          :status="view.status"
-          :errors="view.errors"
-          :diagnostics="view.diagnostics"
-          :raw-json="rawJson"
-          :example="example"
-          @show-batched="setCode"
+    <div class="toolbar">
+      <label class="example">
+        Example
+        <select
+          :value="example?.id ?? ''"
+          @change="chooseExample(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-if="!example" value="" disabled>Your code</option>
+          <option v-for="option in examples" :key="option.id" :value="option.id">
+            {{ option.title }}
+          </option>
+        </select>
+      </label>
+      <button type="button" class="button" @click="reset">Reset</button>
+      <button type="button" class="button" @click="share">Share</button>
+      <span class="share-status" role="status">{{ shareStatus }}</span>
+      <span class="mode"><span class="mode-dot" />Request-only · re-runs as you type</span>
+    </div>
+    <p v-if="notice" class="notice" role="alert">
+      {{ notice }}
+      <button type="button" class="dismiss" aria-label="Dismiss" @click="notice = ''">×</button>
+    </p>
+    <div class="panes">
+      <section class="pane editor-pane" aria-label="Code">
+        <header class="pane-header">
+          <span class="pane-title">playground.ts</span>
+        </header>
+        <div v-show="editorReady" ref="editorHost" class="monaco-host" />
+        <textarea
+          v-if="!editorReady"
+          v-model="code"
+          class="editor"
+          spellcheck="false"
+          wrap="off"
+          autocapitalize="off"
+          autocomplete="off"
+          aria-label="TypeScript code"
+          @keydown="onKeydown"
         />
-      </div>
-    </section>
+      </section>
+
+      <section class="pane output-pane" aria-label="Output">
+        <header class="pane-header">
+          <div class="tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              class="tab"
+              :aria-selected="tab === 'requests'"
+              @click="tab = 'requests'"
+            >
+              Requests <span class="count">{{ requestCount }}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="tab"
+              :aria-selected="tab === 'console'"
+              @click="tab = 'console'"
+            >
+              Console <span v-if="logCount" class="count">{{ logCount }}</span>
+            </button>
+          </div>
+          <label v-if="tab === 'requests'" class="toggle">
+            <input v-model="rawJson" type="checkbox" />
+            Raw JSON
+          </label>
+        </header>
+        <div class="output" aria-live="polite">
+          <ConsolePanel
+            v-if="tab === 'console'"
+            :lines="view.logs"
+            :waiting="view.status === 'waiting'"
+          />
+          <TimelinePanel
+            v-else
+            :requests="view.requests"
+            :status="view.status"
+            :errors="view.errors"
+            :diagnostics="view.diagnostics"
+            :raw-json="rawJson"
+            :example="example"
+            @show-batched="setCode"
+          />
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .playground {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  min-height: calc(100vh - var(--vp-nav-height));
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-size: 14px;
+}
+
+.example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vp-c-text-2);
+}
+
+.example select {
+  padding: 4px 28px 4px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  appearance: none;
+  color: var(--vp-c-text-1);
+}
+
+.button {
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--vp-button-alt-bg);
+  color: var(--vp-c-text-1);
+  font-weight: 500;
+}
+
+.button:hover {
+  background: var(--vp-button-alt-hover-bg);
+}
+
+.share-status {
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+}
+
+.mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+}
+
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vp-c-green-1);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-warning-1);
+  font-size: 14px;
+}
+
+.dismiss {
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+}
+
+.panes {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  padding: 16px;
-  min-height: calc(100vh - var(--vp-nav-height));
+  min-height: 0;
 }
 
 @media (min-width: 960px) {
   .playground {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     height: calc(100vh - var(--vp-nav-height));
+  }
+
+  .panes {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -233,6 +443,25 @@ function onKeydown(event: KeyboardEvent) {
   margin-left: 2px;
   font-weight: 400;
   color: var(--vp-c-text-2);
+}
+
+.tabs {
+  display: flex;
+  gap: 16px;
+  margin: -8px 0;
+}
+
+.tab {
+  padding: 8px 0 6px;
+  border-bottom: 2px solid transparent;
+  color: var(--vp-c-text-2);
+  font-weight: 500;
+}
+
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--vp-c-brand-1);
+  color: var(--vp-c-text-1);
+  font-weight: 600;
 }
 
 .toggle {
