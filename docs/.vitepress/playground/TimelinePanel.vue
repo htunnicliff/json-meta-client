@@ -76,6 +76,15 @@ const statusLine = computed(() => {
     }
   }
 });
+
+// Without a server, awaited responses never arrive, so code after the first
+// such await, its console output included, never runs
+const waitingHint = computed(() => {
+  if (props.status !== "waiting" || props.connected) return undefined;
+  const line = props.lines?.waiting[0]?.range.start.line;
+  const after = line === undefined ? "Code after this await" : `Code after line ${line}`;
+  return `${after} runs only when a server responds. Connect to a server to run it.`;
+});
 </script>
 
 <template>
@@ -144,6 +153,7 @@ const statusLine = computed(() => {
     </ol>
 
     <p class="status-line" :data-status="status" role="status">{{ statusLine }}</p>
+    <p v-if="waitingHint" class="hint">{{ waitingHint }}</p>
   </div>
 </template>
 
@@ -287,6 +297,12 @@ const statusLine = computed(() => {
 
 .status-line {
   margin: 0;
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+.hint {
+  margin: -8px 0 0;
   font-size: 13px;
   color: var(--vp-c-text-2);
 }
