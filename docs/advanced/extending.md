@@ -63,7 +63,7 @@ const tasks = defineCapability({
 }>();
 
 const client = new JsonMetaClient({
-  auth: "<token>",
+  auth: "<credentials>",
   sessionUrl: "<server>/.well-known/jmap",
   capabilities: [tasks],
 });

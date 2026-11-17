@@ -94,7 +94,7 @@ Configure a client with authentication, a session URL, and capabilities:
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
-  auth: "<token>",
+  auth: "<credentials>",
   sessionUrl: "<server>/.well-known/jmap",
   capabilities: ["mail", "submission"],
 });

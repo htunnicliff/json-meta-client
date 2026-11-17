@@ -1,6 +1,6 @@
 /**
  * Docs examples connect with placeholders, as in
- * `sessionUrl: "<server>/.well-known/jmap"` and `auth: "<token>"`. The docs
+ * `sessionUrl: "<server>"` and `auth: "<credentials>"`. The docs
  * build and the playground fill them in: with the placeholder server, or in
  * the playground, with a server the user connected.
  */
@@ -9,7 +9,7 @@
 export const SERVER_PLACEHOLDER = "<server>";
 
 /** Stands for the credentials */
-export const TOKEN_PLACEHOLDER = "<token>";
+export const CREDENTIALS_PLACEHOLDER = "<credentials>";
 
 /** The origin `<server>` stands for when no server is connected */
 export const PLACEHOLDER_ORIGIN = "https://jmap.example.com";
@@ -36,9 +36,9 @@ export function hasServerPlaceholder(sessionUrl: unknown): sessionUrl is string 
 
 /**
  * Client options with their placeholders filled in. With a server, a Session
- * URL holding `<server>` becomes the server's Session URL and `auth: "<token>"`
+ * URL holding `<server>` becomes the server's Session URL and `auth: "<credentials>"`
  * its credentials. Without one, `<server>` becomes {@link PLACEHOLDER_ORIGIN}
- * and `<token>` stays as is. Other values are kept.
+ * and `<credentials>` stays as is. Other values are kept.
  */
 export function fillPlaceholders<Options extends ConnectionOptions>(
   options: Options,
@@ -50,6 +50,6 @@ export function fillPlaceholders<Options extends ConnectionOptions>(
       ? server.sessionUrl
       : options.sessionUrl.replaceAll(SERVER_PLACEHOLDER, PLACEHOLDER_ORIGIN);
   }
-  if (server && options.auth === TOKEN_PLACEHOLDER) filled.auth = server.auth;
+  if (server && options.auth === CREDENTIALS_PLACEHOLDER) filled.auth = server.auth;
   return filled;
 }

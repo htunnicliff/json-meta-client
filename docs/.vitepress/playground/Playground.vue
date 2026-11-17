@@ -216,7 +216,7 @@ function showPlaceholderFill() {
   editor?.setPlaceholderFill(
     current && {
       sessionUrl: current.sessionUrl,
-      credentials: typeof current.auth === "string" ? "token" : "password",
+      authMethod: typeof current.auth === "string" ? "bearer" : "basic",
     },
   );
 }
@@ -339,6 +339,9 @@ onBeforeUnmount(() => {
       <label class="example">
         Example
         <select
+          name="example"
+          autocomplete="off"
+          data-1p-ignore
           :value="example?.id ?? ''"
           @change="chooseExample(($event.target as HTMLSelectElement).value)"
         >
@@ -365,10 +368,10 @@ onBeforeUnmount(() => {
           v-if="connection"
           class="status"
           data-state="connected"
-          title="Fills in <server> and <token>"
+          title="Fills in <server> and <credentials>"
         >
           <strong>Connected</strong> · {{ server }}
-          <span class="visually-hidden">. Fills in &lt;server&gt; and &lt;token&gt;</span>
+          <span class="visually-hidden">. Fills in &lt;server&gt; and &lt;credentials&gt;</span>
         </span>
         <span
           v-else
@@ -863,7 +866,7 @@ onBeforeUnmount(() => {
   box-shadow: inset 3px 0 var(--vp-c-brand-1);
 }
 
-/* `<server>` and `<token>`, and what fills them in */
+/* `<server>` and `<credentials>`, and what fills them in */
 .playground .pg-placeholder {
   text-decoration: underline dotted var(--vp-c-warning-1);
   text-underline-offset: 3px;

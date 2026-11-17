@@ -3,7 +3,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { syntaxHighlighting } from "@codemirror/language";
 import { Compartment, Prec, StateEffect, StateField } from "@codemirror/state";
 import type { Extension, Range } from "@codemirror/state";
-import { Decoration, EditorView, keymap } from "@codemirror/view";
+import { Decoration, EditorView, keymap, showPanel } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
 import {
@@ -173,8 +173,18 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
           },
         ]),
       ),
-      EditorView.contentAttributes.of({ "aria-label": "Code" }),
+      EditorView.contentAttributes.of({ "aria-label": "Code", "data-1p-ignore": "" }),
       EditorView.updateListener.of((update) => {
+        // CodeMirror creates its Find, Replace, and Go to line fields when opening a panel.
+        if (update.startState.facet(showPanel) !== update.state.facet(showPanel)) {
+          const fields = update.view.dom.querySelectorAll(
+            ":scope > .cm-panels input.cm-textfield:not([data-1p-ignore])",
+          );
+          for (const field of fields) {
+            field.setAttribute("autocomplete", "off");
+            field.setAttribute("data-1p-ignore", "");
+          }
+        }
         if (update.docChanged) options.onChange(update.state.doc.toString());
         // Keyboard users get the cursor's highlights, as pointer users get the hover's
         if ((update.selectionSet || update.focusChanged) && update.view.hasFocus) {
