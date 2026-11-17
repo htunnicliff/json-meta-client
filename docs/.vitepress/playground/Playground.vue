@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import { codeOptions } from "./code-options.ts";
+import { loadCode, saveCode } from "./code-storage.ts";
 import ConnectDialog from "./ConnectDialog.vue";
 import { forgetConnection, loadConnection, saveConnection } from "./connection-storage.ts";
 import ConsolePanel from "./ConsolePanel.vue";
@@ -48,7 +49,8 @@ const emptyView = (code: string, status: RunStatus): RunView => ({
   code,
 });
 
-const code = ref(examples[0]!.code);
+const code = ref(loadCode());
+watch(code, saveCode);
 const view = shallowRef<RunView>(emptyView(code.value, "ready"));
 const editorHost = ref<HTMLElement>();
 const shownInTimeline = ref(loadOptions(timelineOptions));
