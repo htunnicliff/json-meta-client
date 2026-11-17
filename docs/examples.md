@@ -425,3 +425,37 @@ await client.api.EmailSubmission.set({
 - "Send an email > Prep" passes `ids: undefined` to `Identity/get`;
   omitting the argument is enough
 :::
+
+## Shared runnable examples
+
+The following examples are also available from the [playground](./playground.md).
+They use the same source files in both places, so changes to the code remain in sync.
+The playground can preview outgoing JMAP requests without a live server;
+responses and state-dependent operations require a compatible connected server.
+
+### Search mail
+
+Search for recent messages matching a phrase, then retrieve their details.
+
+<<< @/snippets/examples/search-mail.ts{ts}
+
+### Mark a message as read
+
+Find the first unread message and set its `$seen` keyword.
+
+<<< @/snippets/examples/mark-as-read.ts{ts}
+
+### Kitchen sink: mail overview
+
+Demonstrates mailbox discovery, filtering, sorting, result references,
+batching, and retrieving several results concurrently.
+
+<<< @/snippets/examples/mail-overview.ts{ts}
+
+### Kitchen sink: incremental synchronization
+
+Demonstrates how to obtain an initial state and request changes since it.
+A production synchronization loop should persist its state and continue
+while the server reports more changes.
+
+<<< @/snippets/examples/mail-sync.ts{ts}

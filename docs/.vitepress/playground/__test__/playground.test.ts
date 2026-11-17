@@ -6,7 +6,7 @@ import homeRequest from "../../../snippets/home-request.md?raw";
 import { PLACEHOLDER_ACCOUNT_ID } from "../../recorder/index.ts";
 import type { RecordedRequest } from "../../recorder/index.ts";
 import { compile } from "../compile.ts";
-import { defaultExample } from "../examples.ts";
+import { defaultExample, examples } from "../examples.ts";
 import { SHIM_SPECIFIER } from "../protocol.ts";
 import type { RunEvent } from "../protocol.ts";
 import { run } from "../run.ts";
@@ -265,5 +265,17 @@ describe(createShim, () => {
 
     await expect(client.session).rejects.toThrow("stop");
     expect(urls).toEqual(["https://jmap.example.com/.well-known/jmap Bearer <token>"]);
+  });
+});
+
+describe("shared playground examples", () => {
+  it("compiles every built-in example", () => {
+    for (const example of examples) {
+      expect(() => compiled(example.code), example.id).not.toThrow();
+    }
+  });
+
+  it("uses unique example IDs", () => {
+    expect(new Set(examples.map(({ id }) => id)).size).toBe(examples.length);
   });
 });
