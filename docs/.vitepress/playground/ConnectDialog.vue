@@ -38,7 +38,7 @@ async function connect(event: SubmitEvent) {
 
 <template>
   <dialog ref="dialog" class="dialog" aria-labelledby="connect-title" @close="emit('close')">
-    <form class="body" method="post" @submit.prevent="connect">
+    <form id="jmap-connect-form" class="body" method="post" @submit.prevent="connect">
       <header>
         <h2 id="connect-title">Connect a server</h2>
         <p class="lede">
@@ -48,9 +48,10 @@ async function connect(event: SubmitEvent) {
       </header>
 
       <div class="fields">
-        <label class="field">
+        <label class="field" for="jmap-session-url">
           Session URL
           <input
+            id="jmap-session-url"
             name="session-url"
             type="url"
             required
@@ -62,19 +63,32 @@ async function connect(event: SubmitEvent) {
           />
         </label>
         <p class="privacy">
-          Use credentials for the Session URL. Your password manager may suggest items saved for
-          this docs site.
+          Paste credentials issued for the server at the Session URL. Your password manager may
+          suggest items saved for this docs site.
         </p>
         <div class="methods" role="radiogroup" aria-label="Credentials">
-          <label>
-            <input v-model="method" name="auth-method" type="radio" value="bearer" /> Bearer token
+          <label for="jmap-auth-bearer">
+            <input
+              id="jmap-auth-bearer"
+              v-model="method"
+              name="auth-method"
+              type="radio"
+              value="bearer"
+            />
+            Bearer token
           </label>
-          <label>
-            <input v-model="method" name="auth-method" type="radio" value="basic" /> Username and
-            password
+          <label for="jmap-auth-basic">
+            <input
+              id="jmap-auth-basic"
+              v-model="method"
+              name="auth-method"
+              type="radio"
+              value="basic"
+            />
+            Username and password
           </label>
         </div>
-        <label v-show="method === 'bearer'" class="field">
+        <label v-show="method === 'bearer'" class="field" for="jmap-api-token">
           Bearer token
           <input
             id="jmap-api-token"
@@ -86,9 +100,10 @@ async function connect(event: SubmitEvent) {
           />
         </label>
         <div v-show="method === 'basic'" class="fields">
-          <label class="field">
+          <label class="field" for="jmap-username">
             Username
             <input
+              id="jmap-username"
               name="username"
               type="text"
               :disabled="method !== 'basic'"
@@ -99,9 +114,10 @@ async function connect(event: SubmitEvent) {
               spellcheck="false"
             />
           </label>
-          <label class="field">
+          <label class="field" for="jmap-password">
             Password
             <input
+              id="jmap-password"
               name="password"
               type="password"
               :disabled="method !== 'basic'"
@@ -118,8 +134,13 @@ async function connect(event: SubmitEvent) {
         these credentials. Other values are used as written.
       </p>
 
-      <label class="remember">
-        <input v-model="remember" name="remember-connection" type="checkbox" />
+      <label class="remember" for="jmap-remember-connection">
+        <input
+          id="jmap-remember-connection"
+          v-model="remember"
+          name="remember-connection"
+          type="checkbox"
+        />
         Remember on this device
       </label>
       <p v-if="remember" class="privacy warning">
