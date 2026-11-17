@@ -1,11 +1,22 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, onUpdated, ref } from "vue";
 
+import type { SourceRange } from "./instrument.ts";
+import { FILE_NAME } from "./protocol.ts";
 import RawJson from "./RawJson.vue";
 import { compactJson } from "./timeline.ts";
 import type { BatchEntry } from "./timeline.ts";
 
-const props = defineProps<{ batch: BatchEntry; rawJson: boolean }>();
+const props = defineProps<{
+  batch: BatchEntry;
+  rawJson: boolean;
+  /** Where each method call was made, by label, when known */
+  callSites?: Record<string, SourceRange>;
+  /** Labels of the method calls to highlight */
+  highlighted?: ReadonlySet<string>;
+}>();
+
+const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 
 const path = computed(() => {
   try {
@@ -115,13 +126,23 @@ onBeforeUnmount(() => observer?.disconnect());
         />
       </svg>
 
-      <section v-for="call in batch.calls" :key="call.label" class="call">
+      <section
+        v-for="call in batch.calls"
+        :key="call.label"
+        class="call"
+        :class="{ highlighted: highlighted?.has(call.label) }"
+        @mouseenter="emit('hoverCall', call.label)"
+        @mouseleave="emit('hoverCall', undefined)"
+      >
         <div class="call-header">
           <span class="label" :data-call="call.label">{{ call.label }}</span>
           <code class="call-name">{{ call.name }}</code>
           <code class="call-id">{{ call.callId }}</code>
           <span v-if="call.referencedBy.length" class="referenced-by">
             Referenced by {{ call.referencedBy.join(", ") }}
+          </span>
+          <span v-if="callSites?.[call.label]" class="location">
+            {{ FILE_NAME }}:{{ callSites[call.label]!.start.line }}
           </span>
         </div>
         <dl class="args">
@@ -230,6 +251,23 @@ onBeforeUnmount(() => observer?.disconnect());
 
 .call {
   padding: 8px 0;
+}
+
+.call.highlighted {
+  margin: 0 -12px 0 -6px;
+  padding: 8px 12px 8px 6px;
+  background: var(--vp-c-brand-soft);
+  box-shadow: inset 2px 0 var(--vp-c-brand-1);
+}
+
+.location {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+.referenced-by + .location {
+  margin-left: 8px;
 }
 
 .call + .call {

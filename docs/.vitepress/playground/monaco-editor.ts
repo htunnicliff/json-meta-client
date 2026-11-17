@@ -96,22 +96,55 @@ export function createMonacoEditor(
     },
     setDecorations(next: readonly EditorDecoration[]) {
       decorations.set(
-        next.map(({ range, lineClassName, inlineClassName, after, hoverMessage }) => ({
-          range: {
-            startLineNumber: range.startLine,
-            startColumn: range.startColumn,
-            endLineNumber: range.endLine,
-            endColumn: range.endColumn,
-          },
-          options: {
-            className: lineClassName,
-            isWholeLine: Boolean(lineClassName),
-            inlineClassName,
-            after: after && { content: after.content, inlineClassName: after.className },
-            hoverMessage: hoverMessage === undefined ? undefined : { value: hoverMessage },
-          },
-        })),
+        next.flatMap(({ range, lineClassName, inlineClassName, badge, hoverMessage }) => {
+          const decorations: monacoEditor.IModelDeltaDecoration[] = [
+            {
+              range: {
+                startLineNumber: range.startLine,
+                startColumn: range.startColumn,
+                endLineNumber: range.endLine,
+                endColumn: range.endColumn,
+              },
+              options: {
+                className: lineClassName,
+                isWholeLine: Boolean(lineClassName),
+                inlineClassName,
+                hoverMessage: hoverMessage === undefined ? undefined : { value: hoverMessage },
+              },
+            },
+          ];
+          if (badge && range.startLine <= model.getLineCount()) {
+            const end = model.getLineMaxColumn(range.startLine);
+            decorations.push({
+              range: {
+                startLineNumber: range.startLine,
+                startColumn: end,
+                endLineNumber: range.startLine,
+                endColumn: end,
+              },
+              options: {
+                showIfCollapsed: true,
+                after: { content: badge.content, inlineClassName: badge.className },
+              },
+            });
+          }
+          return decorations;
+        }),
       );
+    },
+    onHover(listener) {
+      const move = editor.onMouseMove(({ target }) => {
+        const { position } = target;
+        const overText = target.type === monacoEditor.MouseTargetType.CONTENT_TEXT;
+        listener(
+          position && overText ? { line: position.lineNumber, column: position.column } : undefined,
+        );
+      });
+      const leave = editor.onMouseLeave(() => listener(undefined));
+      return () => {
+        move.dispose();
+        leave.dispose();
+      };
     },
     setDark(next) {
       monacoEditor.setTheme(next ? "vp-dark" : "vp-light");

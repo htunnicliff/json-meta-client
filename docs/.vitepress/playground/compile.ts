@@ -1,16 +1,13 @@
 import ts from "typescript";
 
-import { SHIM_SPECIFIER } from "./protocol.ts";
+import { instrument } from "./instrument.ts";
+import type { SourceInfo } from "./instrument.ts";
+import { FILE_NAME, SHIM_SPECIFIER } from "./protocol.ts";
 import type { Diagnostic } from "./protocol.ts";
 
 const LIBRARY = "json-meta-client";
 
-/**
- * The name the playground's editor and diagnostics give the user's code
- */
-export const FILE_NAME = "playground.ts";
-
-export type CompileOutput = { code: string } | { diagnostics: Diagnostic[] };
+export type CompileOutput = { code: string; source: SourceInfo } | { diagnostics: Diagnostic[] };
 
 /**
  * Transpile the user's TypeScript to a JavaScript module. Imports of
@@ -20,6 +17,7 @@ export type CompileOutput = { code: string } | { diagnostics: Diagnostic[] };
  */
 export function compile(source: string): CompileOutput {
   const diagnostics: Diagnostic[] = [];
+  const { transformer, info } = instrument();
   const { outputText, diagnostics: syntax = [] } = ts.transpileModule(source, {
     fileName: FILE_NAME,
     reportDiagnostics: true,
@@ -30,11 +28,11 @@ export function compile(source: string): CompileOutput {
       verbatimModuleSyntax: false,
     },
     // After TypeScript's own transforms, so type-only imports are gone
-    transformers: { after: [rewriteImports(diagnostics)] },
+    transformers: { before: [transformer], after: [rewriteImports(diagnostics)] },
   });
   diagnostics.unshift(...syntax.map(toDiagnostic));
   if (diagnostics.length) return { diagnostics };
-  return { code: `${outputText}\n//# sourceURL=${FILE_NAME}\n` };
+  return { code: `${outputText}\n//# sourceURL=${FILE_NAME}\n`, source: info };
 }
 
 function toDiagnostic(diagnostic: ts.Diagnostic): Diagnostic {

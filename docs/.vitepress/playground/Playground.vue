@@ -5,12 +5,16 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 import type { RecordedRequest } from "../recorder/index.ts";
 import ConsolePanel from "./ConsolePanel.vue";
 import type { ConsoleLine } from "./ConsolePanel.vue";
+import { editorDecorations, labelsAt } from "./editor-decorations.ts";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
+import type { SourceInfo, Trace } from "./instrument.ts";
 import type { Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { decodeShare, encodeShare } from "./share.ts";
+import { sourceLines } from "./source-lines.ts";
+import { buildTimeline } from "./timeline.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
 
@@ -31,6 +35,10 @@ interface RunView {
   errors: string[];
   logs: ConsoleLine[];
   status: RunStatus;
+  /** The code the run ran */
+  code: string;
+  source?: SourceInfo;
+  trace?: Trace;
 }
 
 const emptyView = (): RunView => ({
@@ -39,6 +47,7 @@ const emptyView = (): RunView => ({
   errors: [],
   logs: [],
   status: "running",
+  code: "",
 });
 
 const defaultCode = examples[0]!.code;
@@ -78,7 +87,7 @@ function update(change: (current: RunView) => Partial<RunView>) {
 function onEvent(event: RunnerEvent) {
   switch (event.type) {
     case "start":
-      next = emptyView();
+      next = { ...emptyView(), code: code.value };
       clearTimeout(showTimer);
       showTimer = setTimeout(show, SHOW_PARTIAL_AFTER_MS);
       clearTimeout(stuckTimer);
@@ -109,6 +118,12 @@ function onEvent(event: RunnerEvent) {
         status: "failed",
       }));
       show();
+      break;
+    case "compiled":
+      update(() => ({ source: event.source }));
+      break;
+    case "trace":
+      update(() => ({ trace: event.trace }));
       break;
     case "console":
       update(({ logs }) => ({ logs: [...logs, { level: event.level, text: event.text }] }));
@@ -187,6 +202,10 @@ onMounted(async () => {
   if (unmounted || !editorHost.value) return;
   editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
   editor.onChange((value) => (code.value = value));
+  editor.onHover((position) => {
+    editorHovered.value = position && lines.value ? labelsAt(lines.value, position) : [];
+  });
+  editor.setDecorations(decorations.value);
   editorReady.value = true;
 });
 
@@ -204,6 +223,35 @@ onBeforeUnmount(() => {
 const example = computed(() => findExample(code.value));
 const requestCount = computed(() => view.value.requests.filter(Boolean).length);
 const logCount = computed(() => view.value.logs.length);
+
+// Source lines, while the code shown is the code that ran: an edit clears them
+// until the next run settles
+const lines = computed(() => {
+  const { source, trace, requests, code: ran } = view.value;
+  if (!source || !trace || ran !== code.value) return undefined;
+  const calls = buildTimeline(requests.filter(Boolean)).flatMap((entry) =>
+    entry.kind === "batch" ? entry.calls : [],
+  );
+  return sourceLines(source, trace, calls);
+});
+
+// Method calls hovered in the panel, and those under the pointer in the editor
+const panelHovered = ref<string>();
+const editorHovered = ref<string[]>([]);
+const highlighted = computed(
+  () => new Set([...editorHovered.value, ...(panelHovered.value ? [panelHovered.value] : [])]),
+);
+watch(code, () => {
+  panelHovered.value = undefined;
+  editorHovered.value = [];
+});
+
+const decorations = computed(() =>
+  lines.value
+    ? editorDecorations(lines.value, new Set(panelHovered.value ? [panelHovered.value] : []))
+    : [],
+);
+watch(decorations, (next) => editor?.setDecorations(next));
 
 function onKeydown(event: KeyboardEvent) {
   // Indent with Tab rather than leaving the editor
@@ -300,7 +348,10 @@ function onKeydown(event: KeyboardEvent) {
             :diagnostics="view.diagnostics"
             :raw-json="rawJson"
             :example="example"
+            :lines="lines"
+            :highlighted="highlighted"
             @show-batched="setCode"
+            @hover-call="panelHovered = $event"
           />
         </div>
       </section>
@@ -502,5 +553,46 @@ function onKeydown(event: KeyboardEvent) {
   flex: 1;
   overflow: auto;
   padding: 12px;
+}
+</style>
+
+<style>
+/* Editor decorations; Monaco renders them outside this component's scope */
+.monaco-editor .pg-not-reached {
+  opacity: 0.4;
+}
+
+.monaco-editor .pg-waiting-line {
+  background: var(--vp-c-yellow-soft);
+  box-shadow: inset 3px 0 var(--vp-c-yellow-1);
+}
+
+.monaco-editor .pg-hovered-line {
+  background: var(--vp-c-brand-soft);
+  box-shadow: inset 3px 0 var(--vp-c-brand-1);
+}
+
+.monaco-editor .pg-badge {
+  margin-left: 12px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-family: var(--vp-font-family-base);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.monaco-editor .pg-badge-call {
+  background: var(--vp-c-brand-1);
+  color: var(--vp-c-white);
+}
+
+.monaco-editor .pg-badge-waiting {
+  background: var(--vp-c-yellow-soft);
+  color: var(--vp-c-yellow-1);
+}
+
+.monaco-editor .pg-badge-not-sent {
+  border: 1px dashed var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 </style>

@@ -10,6 +10,11 @@ export interface CodeEditor {
   onChange(listener: (code: string) => void): () => void;
   /** Replace every decoration this editor shows */
   setDecorations(decorations: readonly EditorDecoration[]): void;
+  /**
+   * Listen for the position the pointer is over, or `undefined` when it is
+   * over no code; returns a function that stops listening
+   */
+  onHover(listener: (position: { line: number; column: number } | undefined) => void): () => void;
   setDark(dark: boolean): void;
   dispose(): void;
 }
@@ -30,8 +35,8 @@ export interface EditorDecoration {
   lineClassName?: string;
   /** Applied to the text of the range */
   inlineClassName?: string;
-  /** Text shown after the end of the range */
-  after?: { content: string; className: string };
+  /** A badge at the end of the range's first line */
+  badge?: { content: string; className: string };
   /** Markdown shown on hover */
   hoverMessage?: string;
 }

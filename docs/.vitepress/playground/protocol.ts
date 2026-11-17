@@ -1,10 +1,17 @@
 import type { RecordedRequest } from "../recorder/index.ts";
+import type { SourceInfo, Trace } from "./instrument.ts";
 
 /**
  * The specifier that compiled code imports the library from. The run worker
  * replaces it with the URL of a module that re-exports the shimmed library.
  */
 export const SHIM_SPECIFIER = "playground:json-meta-client";
+
+/**
+ * The name the playground gives the user's code in diagnostics and source
+ * locations
+ */
+export const FILE_NAME = "playground.ts";
 
 /**
  * Messages between the playground page and its workers. The compiler worker
@@ -24,7 +31,7 @@ export interface Diagnostic {
 }
 
 export type CompileResult =
-  | { id: number; code: string }
+  | { id: number; code: string; source: SourceInfo }
   | { id: number; diagnostics: Diagnostic[] };
 
 export interface RunRequest {
@@ -45,6 +52,8 @@ export type RunEvent =
    */
   | { type: "idle"; finished: boolean }
   | { type: "error"; message: string }
+  /** Where the code made its calls and where it waits, sent before each `idle` */
+  | { type: "trace"; trace: Trace }
   /** A `console` call, its arguments already formatted as text */
   | { type: "console"; level: ConsoleLevel; text: string };
 

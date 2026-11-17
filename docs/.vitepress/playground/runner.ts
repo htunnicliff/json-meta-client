@@ -1,4 +1,5 @@
 /* oxlint-disable unicorn/require-post-message-target-origin -- workers take no target origin */
+import type { SourceInfo } from "./instrument.ts";
 import type {
   CompileRequest,
   CompileResult,
@@ -14,6 +15,8 @@ import type {
 export type RunnerEvent =
   | { type: "start" }
   | { type: "diagnostics"; diagnostics: Diagnostic[] }
+  /** The code compiled; where its instrumented locations are */
+  | { type: "compiled"; source: SourceInfo }
   | RunEvent;
 
 export interface Runner {
@@ -64,6 +67,7 @@ export function createRunner(onEvent: (event: RunnerEvent) => void): Runner {
         onEvent({ type: "diagnostics", diagnostics: result.diagnostics });
         return;
       }
+      onEvent({ type: "compiled", source: result.source });
       const worker = new Worker(new URL("./run.worker.ts", import.meta.url), { type: "module" });
       current = worker;
       worker.addEventListener("message", ({ data }: MessageEvent<RunEvent>) => {

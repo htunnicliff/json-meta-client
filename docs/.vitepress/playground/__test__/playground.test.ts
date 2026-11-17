@@ -75,6 +75,7 @@ describe(compile, () => {
   it("allows type-only imports of other modules", () => {
     expect(compile('import type { Except } from "type-fest";\nlet a: Except<{}, never>;')).toEqual({
       code: expect.any(String),
+      source: expect.any(Object),
     });
   });
 

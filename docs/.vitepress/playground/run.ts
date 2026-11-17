@@ -2,6 +2,7 @@ import { docsClientOptions } from "../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../src/index.ts";
 import { recordingFetch, seedCallIds } from "../recorder/index.ts";
 import { formatConsoleArgs } from "./format.ts";
+import { createTracer, TRACER } from "./instrument.ts";
 import { SHIM_SPECIFIER } from "./protocol.ts";
 import type { ConsoleLevel, RunEvent } from "./protocol.ts";
 import { createShim } from "./shim.ts";
@@ -34,6 +35,8 @@ const dataUrl = (code: string) => `data:text/javascript;charset=utf-8,${encodeUR
 export function run(code: string, post: (event: RunEvent) => void): void {
   seedCallIds(CALL_ID_SEED);
   forwardConsole(post);
+  const tracer = createTracer();
+  traceCallIds(tracer.onCallId);
   const customUrns = new Set<string>();
   const recorder = recordingFetch({
     extraUrns: () => [...customUrns],
@@ -48,6 +51,7 @@ export function run(code: string, post: (event: RunEvent) => void): void {
   const shimKey = "__jsonMetaClientShim";
   Object.assign(globalThis, {
     [shimKey]: shim,
+    [TRACER]: tracer.runtime,
     // The ambient `client` of docs examples; the code's own `client` shadows it
     client: new JsonMetaClient({
       ...docsClientOptions,
@@ -76,6 +80,7 @@ export function run(code: string, post: (event: RunEvent) => void): void {
     }
     await recorder.settled();
     watching = false;
+    post({ type: "trace", trace: tracer.trace() });
     post({ type: "idle", finished });
   }
   function watch() {
@@ -93,6 +98,27 @@ export function run(code: string, post: (event: RunEvent) => void): void {
     },
     (error: unknown) => post({ type: "error", message: describeError(error) }),
   );
+}
+
+/**
+ * Report the hex form of each draw of 4 random bytes, the suffix the library
+ * gives a call id (`Email/query::f3c9ebfd`), so it can be tied to the call
+ * site that made it
+ */
+function traceCallIds(onCallId: (suffix: string) => void) {
+  const draw = crypto.getRandomValues.bind(crypto);
+  Object.defineProperty(crypto, "getRandomValues", {
+    configurable: true,
+    writable: true,
+    value: <T extends ArrayBufferView | null>(array: T): T => {
+      const result = draw(array);
+      if (array && array.byteLength === 4) {
+        const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+        onCallId(Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(""));
+      }
+      return result;
+    },
+  });
 }
 
 const consoleLevels: readonly ConsoleLevel[] = ["log", "info", "warn", "error", "debug"];

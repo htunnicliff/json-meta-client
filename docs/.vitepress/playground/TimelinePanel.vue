@@ -5,6 +5,7 @@ import type { RecordedRequest } from "../recorder/index.ts";
 import BatchCard from "./BatchCard.vue";
 import type { Example } from "./examples.ts";
 import type { Diagnostic } from "./protocol.ts";
+import type { SourceLines } from "./source-lines.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { BatchEntry, RunStatus, TimelineEntry } from "./timeline.ts";
 
@@ -16,9 +17,16 @@ const props = defineProps<{
   rawJson: boolean;
   /** The built-in example being shown, if any */
   example?: Example;
+  /** Where the run's method calls were made and where it waits, when known */
+  lines?: SourceLines;
+  /** Labels of the method calls to highlight */
+  highlighted?: ReadonlySet<string>;
 }>();
 
-const emit = defineEmits<{ showBatched: [code: string] }>();
+const emit = defineEmits<{
+  showBatched: [code: string];
+  hoverCall: [label: string | undefined];
+}>();
 
 const entries = computed(() => buildTimeline(props.requests.filter(Boolean)));
 const batches = computed(() =>
@@ -34,6 +42,16 @@ const showTip = computed(
     batches.value[0]?.calls.length === 1,
 );
 const firstCall = computed(() => batches.value[0]?.calls[0]);
+
+// Such as "Line 9 awaits Email/query (#1)."
+const waitingMessages = computed(() =>
+  (props.lines?.waiting ?? []).map(({ range, count, calls }) => {
+    const awaited = calls.map(({ label, name }) => `${name} (${label})`).join(", ");
+    const what = awaited ? `awaits ${awaited}` : "is waiting";
+    const times = count > 1 ? `, ${count} times over` : "";
+    return `Line ${range.start.line} ${what}${times}.`;
+  }),
+);
 
 const kindLabels: Record<Exclude<TimelineEntry["kind"], "batch">, string> = {
   session: "Session",
@@ -69,7 +87,14 @@ function shortUrl(url: string): string {
 
     <li v-for="entry in entries" :key="entry.key" class="entry" :data-kind="entry.kind">
       <span class="dot" :class="entry.kind === 'batch' ? 'filled' : 'hollow'" aria-hidden="true" />
-      <BatchCard v-if="entry.kind === 'batch'" :batch="entry" :raw-json="rawJson" />
+      <BatchCard
+        v-if="entry.kind === 'batch'"
+        :batch="entry"
+        :raw-json="rawJson"
+        :call-sites="lines?.calls"
+        :highlighted="highlighted"
+        @hover-call="emit('hoverCall', $event)"
+      />
       <div v-else class="request">
         <div class="request-line">
           <code class="method">{{ entry.method }}</code>
@@ -98,6 +123,9 @@ function shortUrl(url: string): string {
       <span class="dot clock" aria-hidden="true" />
       <div class="marker waiting">
         <strong>Waiting for a response</strong>
+        <p v-for="(message, index) in waitingMessages" :key="index" class="awaits">
+          {{ message }}
+        </p>
         <p>
           The playground doesn't answer method calls, so code after the pending
           <code>await</code> hasn't run.
@@ -317,6 +345,11 @@ function shortUrl(url: string): string {
 
 .marker.stuck {
   border-color: var(--vp-c-danger-2);
+}
+
+.marker .awaits {
+  color: var(--vp-c-text-1);
+  font-weight: 500;
 }
 
 .marker p {
