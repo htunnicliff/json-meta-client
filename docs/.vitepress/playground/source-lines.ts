@@ -1,5 +1,6 @@
-import type { SourceInfo, SourcePosition, SourceRange, Trace } from "./instrument.ts";
+import type { SourceInfo, SourcePosition, SourceRange } from "./instrument.ts";
 import type { TimelineCall } from "./timeline.ts";
+import type { Trace } from "./tracer.ts";
 
 /**
  * Where a run's method calls were made and where it waits, in the user's code

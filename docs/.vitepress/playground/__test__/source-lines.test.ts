@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 import type { RecordedRequest } from "../../recorder/index.ts";
 import { compile } from "../compile.ts";
 import { examples } from "../examples.ts";
-import type { Trace } from "../instrument.ts";
 import type { RunEvent } from "../protocol.ts";
 import { sourceLines } from "../source-lines.ts";
 import { buildTimeline } from "../timeline.ts";
 import type { TimelineCall } from "../timeline.ts";
+import type { Trace } from "../tracer.ts";
 
 /**
  * Run code in a worker thread until it is idle, and tie its trace to its source

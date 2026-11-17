@@ -12,7 +12,7 @@ import type { ConsoleLine } from "./ConsolePanel.vue";
 import DisconnectDialog from "./DisconnectDialog.vue";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
-import type { SourceInfo, Trace } from "./instrument.ts";
+import type { SourceInfo } from "./instrument.ts";
 import OptionsMenu from "./OptionsMenu.vue";
 import type { Connection, Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
@@ -23,6 +23,7 @@ import { timelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
+import type { Trace } from "./tracer.ts";
 
 /**
  * What the panel shows of a run
