@@ -347,7 +347,7 @@ onBeforeUnmount(() => {
           v-if="connection"
           class="status"
           data-state="connected"
-          title="Fills in <server> and <token> in your code's client options"
+          title="Fills in <server> and <token>"
         >
           <strong>Connected</strong> · {{ server }}
         </span>
@@ -355,7 +355,7 @@ onBeforeUnmount(() => {
           v-else
           class="status"
           data-state="mocked"
-          title="Without a server, the playground answers the Session request with a placeholder and leaves method calls unanswered. Connect a server for real responses."
+          title="Placeholder Session; method calls go unanswered"
         >
           <strong>Mocked</strong> · {{ mockedServer }}
         </span>
@@ -449,7 +449,7 @@ onBeforeUnmount(() => {
         aria-valuemax="75"
         :aria-valuenow="Math.round(consoleShare * 100)"
         tabindex="0"
-        title="Drag to resize the console; double-click to reset"
+        title="Drag to resize; double-click to reset"
         @pointerdown="startResize"
         @keydown="resizeByKey"
         @dblclick="consoleShare = DEFAULT_CONSOLE_SHARE"

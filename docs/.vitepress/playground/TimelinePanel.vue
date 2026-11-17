@@ -111,7 +111,7 @@ const waitingHint = computed(() => {
             <span
               v-if="entry.kind === 'session' && !connected"
               class="mocked"
-              title="Not sent. Without a connected server, the playground answers with a placeholder Session that supports every built-in capability. Connect a server to fetch its real Session."
+              title="Not sent: a placeholder Session"
               >Mocked</span
             >
             <span v-else-if="responses?.[entry.index]" class="aside">

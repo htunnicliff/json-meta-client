@@ -4,12 +4,7 @@ import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { DecorationSet, EditorView, ViewUpdate } from "@codemirror/view";
 
-import {
-  hasServerPlaceholder,
-  PLACEHOLDER_ORIGIN,
-  SERVER_PLACEHOLDER,
-  TOKEN_PLACEHOLDER,
-} from "../recorder/index.ts";
+import { hasServerPlaceholder, PLACEHOLDER_ORIGIN, TOKEN_PLACEHOLDER } from "../recorder/index.ts";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -83,15 +78,11 @@ function decorations(state: EditorState): DecorationSet {
       let title: string;
       let widget: FillWidget | undefined;
       if (name === "sessionUrl" && hasServerPlaceholder(value)) {
-        title = server
-          ? `Placeholder, filled in with ${server.sessionUrl}`
-          : `Placeholder. The playground mocks ${SERVER_PLACEHOLDER} as ${PLACEHOLDER_ORIGIN}; connect a server to fill it in.`;
+        title = server ? `Filled in with ${server.sessionUrl}` : `Mocked as ${PLACEHOLDER_ORIGIN}`;
         if (server) widget = new FillWidget(host(server.sessionUrl), title);
       } else if (name === "auth" && value === TOKEN_PLACEHOLDER) {
         const credentials = server?.credentials === "password" ? "your password" : "your token";
-        title = server
-          ? `Placeholder, filled in with ${credentials} from the connected server`
-          : "Placeholder. Connect a server to fill it in with your credentials.";
+        title = server ? `Filled in with ${credentials}` : "Connect a server to fill in";
         if (server) widget = new FillWidget(credentials, title);
       } else {
         return;
