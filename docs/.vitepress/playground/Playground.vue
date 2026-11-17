@@ -339,6 +339,9 @@ onBeforeUnmount(() => {
       <label class="example">
         Example
         <select
+          name="example"
+          autocomplete="off"
+          data-1p-ignore
           :value="example?.id ?? ''"
           @change="chooseExample(($event.target as HTMLSelectElement).value)"
         >

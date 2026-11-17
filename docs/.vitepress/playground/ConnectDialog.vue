@@ -7,24 +7,22 @@ import type { Connection } from "./protocol.ts";
 const emit = defineEmits<{ connect: [connection: Connection, remember: boolean]; close: [] }>();
 
 const dialog = ref<HTMLDialogElement>();
-const sessionUrl = ref("");
 const method = ref<"bearer" | "basic">("bearer");
-const token = ref("");
-const username = ref("");
-const password = ref("");
 const remember = ref(false);
 const checking = ref(false);
 const error = ref("");
 
 onMounted(() => dialog.value?.showModal());
 
-async function connect() {
+async function connect(event: SubmitEvent) {
+  // Password managers can fill fields without dispatching input events.
+  const fields = new FormData(event.currentTarget as HTMLFormElement);
   const connection: Connection = {
-    sessionUrl: sessionUrl.value.trim(),
+    sessionUrl: String(fields.get("session-url")).trim(),
     auth:
       method.value === "bearer"
-        ? token.value
-        : { username: username.value, password: password.value },
+        ? String(fields.get("credential"))
+        : { username: String(fields.get("username")), password: String(fields.get("password")) },
   };
   checking.value = true;
   error.value = "";
@@ -40,7 +38,7 @@ async function connect() {
 
 <template>
   <dialog ref="dialog" class="dialog" aria-labelledby="connect-title" @close="emit('close')">
-    <form class="body" @submit.prevent="connect">
+    <form class="body" method="post" @submit.prevent="connect">
       <header>
         <h2 id="connect-title">Connect a server</h2>
         <p class="lede">
@@ -53,31 +51,65 @@ async function connect() {
         <label class="field">
           Session URL
           <input
-            v-model="sessionUrl"
+            name="session-url"
             type="url"
             required
             placeholder="https://mail.example.org/.well-known/jmap"
-            autocomplete="off"
+            autocomplete="on"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
           />
         </label>
+        <p class="privacy">
+          Use credentials for the Session URL. Your password manager may suggest items saved for
+          this docs site.
+        </p>
         <div class="methods" role="radiogroup" aria-label="Credentials">
-          <label><input v-model="method" type="radio" value="bearer" /> Bearer token</label>
-          <label><input v-model="method" type="radio" value="basic" /> Username and password</label>
+          <label>
+            <input v-model="method" name="auth-method" type="radio" value="bearer" /> Bearer token
+          </label>
+          <label>
+            <input v-model="method" name="auth-method" type="radio" value="basic" /> Username and
+            password
+          </label>
         </div>
-        <label v-if="method === 'bearer'" class="field">
+        <label v-show="method === 'bearer'" class="field">
           Bearer token
-          <input v-model="token" type="password" required autocomplete="off" />
+          <input
+            id="jmap-api-token"
+            name="credential"
+            type="password"
+            :disabled="method !== 'bearer'"
+            required
+            autocomplete="on"
+          />
         </label>
-        <template v-else>
+        <div v-show="method === 'basic'" class="fields">
           <label class="field">
             Username
-            <input v-model="username" type="text" required autocomplete="off" />
+            <input
+              name="username"
+              type="text"
+              :disabled="method !== 'basic'"
+              required
+              autocomplete="username"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
           </label>
           <label class="field">
             Password
-            <input v-model="password" type="password" required autocomplete="off" />
+            <input
+              name="password"
+              type="password"
+              :disabled="method !== 'basic'"
+              required
+              autocomplete="current-password"
+            />
           </label>
-        </template>
+        </div>
       </div>
 
       <p class="placeholders">
@@ -87,7 +119,7 @@ async function connect() {
       </p>
 
       <label class="remember">
-        <input v-model="remember" type="checkbox" />
+        <input v-model="remember" name="remember-connection" type="checkbox" />
         Remember on this device
       </label>
       <p v-if="remember" class="privacy warning">
@@ -96,8 +128,8 @@ async function connect() {
         read them. Disconnecting forgets them. Prefer a token you can revoke.
       </p>
       <p v-else class="privacy">
-        Your credentials stay in this tab's memory. They never go in the URL or in browser storage,
-        and closing the tab or disconnecting forgets them.
+        The playground keeps your credentials in this tab's memory, out of the URL and browser
+        storage. Closing the tab or disconnecting forgets them.
       </p>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
 
