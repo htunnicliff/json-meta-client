@@ -1,15 +1,33 @@
-<script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+<script setup lang="ts" generic="Options extends { [Key in keyof Options]: boolean }">
+import { onBeforeUnmount, onMounted, ref, useId } from "vue";
 
-import { timelineOptionKeys as keys, timelineOptionLabels } from "./timeline-options.ts";
-import type { TimelineOptions } from "./timeline-options.ts";
+import { optionKeys } from "./stored-options.ts";
+import type { OptionSet } from "./stored-options.ts";
 
-const options = defineModel<TimelineOptions>({ required: true });
+const props = defineProps<{
+  /** The options the menu toggles */
+  set: OptionSet<Options>;
+  /** What the options are for, as in "Timeline" */
+  title: string;
+}>();
+
+defineSlots<{
+  /** Buttons that act once, below the options */
+  actions?(props: { close: () => void }): unknown;
+}>();
+
+const options = defineModel<Options>({ required: true });
 
 const menu = ref<HTMLDetailsElement>();
+const titleId = useId();
+const keys = optionKeys(props.set);
 
-function set(key: keyof TimelineOptions, value: boolean) {
+function set(key: keyof Options, value: boolean) {
   options.value = { ...options.value, [key]: value };
+}
+
+function close() {
+  if (menu.value) menu.value.open = false;
 }
 
 // Close on a click elsewhere or Escape, as other menus do
@@ -36,23 +54,26 @@ onBeforeUnmount(() => {
 
 <template>
   <details ref="menu" class="menu">
-    <summary class="trigger" aria-label="Timeline options" title="Timeline options">
+    <summary class="trigger" :aria-label="`${title} options`" :title="`${title} options`">
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
         <circle cx="3" cy="8" r="1.5" />
         <circle cx="8" cy="8" r="1.5" />
         <circle cx="13" cy="8" r="1.5" />
       </svg>
     </summary>
-    <div class="popover" role="group" aria-labelledby="timeline-options-title">
-      <span id="timeline-options-title" class="title">Timeline</span>
+    <div class="popover" role="group" :aria-labelledby="titleId">
+      <span :id="titleId" class="title">{{ title }}</span>
       <label v-for="key in keys" :key="key" class="option">
         <input
           type="checkbox"
           :checked="options[key]"
           @change="set(key, ($event.target as HTMLInputElement).checked)"
         />
-        {{ timelineOptionLabels[key] }}
+        {{ props.set.labels[key] }}
       </label>
+      <div v-if="$slots.actions" class="actions">
+        <slot name="actions" :close="close" />
+      </div>
     </div>
   </details>
 </template>
@@ -124,6 +145,36 @@ onBeforeUnmount(() => {
 
 .option:hover {
   background: var(--vp-c-default-soft);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.actions :slotted(button) {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--vp-c-text-1);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.actions :slotted(button:hover) {
+  background: var(--vp-c-default-soft);
+}
+
+.actions :slotted(kbd) {
+  color: var(--vp-c-text-3);
+  font-family: inherit;
+  font-size: 12px;
 }
 
 .option input {

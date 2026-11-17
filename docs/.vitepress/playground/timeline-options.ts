@@ -1,3 +1,5 @@
+import type { OptionSet } from "./stored-options.ts";
+
 /**
  * Which parts of the timeline the request panel shows
  */
@@ -16,55 +18,25 @@ export interface TimelineOptions {
   clipLong: boolean;
 }
 
-export const defaultTimelineOptions: TimelineOptions = {
-  sessions: true,
-  requestBodies: true,
-  responses: true,
-  lineNumbers: true,
-  callLabels: true,
-  clipLong: true,
-};
-
-/** The options' labels in the panel's menu */
-export const timelineOptionLabels: Record<keyof TimelineOptions, string> = {
-  sessions: "Session requests",
-  requestBodies: "Request bodies",
-  responses: "Responses",
-  lineNumbers: "Line numbers",
-  callLabels: "Method call labels",
-  clipLong: "Clip long bodies",
-};
-
-/** The options, in menu order */
-export const timelineOptionKeys = Object.keys(defaultTimelineOptions).filter(isOption);
-
-const STORAGE_KEY = "json-meta-client:playground:timeline";
-
 /**
- * The options last chosen in this browser, over the defaults
+ * The request panel's options
  */
-export function loadTimelineOptions(): TimelineOptions {
-  const options = { ...defaultTimelineOptions };
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    if (typeof stored !== "object" || stored === null) return options;
-    for (const [key, value] of Object.entries(stored)) {
-      if (isOption(key) && typeof value === "boolean") options[key] = value;
-    }
-  } catch {
-    // Storage can be unavailable, or hold something else; the defaults stand
-  }
-  return options;
-}
-
-function isOption(key: string): key is keyof TimelineOptions {
-  return Object.hasOwn(defaultTimelineOptions, key);
-}
-
-export function saveTimelineOptions(options: TimelineOptions): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
-  } catch {
-    // Storage can be unavailable, as in a private window; the options last the visit
-  }
-}
+export const timelineOptions: OptionSet<TimelineOptions> = {
+  defaults: {
+    sessions: true,
+    requestBodies: true,
+    responses: true,
+    lineNumbers: true,
+    callLabels: true,
+    clipLong: true,
+  },
+  labels: {
+    sessions: "Session requests",
+    requestBodies: "Request bodies",
+    responses: "Responses",
+    lineNumbers: "Line numbers",
+    callLabels: "Method call labels",
+    clipLong: "Clip long bodies",
+  },
+  storageKey: "json-meta-client:playground:timeline",
+};

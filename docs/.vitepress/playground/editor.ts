@@ -1,9 +1,9 @@
 import { autocompletion } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
 import { syntaxHighlighting } from "@codemirror/language";
-import { StateEffect, StateField } from "@codemirror/state";
+import { Compartment, Prec, StateEffect, StateField } from "@codemirror/state";
 import type { Range } from "@codemirror/state";
-import { Decoration, EditorView } from "@codemirror/view";
+import { Decoration, EditorView, keymap } from "@codemirror/view";
 import type { DecorationSet } from "@codemirror/view";
 import { classHighlighter } from "@lezer/highlight";
 import {
@@ -20,6 +20,7 @@ import { EDITOR_FILE } from "./editor-options.ts";
 import type { SourcePosition } from "./instrument.ts";
 import { placeholderMarks, setPlaceholderFill } from "./placeholder-marks.ts";
 import type { PlaceholderFill } from "./placeholder-marks.ts";
+import { formatTypeScript, minimalChange } from "./prettier.ts";
 
 /**
  * Lines of the code, 1-based and inclusive
@@ -36,6 +37,12 @@ export interface CodeEditor {
   highlight(ranges: readonly LineRange[]): void;
   /** Show what fills in the code's placeholders: a connected server, or none */
   setPlaceholderFill(fill: PlaceholderFill | undefined): void;
+  /**
+   * Format the code with Prettier, as an edit the user can undo. Resolves to
+   * whether the code parsed; code that doesn't is left as is.
+   */
+  format(): Promise<boolean>;
+  setLineWrapping(wrap: boolean): void;
   destroy(): void;
 }
 
@@ -76,6 +83,29 @@ const highlighted = StateField.define<DecorationSet>({
  * the playground's TypeScript worker
  */
 export function createEditor(parent: HTMLElement, options: EditorOptions): CodeEditor {
+  const wrapping = new Compartment();
+
+  async function format(): Promise<boolean> {
+    const before = view.state.doc.toString();
+    let formatted;
+    try {
+      formatted = await formatTypeScript(before, view.state.selection.main.head);
+    } catch {
+      return false;
+    }
+    // The user typed while Prettier ran; their edit wins
+    if (view.state.doc.toString() !== before) return true;
+    const change = minimalChange(before, formatted.code);
+    if (change) {
+      view.dispatch({
+        changes: change,
+        selection: { anchor: Math.min(formatted.cursorOffset, formatted.code.length) },
+        userEvent: "format",
+      });
+    }
+    return true;
+  }
+
   const view = new EditorView({
     parent,
     doc: options.code,
@@ -90,6 +120,18 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       tsHoverWorker(),
       highlighted,
       placeholderMarks,
+      wrapping.of([]),
+      Prec.high(
+        keymap.of([
+          {
+            key: "Shift-Alt-f",
+            run: () => {
+              void format();
+              return true;
+            },
+          },
+        ]),
+      ),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) options.onChange(update.state.doc.toString());
       }),
@@ -112,6 +154,10 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
     },
     highlight(ranges) {
       view.dispatch({ effects: setHighlight.of(ranges) });
+    },
+    format,
+    setLineWrapping(wrap) {
+      view.dispatch({ effects: wrapping.reconfigure(wrap ? EditorView.lineWrapping : []) });
     },
     setPlaceholderFill(fill) {
       view.dispatch({ effects: setPlaceholderFill.of(fill) });

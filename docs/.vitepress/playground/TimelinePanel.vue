@@ -6,7 +6,7 @@ import ClipBox from "./ClipBox.vue";
 import type { Diagnostic } from "./protocol.ts";
 import RawJson from "./RawJson.vue";
 import type { SourceLines } from "./source-lines.ts";
-import { defaultTimelineOptions } from "./timeline-options.ts";
+import { timelineOptions } from "./timeline-options.ts";
 import type { TimelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus, TimelineEntry } from "./timeline.ts";
@@ -30,7 +30,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 
-const show = computed(() => props.options ?? defaultTimelineOptions);
+const show = computed(() => props.options ?? timelineOptions.defaults);
 
 const entries = computed(() =>
   buildTimeline(props.requests).filter((entry) => show.value.sessions || entry.kind !== "session"),

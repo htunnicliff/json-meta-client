@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
+import { codeOptions } from "./code-options.ts";
 import ConnectDialog from "./ConnectDialog.vue";
 import { forgetConnection, loadConnection, saveConnection } from "./connection-storage.ts";
 import ConsolePanel from "./ConsolePanel.vue";
@@ -14,7 +15,8 @@ import type { Connection, Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { labelsAt, sourceLines } from "./source-lines.ts";
-import { loadTimelineOptions, saveTimelineOptions } from "./timeline-options.ts";
+import { loadOptions, saveOptions } from "./stored-options.ts";
+import { timelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
 import type { RunStatus } from "./timeline.ts";
 import TimelinePanel from "./TimelinePanel.vue";
@@ -49,8 +51,13 @@ const emptyView = (code: string, status: RunStatus): RunView => ({
 const code = ref(examples[0]!.code);
 const view = shallowRef<RunView>(emptyView(code.value, "ready"));
 const editorHost = ref<HTMLElement>();
-const timelineOptions = ref(loadTimelineOptions());
-watch(timelineOptions, saveTimelineOptions);
+const shownInTimeline = ref(loadOptions(timelineOptions));
+watch(shownInTimeline, (chosen) => saveOptions(timelineOptions, chosen));
+const codeChoices = ref(loadOptions(codeOptions));
+watch(codeChoices, (chosen) => {
+  saveOptions(codeOptions, chosen);
+  editor?.setLineWrapping(chosen.wrapLines);
+});
 let editor: CodeEditor | undefined;
 let runner: Runner | undefined;
 let unmounted = false;
@@ -126,7 +133,15 @@ function showPlaceholderFill() {
 }
 watch(connection, showPlaceholderFill);
 
-function run() {
+function formatNow() {
+  void editor?.format();
+}
+
+/**
+ * Run the code, formatting it first when the user runs it and chose to
+ */
+async function run({ byUser = true } = {}) {
+  if (byUser && codeChoices.value.formatOnRun) await editor?.format();
   view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
 }
@@ -153,7 +168,7 @@ function onRunShortcut(event: KeyboardEvent) {
   if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
   event.preventDefault();
   event.stopPropagation();
-  run();
+  void run();
 }
 
 const example = computed(() => findExample(code.value));
@@ -162,7 +177,7 @@ function chooseExample(id: string) {
   const chosen = examples.find((candidate) => candidate.id === id);
   if (!chosen || !editor) return;
   editor.setCode(chosen.code);
-  if (!connection.value) run();
+  if (!connection.value) void run({ byUser: false });
 }
 
 // Whether the code was edited since the last run
@@ -212,8 +227,9 @@ onMounted(async () => {
     },
   });
   showPlaceholderFill();
+  editor.setLineWrapping(codeChoices.value.wrapLines);
   // Code runs against a real server only when the user asks
-  if (!connection.value) run();
+  if (!connection.value) void run({ byUser: false });
 });
 
 onBeforeUnmount(() => {
@@ -240,7 +256,7 @@ onBeforeUnmount(() => {
           </option>
         </select>
       </label>
-      <button type="button" class="button run" @click="run">▶ Run <kbd>⌘↵</kbd></button>
+      <button type="button" class="button run" @click="run()">▶ Run <kbd>⌘↵</kbd></button>
       <span
         v-if="connection"
         class="connected"
@@ -256,14 +272,29 @@ onBeforeUnmount(() => {
     <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
     <div class="panes">
       <section class="pane" aria-label="Code">
-        <header class="pane-header">playground.ts</header>
+        <header class="pane-header">
+          playground.ts
+          <OptionsMenu v-model="codeChoices" :set="codeOptions" title="Editor">
+            <template #actions="{ close }">
+              <button
+                type="button"
+                @click="
+                  close();
+                  formatNow();
+                "
+              >
+                Format now <kbd>⇧⌥F</kbd>
+              </button>
+            </template>
+          </OptionsMenu>
+        </header>
         <div ref="editorHost" class="editor" />
       </section>
 
       <section class="pane" aria-label="Output">
         <header class="pane-header">
           Requests
-          <OptionsMenu v-model="timelineOptions" />
+          <OptionsMenu v-model="shownInTimeline" :set="timelineOptions" title="Timeline" />
         </header>
         <div class="output" aria-live="polite">
           <TimelinePanel
@@ -275,7 +306,7 @@ onBeforeUnmount(() => {
             :diagnostics="view.diagnostics"
             :lines="lines"
             :highlighted="highlighted"
-            :options="timelineOptions"
+            :options="shownInTimeline"
             @hover-call="panelHovered = $event"
           />
         </div>
