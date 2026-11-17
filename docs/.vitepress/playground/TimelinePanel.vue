@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import type { RecordedRequest } from "../recorder/index.ts";
+import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import BatchCard from "./BatchCard.vue";
 import type { Example } from "./examples.ts";
 import type { Diagnostic } from "./protocol.ts";
@@ -10,7 +10,11 @@ import { buildTimeline } from "./timeline.ts";
 import type { BatchEntry, RunStatus, TimelineEntry } from "./timeline.ts";
 
 const props = defineProps<{
-  requests: readonly RecordedRequest[];
+  requests: readonly (RecordedRequest | undefined)[];
+  /** Responses from a connected server, by request index */
+  responses?: readonly (RecordedResponse | undefined)[];
+  /** The host of the connected server, if any */
+  connected?: string;
   status: RunStatus;
   errors: readonly string[];
   diagnostics: readonly Diagnostic[];
@@ -28,7 +32,7 @@ const emit = defineEmits<{
   hoverCall: [label: string | undefined];
 }>();
 
-const entries = computed(() => buildTimeline(props.requests.filter(Boolean)));
+const entries = computed(() => buildTimeline(props.requests));
 const batches = computed(() =>
   entries.value.filter((entry): entry is BatchEntry => entry.kind === "batch"),
 );
@@ -37,6 +41,7 @@ const batches = computed(() =>
 // later calls wait for a round trip each
 const showTip = computed(
   () =>
+    !props.connected &&
     props.status === "waiting" &&
     batches.value.length === 1 &&
     batches.value[0]?.calls.length === 1,
@@ -60,6 +65,18 @@ const kindLabels: Record<Exclude<TimelineEntry["kind"], "batch">, string> = {
   eventSource: "Event stream",
   unknown: "Request",
 };
+
+function formatBody(body: unknown): string {
+  return typeof body === "string" ? body : JSON.stringify(body, null, 2);
+}
+
+const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+// Such as "1 Batch, 2 method calls."
+const summary = computed(() => {
+  const calls = batches.value.reduce((total, batch) => total + batch.calls.length, 0);
+  return `${count(batches.value.length, "Batch")}, ${count(calls, "method call")}.`;
+});
 
 function shortUrl(url: string): string {
   try {
@@ -93,6 +110,8 @@ function shortUrl(url: string): string {
         :raw-json="rawJson"
         :call-sites="lines?.calls"
         :highlighted="highlighted"
+        :response="responses?.[entry.index]"
+        :connected="Boolean(connected)"
         @hover-call="emit('hoverCall', $event)"
       />
       <div v-else class="request">
@@ -100,11 +119,19 @@ function shortUrl(url: string): string {
           <code class="method">{{ entry.method }}</code>
           <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
           <span class="kind">{{ kindLabels[entry.kind] }}</span>
-          <span v-if="entry.kind === 'session'" class="pill"
+          <span v-if="responses?.[entry.index]" class="status">{{
+            responses[entry.index]!.status || "failed"
+          }}</span>
+          <span v-else-if="connected" class="pill pending">waiting…</span>
+          <span v-else-if="entry.kind === 'session'" class="pill"
             >Placeholder Session · answered by the playground</span
           >
           <span v-else class="pill pending">pending</span>
         </div>
+        <details v-if="responses?.[entry.index]?.body !== undefined" class="response">
+          <summary>Response</summary>
+          <pre class="body"><code>{{ formatBody(responses![entry.index]!.body) }}</code></pre>
+        </details>
         <pre
           v-if="entry.kind !== 'session' && entry.body !== undefined"
           class="body"
@@ -119,14 +146,25 @@ function shortUrl(url: string): string {
       </ul>
     </li>
 
-    <li v-if="status === 'waiting'" class="entry">
+    <li v-if="status === 'ready'" class="entry">
+      <span class="dot hollow" aria-hidden="true" />
+      <div class="marker">
+        <strong>Ready to run</strong>
+        <p>
+          Auto-run is off while connected, since this code acts on a real account. Press Run (⌘↵ or
+          Ctrl+↵) to run it against {{ connected }}.
+        </p>
+      </div>
+    </li>
+    <li v-else-if="status === 'waiting'" class="entry">
       <span class="dot clock" aria-hidden="true" />
       <div class="marker waiting">
         <strong>Waiting for a response</strong>
         <p v-for="(message, index) in waitingMessages" :key="index" class="awaits">
           {{ message }}
         </p>
-        <p>
+        <p v-if="connected">Waiting for {{ connected }} to answer.</p>
+        <p v-else>
           The playground doesn't answer method calls, so code after the pending
           <code>await</code> hasn't run.
         </p>
@@ -136,7 +174,8 @@ function shortUrl(url: string): string {
       <span class="dot hollow" aria-hidden="true" />
       <div class="marker">
         <strong>Run finished</strong>
-        <p v-if="entries.length">
+        <p v-if="connected">{{ summary }}</p>
+        <p v-else-if="entries.length">
           The code ran to the end. Its requests stay pending, since the playground doesn't answer
           them.
         </p>
@@ -298,6 +337,19 @@ function shortUrl(url: string): string {
   background: var(--vp-c-tip-soft);
   color: var(--vp-c-tip-1);
   font-size: 12px;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--vp-c-green-1);
+}
+
+.response summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
 }
 
 .pill.pending {

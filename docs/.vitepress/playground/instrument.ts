@@ -46,6 +46,11 @@ export interface SourceInfo {
    * with the method they make
    */
   methodCallSites: { loc: number; method: string }[];
+  /**
+   * The `sessionUrl` and `auth` values of each `new JsonMetaClient({ … })`,
+   * which a connected server replaces
+   */
+  connectionOptions: SourceRange[];
 }
 
 /**
@@ -75,7 +80,12 @@ export function instrument(): {
   transformer: ts.TransformerFactory<ts.SourceFile>;
   info: SourceInfo;
 } {
-  const info: SourceInfo = { ranges: [], statements: [], methodCallSites: [] };
+  const info: SourceInfo = {
+    ranges: [],
+    statements: [],
+    methodCallSites: [],
+    connectionOptions: [],
+  };
 
   const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => (file) => {
     const { factory } = context;
@@ -85,15 +95,16 @@ export function instrument(): {
         undefined,
         args,
       );
-    const locate = (node: ts.Node): number => {
+
+    const literal = (loc: number) => factory.createNumericLiteral(loc);
+    const rangeOf = (node: ts.Node): SourceRange => {
       const position = (offset: number) => {
         const { line, character } = file.getLineAndCharacterOfPosition(offset);
         return { line: line + 1, column: character + 1 };
       };
-      info.ranges.push({ start: position(node.getStart(file)), end: position(node.getEnd()) });
-      return info.ranges.length - 1;
+      return { start: position(node.getStart(file)), end: position(node.getEnd()) };
     };
-    const literal = (loc: number) => factory.createNumericLiteral(loc);
+    const locate = (node: ts.Node): number => info.ranges.push(rangeOf(node)) - 1;
     // The location of the function being visited, or TOP_LEVEL
     let fn = TOP_LEVEL;
 
@@ -142,6 +153,22 @@ export function instrument(): {
       }
       if (ts.isDefaultClause(node)) {
         return factory.updateDefaultClause(node, statements(node.statements));
+      }
+      if (
+        ts.isNewExpression(node) &&
+        /(?:^|\.)JsonMetaClient$/.test(node.expression.getText(file))
+      ) {
+        const [options] = node.arguments ?? [];
+        if (options && ts.isObjectLiteralExpression(options)) {
+          for (const property of options.properties) {
+            const name = property.name && ts.isIdentifier(property.name) ? property.name.text : "";
+            if (name !== "sessionUrl" && name !== "auth") continue;
+            if (ts.isPropertyAssignment(property))
+              info.connectionOptions.push(rangeOf(property.initializer));
+            if (ts.isShorthandPropertyAssignment(property))
+              info.connectionOptions.push(rangeOf(property));
+          }
+        }
       }
       if (ts.isAwaitExpression(node)) {
         const loc = locate(node);

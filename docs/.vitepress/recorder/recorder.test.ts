@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JsonMetaClient } from "../../../src/index.ts";
-import { PLACEHOLDER_ACCOUNT_ID, recordingFetch, seedCallIds } from "./index.ts";
-import type { Recorder } from "./index.ts";
+import {
+  PLACEHOLDER_ACCOUNT_ID,
+  placeholderSession,
+  recordingFetch,
+  seedCallIds,
+} from "./index.ts";
+import type { RecordedResponse, Recorder } from "./index.ts";
 
 const sessionUrl = "https://jmap.example.com/.well-known/jmap";
 
@@ -140,5 +145,70 @@ describe(seedCallIds, () => {
     const afterReseed = crypto.getRandomValues(new Uint32Array(4)).join();
 
     expect(new Set([...draws, afterReseed]).size).toBe(3);
+  });
+});
+
+describe("recordingFetch in pass-through mode", () => {
+  const realApi = "https://real.example.com/api";
+  const session = { ...placeholderSession("https://real.example.com"), apiUrl: realApi };
+
+  function fakeServer() {
+    const received: string[] = [];
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const request = new Request(input);
+      received.push(`${request.method} ${request.url} ${request.headers.get("authorization")}`);
+      if (request.url === sessionUrl) return Response.json(session);
+      const body: unknown = await request.json();
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const methodCalls = (body as { methodCalls: [string, object, string][] }).methodCalls;
+      return Response.json({
+        methodResponses: methodCalls.map(([name, , id]) => [name, { list: [] }, id]),
+        sessionState: "s",
+      });
+    });
+    return { fetch, received };
+  }
+
+  it("sends requests on, and records their responses", async () => {
+    const server = fakeServer();
+    const responses: [number, RecordedResponse][] = [];
+    const recorder = recordingFetch({
+      passThrough: server.fetch,
+      onResponse: (response, index) => responses.push([index, response]),
+    });
+    const client = clientRecordedBy(recorder);
+
+    const { list } = await client.api.Mailbox.get({});
+
+    expect(list).toEqual([]);
+    expect(server.received).toEqual([
+      `GET ${sessionUrl} Bearer <token>`,
+      `POST ${realApi} Bearer <token>`,
+    ]);
+    expect((await recorder.settled()).map(({ kind }) => kind)).toEqual(["session", "request"]);
+    expect(responses).toEqual([
+      [0, { status: 200, body: session }],
+      [
+        1,
+        {
+          status: 200,
+          body: {
+            methodResponses: [["Mailbox/get", { list: [] }, expect.any(String)]],
+            sessionState: "s",
+          },
+        },
+      ],
+    ]);
+  });
+
+  it("records a failed request", async () => {
+    const responses: RecordedResponse[] = [];
+    const recorder = recordingFetch({
+      passThrough: () => Promise.reject(new TypeError("Failed to fetch")),
+      onResponse: (response) => responses.push(response),
+    });
+
+    await expect(recorder.fetch(sessionUrl)).rejects.toThrow("Failed to fetch");
+    expect(responses).toEqual([{ status: 0, error: "TypeError: Failed to fetch" }]);
   });
 });

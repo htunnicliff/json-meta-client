@@ -1,4 +1,4 @@
-import type { RecordedRequest } from "../recorder/index.ts";
+import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import type { SourceInfo, Trace } from "./instrument.ts";
 
 /**
@@ -37,6 +37,19 @@ export type CompileResult =
 export interface RunRequest {
   /** The compiled module, importing the library through the shim specifier */
   code: string;
+  /** A real server to send requests to, instead of recording them only */
+  connection?: Connection;
+}
+
+/**
+ * A server the user connected, held in memory only
+ */
+export interface Connection {
+  sessionUrl: string;
+  /** A bearer token, or Basic credentials */
+  auth: string | { username: string; password: string };
+  /** Whether to replace `sessionUrl` and `auth` in the clients the code constructs */
+  substitute: boolean;
 }
 
 /**
@@ -45,6 +58,8 @@ export interface RunRequest {
 export type RunEvent =
   /** A request the code made, with its position in send order */
   | { type: "request"; index: number; request: RecordedRequest }
+  /** The response to the request at `index`, from a connected server */
+  | { type: "response"; index: number; response: RecordedResponse }
   /**
    * No request has been made for a while, so the code is waiting for a
    * response or has finished. More requests may follow, for example from a

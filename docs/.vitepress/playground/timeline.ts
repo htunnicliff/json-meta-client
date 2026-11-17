@@ -2,10 +2,10 @@ import { PLACEHOLDER_ACCOUNT_ID } from "../recorder/index.ts";
 import type { RecordedKind, RecordedRequest } from "../recorder/index.ts";
 
 /**
- * Where a run is: still running, possibly stuck in a loop, waiting at a pending
+ * Where a run is: ready to run on request while connected, still running, possibly stuck in a loop, waiting at a pending
  * `await`, finished, or stopped by an error
  */
-export type RunStatus = "running" | "stuck" | "waiting" | "finished" | "failed";
+export type RunStatus = "ready" | "running" | "stuck" | "waiting" | "finished" | "failed";
 
 /**
  * The timeline the request panel shows, built from the recorded requests of a
@@ -16,6 +16,8 @@ export type TimelineEntry = SessionEntry | BatchEntry | OtherEntry;
 interface BaseEntry {
   /** Stable across runs that make the same requests, for keyed rendering */
   key: string;
+  /** The position of the request in send order */
+  index: number;
   method: string;
   url: string;
 }
@@ -94,15 +96,17 @@ function asReference(value: unknown): Omit<ResultReference, "label"> | undefined
 }
 
 /**
- * Build the timeline of recorded requests, given in send order
+ * Build the timeline of recorded requests, given in send order. Requests
+ * still being recorded may leave gaps.
  */
-export function buildTimeline(requests: readonly RecordedRequest[]): TimelineEntry[] {
+export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]): TimelineEntry[] {
   const labels = new Map<string, string>();
   const calls = new Map<string, TimelineCall>();
   let batches = 0;
   let others = 0;
-  return requests.map((request, index): TimelineEntry => {
-    const base = { method: request.method, url: request.url };
+  return requests.flatMap((request, index): TimelineEntry | [] => {
+    if (!request) return [];
+    const base = { index, method: request.method, url: request.url };
     if (request.kind === "session") return { ...base, kind: "session", key: `session-${index}` };
     if (request.kind !== "request") {
       return {

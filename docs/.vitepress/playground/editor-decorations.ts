@@ -12,14 +12,28 @@ const toEditorRange = ({ start, end }: SourceRange): EditorRange => ({
 /**
  * The editor's decorations for a run: greyed code that was not reached, a
  * badge on each line with a pending `await`, a label where each method call
- * was made, "not sent" on method calls in code that was not reached, and a
- * highlight on the method calls hovered in the panel
+ * was made, "not sent" on method calls in code that was not reached, a
+ * highlight on the method calls hovered in the panel, and the connection
+ * options a connected server replaces, struck through
  */
 export function editorDecorations(
-  lines: SourceLines,
+  lines: SourceLines | undefined,
   highlighted: ReadonlySet<string>,
+  substituted: readonly SourceRange[] = [],
 ): EditorDecoration[] {
-  const decorations: EditorDecoration[] = [];
+  const decorations: EditorDecoration[] = substituted.map((range, index) => ({
+    range: toEditorRange(range),
+    inlineClassName: "pg-substituted",
+    hoverMessage: "Replaced by your connection at run time",
+    // One note, after the last replaced value
+    ...(index === substituted.length - 1 && {
+      badge: {
+        content: "replaced by your connection at run time",
+        className: "pg-badge pg-badge-substituted",
+      },
+    }),
+  }));
+  if (!lines) return decorations;
   for (const range of lines.notReached) {
     decorations.push({ range: toEditorRange(range), inlineClassName: "pg-not-reached" });
   }

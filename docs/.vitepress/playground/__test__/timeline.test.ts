@@ -27,7 +27,13 @@ describe(buildTimeline, () => {
   it("labels method calls, tags filled-in account ids, and links result references", () => {
     const [session, batch] = buildTimeline(recorded(homeBody));
 
-    expect(session).toEqual({ kind: "session", key: "session-0", method: "GET", url: sessionUrl });
+    expect(session).toEqual({
+      kind: "session",
+      key: "session-0",
+      index: 0,
+      method: "GET",
+      url: sessionUrl,
+    });
     expect(batch).toMatchObject({
       kind: "batch",
       key: "batch-1",

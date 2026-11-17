@@ -10,13 +10,20 @@ const post = (event: RunEvent) => self.postMessage(event);
 
 self.addEventListener("error", (event) => {
   event.preventDefault();
-  post({ type: "error", message: describeError(event.error ?? event.message) });
+  post({ type: "error", message: describeError(event.error ?? event.message, connection) });
 });
 self.addEventListener("unhandledrejection", (event) => {
   event.preventDefault();
-  post({ type: "error", message: describeError(event.reason) });
+  post({ type: "error", message: describeError(event.reason, connection) });
 });
 
-self.addEventListener("message", ({ data }: MessageEvent<RunRequest>) => run(data.code, post), {
-  once: true,
-});
+let connection: RunRequest["connection"];
+
+self.addEventListener(
+  "message",
+  ({ data }: MessageEvent<RunRequest>) => {
+    connection = data.connection;
+    run(data.code, post, connection);
+  },
+  { once: true },
+);

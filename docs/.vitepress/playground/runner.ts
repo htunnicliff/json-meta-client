@@ -2,6 +2,7 @@
 import type { SourceInfo } from "./instrument.ts";
 import type {
   CompileRequest,
+  Connection,
   CompileResult,
   Diagnostic,
   RunEvent,
@@ -20,8 +21,10 @@ export type RunnerEvent =
   | RunEvent;
 
 export interface Runner {
-  /** Run this code, replacing any earlier run */
-  run(source: string): void;
+  /** Run this code, replacing any earlier run, against a connected server if given */
+  run(source: string, connection?: Connection): void;
+  /** Stop the current run, ending its requests */
+  stop(): void;
   /** Stop the current run and the compiler */
   dispose(): void;
 }
@@ -57,7 +60,12 @@ export function createRunner(onEvent: (event: RunnerEvent) => void): Runner {
   }
 
   return {
-    async run(source) {
+    stop() {
+      // Also drops a run that is still compiling
+      latest++;
+      stop();
+    },
+    async run(source, connection) {
       const id = ++latest;
       stop();
       onEvent({ type: "start" });
@@ -76,7 +84,7 @@ export function createRunner(onEvent: (event: RunnerEvent) => void): Runner {
       worker.addEventListener("error", (event) => {
         if (id === latest) onEvent({ type: "error", message: event.message || "The run failed" });
       });
-      worker.postMessage({ code: result.code } satisfies RunRequest);
+      worker.postMessage({ code: result.code, connection } satisfies RunRequest);
     },
     dispose() {
       latest++;

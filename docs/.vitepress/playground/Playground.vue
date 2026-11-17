@@ -2,14 +2,15 @@
 import { useData } from "vitepress";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
-import type { RecordedRequest } from "../recorder/index.ts";
+import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
+import ConnectDialog from "./ConnectDialog.vue";
 import ConsolePanel from "./ConsolePanel.vue";
 import type { ConsoleLine } from "./ConsolePanel.vue";
 import { editorDecorations, labelsAt } from "./editor-decorations.ts";
 import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { SourceInfo, Trace } from "./instrument.ts";
-import type { Diagnostic } from "./protocol.ts";
+import type { Connection, Diagnostic } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { decodeShare, encodeShare } from "./share.ts";
@@ -34,6 +35,8 @@ interface RunView {
   diagnostics: Diagnostic[];
   errors: string[];
   logs: ConsoleLine[];
+  /** Responses from a connected server, by request index */
+  responses: (RecordedResponse | undefined)[];
   status: RunStatus;
   /** The code the run ran */
   code: string;
@@ -46,6 +49,7 @@ const emptyView = (): RunView => ({
   diagnostics: [],
   errors: [],
   logs: [],
+  responses: [],
   status: "running",
   code: "",
 });
@@ -113,7 +117,8 @@ function onEvent(event: RunnerEvent) {
       break;
     case "error":
       update(({ errors, logs }) => ({
-        errors: [...errors, event.message],
+        // Calls of one Batch fail together, often with the same error
+        errors: errors.includes(event.message) ? errors : [...errors, event.message],
         logs: [...logs, { level: "error", text: event.message }],
         status: "failed",
       }));
@@ -125,21 +130,64 @@ function onEvent(event: RunnerEvent) {
     case "trace":
       update(() => ({ trace: event.trace }));
       break;
+    case "response":
+      update(({ responses }) => {
+        const copy = [...responses];
+        copy[event.index] = event.response;
+        return { responses: copy };
+      });
+      break;
     case "console":
       update(({ logs }) => ({ logs: [...logs, { level: event.level, text: event.text }] }));
       break;
   }
 }
 
+// A real server, in memory only. While connected, code runs only on request.
+const connection = shallowRef<Connection>();
+const connecting = ref(false);
+const server = computed(() => {
+  try {
+    return connection.value && new URL(connection.value.sessionUrl).host;
+  } catch {
+    return connection.value?.sessionUrl;
+  }
+});
+
 function runNow() {
   clearTimeout(runTimer);
-  runner?.run(code.value);
+  runner?.run(code.value, connection.value);
 }
 
 watch(code, () => {
   clearTimeout(runTimer);
-  runTimer = setTimeout(runNow, RUN_DELAY_MS);
+  if (!connection.value) runTimer = setTimeout(runNow, RUN_DELAY_MS);
 });
+
+function connect(chosen: Connection) {
+  connecting.value = false;
+  connection.value = chosen;
+  clearTimeout(runTimer);
+  runner?.stop();
+  // Results of the request-only run don't apply to the server
+  next = undefined;
+  const { code: ran, source } = view.value;
+  view.value = { ...emptyView(), status: "ready", code: ran, source };
+}
+
+function disconnect() {
+  // Dropping the reference and the worker that held a copy forgets the credentials
+  connection.value = undefined;
+  runner?.stop();
+  runNow();
+}
+
+function onRunShortcut(event: KeyboardEvent) {
+  if (!connection.value || event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  runNow();
+}
 
 watch(isDark, (dark) => editor?.setDark(dark));
 
@@ -198,6 +246,8 @@ onMounted(async () => {
   await loadFromHash();
   runNow();
   addEventListener("hashchange", onHashChange);
+  // Before the editor sees the keys
+  addEventListener("keydown", onRunShortcut, true);
   const { createMonacoEditor } = await import("./monaco-editor.ts");
   if (unmounted || !editorHost.value) return;
   editor = createMonacoEditor(editorHost.value, { code: code.value, dark: isDark.value });
@@ -212,6 +262,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unmounted = true;
   removeEventListener("hashchange", onHashChange);
+  removeEventListener("keydown", onRunShortcut, true);
+  connection.value = undefined;
   clearTimeout(shareTimer);
   clearTimeout(runTimer);
   clearTimeout(showTimer);
@@ -229,7 +281,7 @@ const logCount = computed(() => view.value.logs.length);
 const lines = computed(() => {
   const { source, trace, requests, code: ran } = view.value;
   if (!source || !trace || ran !== code.value) return undefined;
-  const calls = buildTimeline(requests.filter(Boolean)).flatMap((entry) =>
+  const calls = buildTimeline(requests).flatMap((entry) =>
     entry.kind === "batch" ? entry.calls : [],
   );
   return sourceLines(source, trace, calls);
@@ -246,10 +298,21 @@ watch(code, () => {
   editorHovered.value = [];
 });
 
+// The connection options a connected server replaces, while the code shown
+// is the code that ran
+const substituted = computed(() => {
+  const { source, code: ran } = view.value;
+  return connection.value?.substitute && source && ran === code.value
+    ? source.connectionOptions
+    : [];
+});
+
 const decorations = computed(() =>
-  lines.value
-    ? editorDecorations(lines.value, new Set(panelHovered.value ? [panelHovered.value] : []))
-    : [],
+  editorDecorations(
+    lines.value,
+    new Set(panelHovered.value ? [panelHovered.value] : []),
+    substituted.value,
+  ),
 );
 watch(decorations, (next) => editor?.setDecorations(next));
 
@@ -279,11 +342,29 @@ function onKeydown(event: KeyboardEvent) {
           </option>
         </select>
       </label>
+      <button v-if="connection" type="button" class="button run" @click="runNow">
+        ▶ Run <kbd>⌘↵</kbd>
+      </button>
       <button type="button" class="button" @click="reset">Reset</button>
       <button type="button" class="button" @click="share">Share</button>
       <span class="share-status" role="status">{{ shareStatus }}</span>
-      <span class="mode"><span class="mode-dot" />Request-only · re-runs as you type</span>
+      <template v-if="connection">
+        <span class="mode connected-note"
+          >Auto-run is off while connected: this code acts on a real account.</span
+        >
+        <span class="connected">
+          <span class="mode-dot connected-dot" /><strong>Connected</strong> · {{ server }}
+          <button type="button" class="disconnect" @click="disconnect">Disconnect</button>
+        </span>
+      </template>
+      <template v-else>
+        <span class="mode"><span class="mode-dot" />Request-only · re-runs as you type</span>
+        <button type="button" class="button connect" @click="connecting = true">
+          Connect a server…
+        </button>
+      </template>
     </div>
+    <ConnectDialog v-if="connecting" @connect="connect" @close="connecting = false" />
     <p v-if="notice" class="notice" role="alert">
       {{ notice }}
       <button type="button" class="dismiss" aria-label="Dismiss" @click="notice = ''">×</button>
@@ -343,6 +424,8 @@ function onKeydown(event: KeyboardEvent) {
           <TimelinePanel
             v-else
             :requests="view.requests"
+            :responses="view.responses"
+            :connected="server"
             :status="view.status"
             :errors="view.errors"
             :diagnostics="view.diagnostics"
@@ -418,6 +501,57 @@ function onKeydown(event: KeyboardEvent) {
   margin-left: auto;
   color: var(--vp-c-text-2);
   font-size: 13px;
+}
+
+.run {
+  background: var(--vp-c-brand-1);
+  color: var(--vp-c-white);
+}
+
+.run:hover {
+  background: var(--vp-c-brand-2);
+}
+
+.run kbd {
+  margin-left: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.connect {
+  border: 1px solid var(--vp-c-tip-1);
+  background: transparent;
+  color: var(--vp-c-tip-1);
+}
+
+.connected-note {
+  margin-left: 0;
+  color: var(--vp-c-tip-1);
+}
+
+.connected {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 2px 4px 2px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--vp-c-tip-1);
+}
+
+.connected-dot {
+  background: var(--vp-c-tip-1);
+}
+
+.disconnect {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--vp-c-tip-soft);
+  color: var(--vp-c-tip-1);
+  font-size: 12px;
 }
 
 .mode-dot {
@@ -570,6 +704,17 @@ function onKeydown(event: KeyboardEvent) {
 .monaco-editor .pg-hovered-line {
   background: var(--vp-c-brand-soft);
   box-shadow: inset 3px 0 var(--vp-c-brand-1);
+}
+
+.monaco-editor .pg-substituted {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.monaco-editor .pg-badge-substituted {
+  background: var(--vp-c-tip-soft);
+  color: var(--vp-c-tip-1);
+  font-weight: 500;
 }
 
 .monaco-editor .pg-badge {

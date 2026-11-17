@@ -10,6 +10,7 @@ import { defaultExample } from "../examples.ts";
 import { SHIM_SPECIFIER } from "../protocol.ts";
 import type { RunEvent } from "../protocol.ts";
 import { run } from "../run.ts";
+import { createShim } from "../shim.ts";
 
 function compiled(source: string): string {
   const output = compile(source);
@@ -194,5 +195,31 @@ describe(run, () => {
 
   it("reports an error the code throws", async () => {
     await expect(runUntilIdle('throw new TypeError("nope");')).rejects.toThrow("TypeError: nope");
+  });
+});
+
+describe(createShim, () => {
+  it("replaces the connection options of each client when given a server", async () => {
+    const urls: string[] = [];
+    const shim = createShim(() => {}, {
+      sessionUrl: "https://real.example.com/jmap",
+      auth: "secret",
+    });
+    const client = new shim.JsonMetaClient({
+      sessionUrl: "https://jmap.example.com/.well-known/jmap",
+      auth: "********",
+      capabilities: ["mail"],
+      hooks: {
+        beforeFetch: [
+          ({ request }) => {
+            urls.push(`${request.url} ${request.headers.get("authorization")}`);
+            throw new Error("stop");
+          },
+        ],
+      },
+    });
+
+    await expect(client.session).rejects.toThrow("stop");
+    expect(urls).toEqual(["https://real.example.com/jmap Bearer secret"]);
   });
 });
