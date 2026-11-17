@@ -11,8 +11,10 @@ import type { RunExampleInput, RunExampleOutput } from "./run-example.ts";
 const root = fileURLToPath(new URL("../../../..", import.meta.url));
 const docs = path.join(root, "docs");
 // Examples import the package from source, so the docs build does not depend
-// on `pnpm build`.
+// on `pnpm build`. They type-check against the source itself, and run against
+// it with the `<server>` placeholder filled in.
 const librarySource = path.join(root, "src", "index.ts");
+const libraryRuntime = path.join(docs, ".vitepress", "recorder", "placeholder-library.ts");
 const runner = new URL("./run-example.ts", import.meta.url);
 // How long a worker may run an example before it is stopped
 const workerTimeoutMs = 15_000;
@@ -205,7 +207,8 @@ function typeCheck(examples: readonly OptedInExample[]): string[] {
 }
 
 /**
- * Turn an example into a module that imports the package from source
+ * Turn an example into a module that imports the package from source, with
+ * the placeholders of the clients it constructs filled in
  */
 function toModule(example: OptedInExample): string {
   const { outputText } = ts.transpileModule(withInherited(example), {
@@ -216,7 +219,7 @@ function toModule(example: OptedInExample): string {
       verbatimModuleSyntax: false,
     },
   });
-  const library = JSON.stringify(pathToFileURL(librarySource).href);
+  const library = JSON.stringify(pathToFileURL(libraryRuntime).href);
   const code = outputText.replaceAll(
     /(\bfrom\s*|\bimport\s*\(\s*)(["'])json-meta-client\2/g,
     (_, prefix: string) => `${prefix}${library}`,

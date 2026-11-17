@@ -14,8 +14,8 @@ hero:
       link: /reference/api
 
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/htunnicliff/json-meta-client
+      text: Open the playground
+      link: /playground
 
 features:
   - title: Intuitive Design

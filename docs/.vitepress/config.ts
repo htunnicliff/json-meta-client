@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
+import { playgroundTypes } from "./playground/types-plugin.ts";
 import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
 
 // Fails when a generated JMAP Request fence is out of date
@@ -37,6 +38,7 @@ export default defineConfig({
     nav: [
       { text: "Getting Started", link: "/getting-started" },
       { text: "API Reference", link: "/reference/api" },
+      { text: "Playground", link: "/playground" },
       { text: "JMAP Standard", link: "https://jmap.io/" },
     ],
     sidebar: [
@@ -94,6 +96,11 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [groupIconVitePlugin()],
+    plugins: [groupIconVitePlugin(), playgroundTypes()],
+    // The playground's workers import the library, which loads
+    // `eventsource-client` on demand, so they need code splitting.
+    // Workers are built with their own plugins: the editor's TypeScript
+    // worker imports the library's declarations.
+    worker: { format: "es", plugins: () => [playgroundTypes()] },
   },
 });

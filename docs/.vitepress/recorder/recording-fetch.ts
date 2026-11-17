@@ -42,11 +42,60 @@ export interface Recorder {
 }
 
 /**
+ * A response to a recorded request, in pass-through mode
+ */
+export interface RecordedResponse {
+  /** The HTTP status, or 0 when the request failed */
+  status: number;
+  /**
+   * The parsed JSON body, or the text body of other responses, cut short past
+   * {@link MAX_RESPONSE_BYTES}. Event streams are not read.
+   */
+  body?: unknown;
+  /** Why the request failed, when it did */
+  error?: string;
+}
+
+/** The most of a response body that is recorded */
+export const MAX_RESPONSE_BYTES = 100_000;
+
+export interface RecorderOptions {
+  /**
+   * Capability URNs to add to each placeholder Session, read at each Session
+   * fetch, such as those of custom capabilities a client was configured with
+   */
+  extraUrns?: () => readonly string[];
+  /**
+   * Called with each recorded request once its body is read, and its index in
+   * the order received. Requests whose bodies take longer may arrive out of
+   * order.
+   */
+  onRecord?: (request: RecordedRequest, index: number) => void;
+  /**
+   * Send each request with this `fetch` and record its response, instead of
+   * answering Session fetches with a placeholder and leaving every other
+   * request pending
+   */
+  passThrough?: typeof fetch;
+  /**
+   * Called with the response to each request: every response in pass-through
+   * mode, and otherwise each placeholder Session, after its request is
+   * recorded
+   */
+  onResponse?: (response: RecordedResponse, index: number) => void;
+}
+
+/**
  * Create a {@link Recorder}
  */
-export function recordingFetch(): Recorder {
+export function recordingFetch({
+  extraUrns,
+  onRecord,
+  passThrough,
+  onResponse,
+}: RecorderOptions = {}): Recorder {
   const entries: Promise<RecordedRequest>[] = [];
-  // Placeholder Sessions handed out, so their other URLs are recognized
+  // Sessions handed out or passed through, so their other URLs are recognized
   const sessions: Session[] = [];
 
   function classify(method: string, url: string): RecordedKind {
@@ -75,12 +124,45 @@ export function recordingFetch(): Recorder {
     return entry;
   }
 
+  function push(entry: Promise<RecordedRequest>): number {
+    const index = entries.length;
+    entries.push(entry);
+    if (onRecord) void entry.then((request) => onRecord(request, index));
+    return index;
+  }
+
+  async function recordResponse(response: Response, kind: RecordedKind, index: number) {
+    const recorded: RecordedResponse = { status: response.status };
+    if (kind !== "eventSource") {
+      const text = await readCapped(response.clone(), MAX_RESPONSE_BYTES);
+      if (text) recorded.body = parseJson(text) ?? text;
+    }
+    if (kind === "session" && isSession(recorded.body)) sessions.push(recorded.body);
+    onResponse?.(recorded, index);
+  }
+
+  function send(request: Request, kind: RecordedKind, fetch: typeof globalThis.fetch) {
+    const index = push(record(request.clone(), kind));
+    return fetch(request).then(
+      async (response) => {
+        const recording = recordResponse(response, kind, index);
+        // A Session must be known before the client's next request is classified
+        if (kind === "session") await recording;
+        return response;
+      },
+      (error: unknown) => {
+        onResponse?.({ status: 0, error: String(error) }, index);
+        throw error;
+      },
+    );
+  }
+
   const recordingFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     let request: Request;
     try {
       request = new Request(input, init);
     } catch {
-      entries.push(
+      push(
         Promise.resolve({
           kind: "unknown",
           method: "GET",
@@ -90,10 +172,14 @@ export function recordingFetch(): Recorder {
       return new Promise(() => {});
     }
     const kind = classify(request.method, request.url);
-    entries.push(record(request, kind));
+    if (passThrough) return send(request, kind, passThrough);
+    const index = push(record(request, kind));
     if (kind !== "session") return new Promise(() => {});
-    const session = placeholderSession(new URL(request.url).origin);
+    const session = placeholderSession(new URL(request.url).origin, extraUrns?.());
     sessions.push(session);
+    if (onResponse) {
+      void entries[index].then(() => onResponse({ status: 200, body: session }, index));
+    }
     return Promise.resolve(Response.json(session));
   };
 
@@ -104,6 +190,49 @@ export function recordingFetch(): Recorder {
     },
     settled: () => Promise.all(entries),
   };
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function isSession(value: unknown): value is Session {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "apiUrl" in value &&
+    typeof value.apiUrl === "string"
+  );
+}
+
+/**
+ * A response's text, cut short past `limit` bytes
+ */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  try {
+    for (;;) {
+      // oxlint-disable-next-line no-await-in-loop
+      const { done, value } = await reader.read();
+      if (done) return text + decoder.decode();
+      total += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+      if (total > limit) {
+        void reader.cancel();
+        return `${text.slice(0, limit)}…`;
+      }
+    }
+  } catch {
+    return text;
+  }
 }
 
 /**

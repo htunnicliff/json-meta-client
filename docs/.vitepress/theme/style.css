@@ -1,6 +1,7 @@
 /**
  * Airmail red and blue brand colors, with pale beige in place of the light
  * grays in light mode and beige text and buttons in dark mode; everything else uses the stock theme.
+ * Text and control colors meet WCAG AA contrast in both modes.
  * https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css
  */
 
@@ -24,6 +25,8 @@
   --vp-c-divider: #efe8d8;
   --vp-c-gutter: #efe8d8;
   --vp-c-border: #e2d9c2;
+  /* Borders that mark where a control is, such as an input's, at 3:1 on the background */
+  --site-c-control-border: #968b74;
 }
 
 .dark {
@@ -37,6 +40,10 @@
   --vp-c-brand-2: #f0505f;
   --vp-c-brand-3: #c8283a;
   --vp-c-brand-soft: rgba(240, 80, 95, 0.2);
+  /* brand-1 and brand-2 are too light behind white text, so buttons darken instead */
+  --vp-button-brand-hover-bg: #a81f30;
+  --vp-button-brand-active-bg: #8f1a29;
+  --site-c-control-border: rgba(240, 230, 205, 0.4);
   --vp-c-tip-1: #7fa8e8;
   --vp-c-tip-soft: rgba(127, 168, 232, 0.16);
 }

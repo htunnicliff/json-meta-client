@@ -3,7 +3,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import { docsClientOptions } from "../../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../../src/index.ts";
-import { recordingFetch, seedCallIds } from "../../recorder/index.ts";
+import { fillPlaceholders, recordingFetch, seedCallIds } from "../../recorder/index.ts";
 
 /**
  * Runs one documentation example in a worker thread, with a placeholder
@@ -18,8 +18,6 @@ export interface RunExampleInput {
 
 export type RunExampleOutput = { requests: unknown[] } | { error: string };
 
-// The server examples talk to; `<server>` in the ambient client stands for it
-const placeholderServer = "https://jmap.example.com";
 const callIdSeed = 1;
 // How long an example may take to make its first JMAP Request
 const timeoutMs = 5_000;
@@ -32,10 +30,7 @@ async function run({ code }: RunExampleInput): Promise<unknown[]> {
   globalThis.fetch = recorder.fetch;
   // The ambient `client` of docs-client.ts; an example's own `client` shadows it.
   Object.assign(globalThis, {
-    client: new JsonMetaClient({
-      ...docsClientOptions,
-      sessionUrl: docsClientOptions.sessionUrl.replace("<server>", placeholderServer),
-    }),
+    client: new JsonMetaClient(fillPlaceholders(docsClientOptions)),
   });
 
   let outcome: { error: unknown } | "done" | undefined;

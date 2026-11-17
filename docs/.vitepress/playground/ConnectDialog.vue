@@ -1,0 +1,173 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+
+import { checkConnection } from "./connect.ts";
+import type { Connection } from "./protocol.ts";
+
+const emit = defineEmits<{ connect: [connection: Connection, remember: boolean]; close: [] }>();
+
+const dialog = ref<HTMLDialogElement>();
+const sessionUrl = ref("");
+const method = ref<"bearer" | "basic">("bearer");
+const token = ref("");
+const username = ref("");
+const password = ref("");
+const remember = ref(false);
+const checking = ref(false);
+const error = ref("");
+
+onMounted(() => dialog.value?.showModal());
+
+async function connect() {
+  const connection: Connection = {
+    sessionUrl: sessionUrl.value.trim(),
+    auth:
+      method.value === "bearer"
+        ? token.value
+        : { username: username.value, password: password.value },
+  };
+  checking.value = true;
+  error.value = "";
+  try {
+    const result = await checkConnection(connection);
+    if (result.ok) emit("connect", connection, remember.value);
+    else error.value = result.message;
+  } finally {
+    checking.value = false;
+  }
+}
+</script>
+
+<template>
+  <dialog ref="dialog" class="dialog" aria-labelledby="connect-title" @close="emit('close')">
+    <form class="body" @submit.prevent="connect">
+      <header>
+        <h2 id="connect-title">Connect a server</h2>
+        <p class="lede">
+          Responses come from a real JMAP server, so your code runs past each <code>await</code>.
+          The playground itself never answers method calls.
+        </p>
+      </header>
+
+      <div class="fields">
+        <label class="field">
+          Session URL
+          <input
+            v-model="sessionUrl"
+            type="url"
+            required
+            placeholder="https://mail.example.org/.well-known/jmap"
+            autocomplete="off"
+          />
+        </label>
+        <div class="methods" role="radiogroup" aria-label="Credentials">
+          <label><input v-model="method" type="radio" value="bearer" /> Bearer token</label>
+          <label><input v-model="method" type="radio" value="basic" /> Username and password</label>
+        </div>
+        <label v-if="method === 'bearer'" class="field">
+          Bearer token
+          <input v-model="token" type="password" required autocomplete="off" />
+        </label>
+        <template v-else>
+          <label class="field">
+            Username
+            <input v-model="username" type="text" required autocomplete="off" />
+          </label>
+          <label class="field">
+            Password
+            <input v-model="password" type="password" required autocomplete="off" />
+          </label>
+        </template>
+      </div>
+
+      <p class="placeholders">
+        Connecting fills in the placeholders of your code: a <code>sessionUrl</code> with
+        <code>&lt;server&gt;</code> becomes this Session URL, and <code>auth: "&lt;token&gt;"</code>
+        these credentials. Other values are used as written.
+      </p>
+
+      <label class="remember">
+        <input v-model="remember" type="checkbox" />
+        Remember on this device
+      </label>
+      <p v-if="remember" class="privacy warning">
+        Your credentials are saved in plain text in this browser's local storage, so you stay
+        connected after reloading. Anything that can read this site's storage in this browser can
+        read them. Disconnecting forgets them. Prefer a token you can revoke.
+      </p>
+      <p v-else class="privacy">
+        Your credentials stay in this tab's memory. They never go in the URL or in browser storage,
+        and closing the tab or disconnecting forgets them.
+      </p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
+
+      <footer class="footer">
+        <button type="button" class="button cancel" @click="dialog?.close()">Cancel</button>
+        <button type="submit" class="button primary" :disabled="checking">
+          {{ checking ? "Connecting…" : "Connect" }}
+        </button>
+      </footer>
+    </form>
+  </dialog>
+</template>
+
+<style scoped src="./dialog.css"></style>
+
+<style scoped>
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.field input {
+  padding: 6px 10px;
+  border: 1px solid var(--site-c-control-border);
+  border-radius: 8px;
+  background: var(--vp-c-bg);
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+}
+
+.methods {
+  display: flex;
+  gap: 16px;
+}
+
+.methods label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.privacy.warning {
+  color: var(--vp-c-warning-1);
+}
+
+.placeholders,
+.privacy {
+  margin: 0;
+  color: var(--vp-c-text-2);
+}
+
+.error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--vp-c-danger-soft);
+  color: var(--vp-c-danger-1);
+}
+</style>
