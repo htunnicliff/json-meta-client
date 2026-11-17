@@ -41,7 +41,7 @@ async function runUntilIdle(source: string) {
       if (message.type === "request") requests[message.index] = message.request;
       if (message.type === "console") logs.push(`${message.level}: ${message.text}`);
     }
-    return { finished, requests, logs };
+    return { finished, requests, logs, messages };
   } finally {
     await worker.terminate();
   }
@@ -91,10 +91,11 @@ describe(run, () => {
   it("makes the same JMAP Request for the home page example as its generated tab", async () => {
     const tab = /```json \[JMAP Request[^\n]*\n([\s\S]*?)^```/m.exec(homeRequest)?.[1];
 
-    const { finished, requests } = await runUntilIdle(defaultExample);
+    const { finished, requests, messages } = await runUntilIdle(defaultExample);
 
     expect(finished).toBe(false);
     expect(jmapRequests(requests)).toEqual([JSON.parse(tab!)]);
+    expect(messages.some(({ type }) => type === "hook")).toBe(false);
   });
 
   it("stops after the first Batch when calls are awaited in turn", async () => {
@@ -151,6 +152,103 @@ describe(run, () => {
       "download",
       "eventSource",
     ]);
+  });
+
+  it("links configured hooks to the Session and batch even when a hook rewrites the Request URL", async () => {
+    const { messages } = await runUntilIdle(`
+      import { JsonMetaClient } from "json-meta-client";
+      const client = new JsonMetaClient({
+        auth: "<token>", sessionUrl: "<server>/.well-known/jmap", capabilities: ["mail"],
+        hooks: {
+          beforeJmapRequest: [function first({ request }) { return request; }, ({ request }) => request],
+          beforeFetch: [async ({ request }) => new Request(request.url + "?rewrite", {
+            method: request.method,
+            headers: request.headers,
+            body: request.body ? await request.text() : undefined,
+          })],
+          afterFetch: [({ response }) => response],
+          afterJmapResponse: [({ response }) => response],
+          beforeEventSourceConnect: [({ request }) => request],
+        },
+      });
+      await client.api.Mailbox.get({});
+    `);
+
+    const requests = messages.filter((event) => event.type === "request");
+    const hooks = messages.filter((event) => event.type === "hook");
+    expect(requests.map(({ request }) => request.kind)).toEqual(["session", "request"]);
+    expect(requests[1].request.url).toMatch(/\?rewrite$/);
+    const callsFor = (request: (typeof requests)[number]) =>
+      hooks
+        .filter(({ operation }) => operation === request.operation)
+        .map(({ call }) => [call.name, call.position, call.callback, call.status]);
+    expect(callsFor(requests[0])).toEqual([
+      ["beforeFetch", 1, "", "running"],
+      ["beforeFetch", 1, "", "completed"],
+      ["afterFetch", 1, "", "running"],
+      ["afterFetch", 1, "", "completed"],
+    ]);
+    expect(callsFor(requests[1])).toEqual([
+      ["beforeJmapRequest", 1, "first", "running"],
+      ["beforeJmapRequest", 1, "first", "completed"],
+      ["beforeJmapRequest", 2, "", "running"],
+      ["beforeJmapRequest", 2, "", "completed"],
+      ["beforeFetch", 1, "", "running"],
+      ["beforeFetch", 1, "", "completed"],
+    ]);
+  });
+
+  it("reports a hook failure before sending a batch, even when user code catches it", async () => {
+    const { messages, requests } = await runUntilIdle(`
+      import { JsonMetaClient } from "json-meta-client";
+      const client = new JsonMetaClient({
+        auth: "<token>", sessionUrl: "<server>/.well-known/jmap", capabilities: ["mail"],
+        hooks: { beforeJmapRequest: [async () => {
+          await Promise.resolve();
+          throw new Error("stopped by hook");
+        }] },
+      });
+      await client.api.Mailbox.get({}).catch(() => {});
+    `);
+
+    expect(requests.map(({ kind }) => kind)).toEqual(["session"]);
+    const hooks = messages.filter((event) => event.type === "hook");
+    expect(hooks).toMatchObject([
+      { target: { kind: "batch" }, call: { name: "beforeJmapRequest", status: "running" } },
+      {
+        target: { kind: "batch" },
+        call: { name: "beforeJmapRequest", status: "failed", message: "Error: stopped by hook" },
+      },
+    ]);
+    expect(hooks[0].operation).toBe(hooks[1].operation);
+  });
+
+  it("keeps a waiting hook on its own batch when an isolated batch reaches fetch first", async () => {
+    const { messages } = await runUntilIdle(`
+      import { JsonMetaClient } from "json-meta-client";
+      const client = new JsonMetaClient({
+        auth: "<token>", sessionUrl: "<server>/.well-known/jmap", capabilities: ["mail"],
+        hooks: { beforeJmapRequest: [async ({ request }) => {
+          if (request.methodCalls[0][0] === "Mailbox/get") await new Promise(() => {});
+          return request;
+        }] },
+      });
+      await client.session;
+      void client.api.Mailbox.get({});
+      client.isolated((api) => { void api.Email.query({}); });
+    `);
+
+    const hooks = messages.filter((event) => event.type === "hook");
+    const batch = messages.find(
+      (event) => event.type === "request" && event.request.kind === "request",
+    );
+    expect(batch).toMatchObject({ operation: hooks[1].operation });
+    expect(hooks.map(({ operation, call }) => [operation, call.status])).toEqual([
+      [hooks[0].operation, "running"],
+      [hooks[1].operation, "running"],
+      [hooks[1].operation, "completed"],
+    ]);
+    expect(hooks[0].operation).not.toBe(hooks[1].operation);
   });
 
   it("reports when the code finishes", async () => {

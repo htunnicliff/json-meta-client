@@ -1,7 +1,9 @@
 import { docsClientOptions } from "../../../scripts/docs-client-options.ts";
 import { JsonMetaClient } from "../../../src/index.ts";
 import { fillPlaceholders, recordingFetch, seedCallIds } from "../recorder/index.ts";
+import type { RecordedKind } from "../recorder/index.ts";
 import { formatConsoleArgs } from "./format.ts";
+import type { ObserveHooks } from "./hook-trace.ts";
 import { SHIM_SPECIFIER } from "./protocol.ts";
 import type { ConsoleLevel, Connection, RunEvent } from "./protocol.ts";
 import { createShim } from "./shim.ts";
@@ -26,15 +28,54 @@ const dataUrl = (code: string) => `data:text/javascript;charset=utf-8,${encodeUR
  * fresh worker: it replaces `fetch` and `crypto.getRandomValues`, and adds the
  * docs' ambient `client`.
  */
-export function run(code: string, post: (event: RunEvent) => void, connection?: Connection): void {
+export function run(
+  Client: typeof JsonMetaClient,
+  code: string,
+  post: (event: RunEvent) => void,
+  connection?: Connection,
+): void {
   seedCallIds(CALL_ID_SEED);
   forwardConsole(post);
   const tracer = createTracer();
   traceCallIds(tracer.onCallId);
   const customUrns = new Set<string>();
+  const operations = new WeakMap<Request, { id: number; kind: RecordedKind }>();
+  const sentOperations = new Map<number, number>();
+  let nextOperation = 0;
+  let activeHooks = 0;
+  const observeHooks: ObserveHooks = (target) => {
+    const operation = nextOperation++;
+    return {
+      update(call, state) {
+        activeHooks += state.status === "running" ? 1 : -1;
+        post({
+          type: "hook",
+          operation,
+          target,
+          call: {
+            ...call,
+            status: state.status,
+            ...(state.status === "failed" && { message: describeError(state.error) }),
+          },
+        });
+        watch();
+      },
+      send(request) {
+        operations.set(request, {
+          id: operation,
+          kind: target.kind === "batch" ? "request" : target.kind,
+        });
+      },
+    };
+  };
   const recorder = recordingFetch({
+    kindFor: (input) => (input instanceof Request ? operations.get(input)?.kind : undefined),
     extraUrns: () => [...customUrns],
-    onRecord: (request, index) => post({ type: "request", index, request }),
+    onRecord: (request, index) => {
+      const operation = sentOperations.get(index);
+      sentOperations.delete(index);
+      post({ type: "request", index, request, operation });
+    },
     onResponse: (response, index) => {
       post({ type: "response", index, response });
       watch();
@@ -43,12 +84,20 @@ export function run(code: string, post: (event: RunEvent) => void, connection?: 
     ...(connection && { passThrough: globalThis.fetch.bind(globalThis) }),
   });
   globalThis.fetch = (...args) => {
+    const request = args[0] instanceof Request ? args[0] : undefined;
+    const operation = request && operations.get(request);
+    if (operation) sentOperations.set(recorder.count, operation.id);
     watch();
-    return recorder.fetch(...args);
+    const result = recorder.fetch(...args);
+    if (request) operations.delete(request);
+    return result;
   };
 
   const server = connection && { sessionUrl: connection.sessionUrl, auth: connection.auth };
-  const shim = createShim((urns) => urns.forEach((urn) => customUrns.add(urn)), server);
+  const shim = createShim((urns) => urns.forEach((urn) => customUrns.add(urn)), server, {
+    Client,
+    observeHooks,
+  });
   const shimKey = "__jsonMetaClientShim";
   Object.assign(globalThis, {
     [shimKey]: shim,
@@ -79,7 +128,7 @@ export function run(code: string, post: (event: RunEvent) => void, connection?: 
     await recorder.settled();
     watching = false;
     post({ type: "trace", trace: tracer.trace() });
-    post({ type: "idle", finished });
+    post({ type: "idle", finished: finished && activeHooks === 0 });
   }
   function watch() {
     activity++;

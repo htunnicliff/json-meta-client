@@ -3,16 +3,19 @@ import { computed } from "vue";
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import ClipBox from "./ClipBox.vue";
-import type { Diagnostic } from "./protocol.ts";
+import HookRows from "./HookRows.vue";
+import type { Diagnostic, HookRun } from "./protocol.ts";
 import RawJson from "./RawJson.vue";
 import type { SourceLines } from "./source-lines.ts";
 import { timelineOptions } from "./timeline-options.ts";
 import type { TimelineOptions } from "./timeline-options.ts";
-import { buildTimeline } from "./timeline.ts";
+import { buildTimelineSteps } from "./timeline.ts";
 import type { RunStatus, TimelineEntry } from "./timeline.ts";
 
 const props = defineProps<{
   requests: readonly (RecordedRequest | undefined)[];
+  requestOperations: readonly (number | undefined)[];
+  hookRuns: ReadonlyMap<number, HookRun>;
   /** Responses by request index: placeholder Sessions, and those from a connected server */
   responses?: readonly (RecordedResponse | undefined)[];
   /** The host of the connected server, if any */
@@ -33,7 +36,13 @@ const emit = defineEmits<{ hoverCall: [label: string | undefined] }>();
 const show = computed(() => props.options ?? timelineOptions.defaults);
 
 const entries = computed(() =>
-  buildTimeline(props.requests).filter((entry) => show.value.sessions || entry.kind !== "session"),
+  buildTimelineSteps(props.requests, props.requestOperations, props.hookRuns)
+    .filter(({ target }) => show.value.sessions || target.kind !== "session")
+    .map((entry) =>
+      Object.assign(entry, {
+        response: entry.request && props.responses?.[entry.request.index],
+      }),
+    ),
 );
 
 const kindLabels: Record<Exclude<TimelineEntry["kind"], "batch">, string> = {
@@ -57,8 +66,18 @@ function shortUrl(url: string): string {
   }
 }
 
+const runningHook = computed(() => {
+  for (const { calls } of props.hookRuns.values()) {
+    const running = calls.find((call) => call.status === "running");
+    if (running) return running;
+  }
+});
+
 // One line about where the run is, such as "Waiting on #1 Email/query (line 9)"
 const statusLine = computed(() => {
+  if (runningHook.value && (props.status === "running" || props.status === "waiting")) {
+    return `Running ${runningHook.value.name}…`;
+  }
   switch (props.status) {
     case "ready":
       // The template adds the connected host, as code
@@ -82,7 +101,7 @@ const statusLine = computed(() => {
 // Without a server, awaited responses never arrive, so code after the first
 // such await, its console output included, never runs
 const waitingHint = computed(() => {
-  if (props.status !== "waiting" || props.connected) return undefined;
+  if (props.status !== "waiting" || props.connected || runningHook.value) return undefined;
   const line = props.lines?.waiting[0]?.range.start.line;
   const after = line === undefined ? "Code after this await" : `Code after line ${line}`;
   return `${after} runs only when a server responds. Connect to a server to run it.`;
@@ -104,27 +123,28 @@ const waitingHint = computed(() => {
         <span class="step" aria-hidden="true">{{ position + 1 }}</span>
         <header class="entry-header">
           <span class="entry-title">{{
-            entry.kind === "batch" ? `Batch ${entry.number}` : kindLabels[entry.kind]
+            entry.target.kind === "batch" ? `Batch ${entry.number}` : kindLabels[entry.target.kind]
           }}</span>
-          <code class="method" :data-method="entry.method">{{ entry.method }}</code>
+          <code class="method" :data-method="entry.target.method">{{ entry.target.method }}</code>
           <span class="target">
-            <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
+            <code class="url" :title="entry.target.url">{{ shortUrl(entry.target.url) }}</code>
             <span
-              v-if="entry.kind === 'session' && !connected"
+              v-if="entry.request?.kind === 'session' && !connected"
               class="mocked"
               title="Not sent: a placeholder Session"
               >Mocked<span class="visually-hidden">: not sent, a placeholder Session</span></span
             >
-            <span v-else-if="responses?.[entry.index]" class="aside">
-              HTTP {{ responses[entry.index]!.status || "failed" }}
+            <span v-else-if="entry.response" class="aside">
+              HTTP {{ entry.response.status || "failed" }}
             </span>
           </span>
         </header>
-        <template v-if="show.requestBodies">
-          <ClipBox v-if="entry.kind === 'batch'" :clip="show.clipLong">
+        <HookRows v-if="entry.before.length" :calls="entry.before" phase="before" />
+        <template v-if="show.requestBodies && entry.request">
+          <ClipBox v-if="entry.request.kind === 'batch'" :clip="show.clipLong">
             <RawJson
               class="entry-body"
-              :batch="entry"
+              :batch="entry.request"
               label="JMAP Request as sent"
               :highlighted="highlighted"
               :line-numbers="show.lineNumbers"
@@ -133,30 +153,31 @@ const waitingHint = computed(() => {
             />
           </ClipBox>
           <ClipBox
-            v-else-if="entry.kind !== 'session' && entry.body !== undefined"
+            v-else-if="entry.request.kind !== 'session' && entry.request.body !== undefined"
             :clip="show.clipLong"
           >
-            <pre class="entry-body plain"><code>{{ formatBody(entry.body) }}</code></pre>
+            <pre class="entry-body plain"><code>{{ formatBody(entry.request.body) }}</code></pre>
           </ClipBox>
         </template>
-        <template v-if="show.responses && responses?.[entry.index]?.body !== undefined">
-          <h4 v-if="show.requestBodies && entry.kind !== 'session'" class="response-heading">
+        <template v-if="show.responses && entry.response?.body !== undefined">
+          <h4 v-if="show.requestBodies && entry.target.kind !== 'session'" class="response-heading">
             Response
           </h4>
           <ClipBox :clip="show.clipLong">
             <pre
-              v-if="typeof responses![entry.index]!.body === 'string'"
+              v-if="typeof entry.response.body === 'string'"
               class="entry-body plain"
-            ><code>{{ responses![entry.index]!.body }}</code></pre>
+            ><code>{{ entry.response.body }}</code></pre>
             <RawJson
               v-else
               class="entry-body"
-              :body="responses![entry.index]!.body"
-              :label="entry.kind === 'session' ? 'Session' : 'Response'"
+              :body="entry.response.body"
+              :label="entry.target.kind === 'session' ? 'Session' : 'Response'"
               :line-numbers="show.lineNumbers"
             />
           </ClipBox>
         </template>
+        <HookRows v-if="entry.after.length" :calls="entry.after" phase="after" />
       </li>
     </ol>
 

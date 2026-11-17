@@ -1,4 +1,5 @@
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
+import type { HookCall, HookTarget } from "./hook-trace.ts";
 import type { Trace } from "./tracer.ts";
 
 /**
@@ -44,12 +45,24 @@ export interface Connection {
   auth: string | { username: string; password: string };
 }
 
+export interface HookUpdate extends HookCall {
+  status: "running" | "completed" | "failed";
+  message?: string;
+}
+
+export interface HookRun {
+  target: HookTarget;
+  calls: readonly HookUpdate[];
+}
+
 /**
  * What a run reports, in the order it happens
  */
 export type RunEvent =
   /** A request the code made, with its position in send order */
-  | { type: "request"; index: number; request: RecordedRequest }
+  | { type: "request"; index: number; request: RecordedRequest; operation?: number }
+  /** A configured hook started or settled on an operation that may still be unsent */
+  | { type: "hook"; operation: number; target: HookTarget; call: HookUpdate }
   /** The response to the request at `index`: from a connected server, or a placeholder Session */
   | { type: "response"; index: number; response: RecordedResponse }
   /**

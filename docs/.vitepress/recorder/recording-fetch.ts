@@ -60,6 +60,8 @@ export interface RecordedResponse {
 export const MAX_RESPONSE_BYTES = 100_000;
 
 export interface RecorderOptions {
+  /** The client operation a request belongs to, when known before URL classification. */
+  kindFor?: (input: RequestInfo | URL) => RecordedKind | undefined;
   /**
    * Capability URNs to add to each placeholder Session, read at each Session
    * fetch, such as those of custom capabilities a client was configured with
@@ -89,6 +91,7 @@ export interface RecorderOptions {
  * Create a {@link Recorder}
  */
 export function recordingFetch({
+  kindFor,
   extraUrns,
   onRecord,
   passThrough,
@@ -171,7 +174,7 @@ export function recordingFetch({
       );
       return new Promise(() => {});
     }
-    const kind = classify(request.method, request.url);
+    const kind = kindFor?.(input) ?? classify(request.method, request.url);
     if (passThrough) return send(request, kind, passThrough);
     const index = push(record(request, kind));
     if (kind !== "session") return new Promise(() => {});

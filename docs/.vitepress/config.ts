@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
 
+import { playgroundHookPatch } from "./playground/hook-patch.ts";
 import { playgroundTypes } from "./playground/types-plugin.ts";
 import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
 
@@ -96,11 +97,11 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [groupIconVitePlugin(), playgroundTypes()],
+    plugins: [groupIconVitePlugin(), playgroundTypes(), playgroundHookPatch()],
     // The playground's workers import the library, which loads
     // `eventsource-client` on demand, so they need code splitting.
     // Workers are built with their own plugins: the editor's TypeScript
     // worker imports the library's declarations.
-    worker: { format: "es", plugins: () => [playgroundTypes()] },
+    worker: { format: "es", plugins: () => [playgroundTypes(), playgroundHookPatch()] },
   },
 });
