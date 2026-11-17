@@ -16,6 +16,7 @@ import {
 import type { WorkerShape } from "@valtown/codemirror-ts/worker";
 import { basicSetup } from "codemirror";
 
+import { awaitFade } from "./await-fade.ts";
 import { EDITOR_FILE } from "./editor-options.ts";
 import type { SourcePosition } from "./instrument.ts";
 import { placeholderMarks, setPlaceholderFill } from "./placeholder-marks.ts";
@@ -162,6 +163,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       behaviorParts(options.behavior).map(([compartment, extension]) => compartment.of(extension)),
       highlighted,
       placeholderMarks,
+      awaitFade,
       Prec.high(
         keymap.of([
           {
