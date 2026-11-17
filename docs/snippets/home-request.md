@@ -40,20 +40,20 @@ for (const { subject, from } of emails.list) {
         "limit": 5,
         "accountId": "<account-id>"
       },
-      "Email/query::c9f3fdeb"
+      "Email/query::f3c9ebfd"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::c9f3fdeb",
+          "resultOf": "Email/query::f3c9ebfd",
           "path": "/ids"
         },
         "properties": ["subject", "from"],
         "accountId": "<account-id>"
       },
-      "Email/get::16cac814"
+      "Email/get::2b30f05c"
     ]
   ]
 }

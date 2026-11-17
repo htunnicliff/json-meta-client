@@ -142,7 +142,7 @@ const inboxId = mailboxes.ids[0]!;
         "limit": 1,
         "accountId": "<account-id>"
       },
-      "Mailbox/query::c9f3fdeb"
+      "Mailbox/query::f3c9ebfd"
     ]
   ]
 }
@@ -186,14 +186,14 @@ for (const email of emails.list) {
         "limit": 10,
         "accountId": "<account-id>"
       },
-      "Email/query::c9f3fdeb"
+      "Email/query::f3c9ebfd"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "Email/query::c9f3fdeb",
+          "resultOf": "Email/query::f3c9ebfd",
           "path": "/ids"
         },
         "properties": [
@@ -205,7 +205,7 @@ for (const email of emails.list) {
         ],
         "accountId": "<account-id>"
       },
-      "Email/get::16cac814"
+      "Email/get::2b30f05c"
     ]
   ]
 }
