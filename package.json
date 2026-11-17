@@ -89,7 +89,7 @@
     "oxlint": "1.93.0",
     "oxlint-tsgolint": "7.0.2007",
     "pkg-pr-new": "0.0.93",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "publint": "0.3.25",
     "svgo": "4.1.0",
     "testcontainers": "12.2.1",
