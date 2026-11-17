@@ -116,6 +116,11 @@ To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks
 Each hook option accepts an _array_ of one or more functions that run
 in sequence.
 
+JMAP hooks receive `jmapRequest` and, for `afterJmapResponse`, `jmapResponse`.
+These are JMAP envelopes. Fetch and event-source hooks receive `httpRequest`
+and, for after hooks, `httpResponse`. These are Fetch `Request` and `Response`
+instances.
+
 #### `hooks.beforeFetch`
 
 Runs for every fetch request (e.g. session, JMAP, blob).

@@ -3,6 +3,8 @@ import { BUILT_IN_CAPABILITIES } from "../../../src/built-ins.ts";
 import * as library from "../../../src/index.ts";
 import { fillPlaceholders } from "../recorder/index.ts";
 import type { PlaceholderServer } from "../recorder/index.ts";
+import { hookObservers } from "./hook-trace.ts";
+import type { ObserveHooks } from "./hook-trace.ts";
 
 const builtInUrns = new Set<string>(Object.values(BUILT_IN_CAPABILITIES).map(({ urn }) => urn));
 
@@ -30,12 +32,16 @@ function customUrns(capabilities: unknown): string[] {
 export function createShim(
   reportUrns: (urns: string[]) => void,
   server?: PlaceholderServer,
+  instrumentation?: { Client: typeof library.JsonMetaClient; observeHooks: ObserveHooks },
 ): typeof library {
-  class JsonMetaClient extends library.JsonMetaClient<any, any> {
+  const Client = instrumentation?.Client ?? library.JsonMetaClient;
+  class JsonMetaClient extends Client<any, any> {
     constructor(options: library.Config<any>) {
       const urns = customUrns(options?.capabilities);
       if (urns.length) reportUrns(urns);
-      super(fillPlaceholders(options, server));
+      const filled = fillPlaceholders(options, server);
+      if (instrumentation && filled.hooks) hookObservers.set(filled, instrumentation.observeHooks);
+      super(filled);
     }
   }
   return { ...library, JsonMetaClient: JsonMetaClient as typeof library.JsonMetaClient };

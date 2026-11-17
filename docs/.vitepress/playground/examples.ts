@@ -104,6 +104,59 @@ try {
 }
 `;
 
+const rewriteEmailQuery = `import { JsonMetaClient } from "json-meta-client";
+import type { BeforeJmapRequestHook } from "json-meta-client";
+
+const setEmailQueryLimit: BeforeJmapRequestHook = ({ jmapRequest }) => {
+  for (const [method, args] of jmapRequest.methodCalls) {
+    if (method === "Email/query") {
+      Object.assign(args, { limit: 5 });
+    }
+  }
+  return jmapRequest;
+};
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>",
+  auth: "<credentials>",
+  capabilities: ["mail"],
+  hooks: {
+    beforeJmapRequest: [setEmailQueryLimit],
+  },
+});
+
+// The outgoing batch shows the limit set by the hook.
+const { ids } = await client.api.Email.query({ limit: 25 });
+console.log(ids);
+`;
+
+const logHttpTraffic = `import { JsonMetaClient } from "json-meta-client";
+import type { AfterFetchHook, BeforeFetchHook } from "json-meta-client";
+
+const logRequest: BeforeFetchHook = ({ httpRequest }) => {
+  console.log(httpRequest.method, new URL(httpRequest.url).pathname);
+  return httpRequest;
+};
+
+const logResponse: AfterFetchHook = ({ httpRequest, httpResponse }) => {
+  console.log(httpResponse.status, new URL(httpRequest.url).pathname);
+  return httpResponse;
+};
+
+const client = new JsonMetaClient({
+  sessionUrl: "<server>",
+  auth: "<credentials>",
+  capabilities: ["mail"],
+  hooks: {
+    beforeFetch: [logRequest],
+    afterFetch: [logResponse],
+  },
+});
+
+const { list } = await client.api.Mailbox.get({ properties: ["name"] });
+console.log(list.map(({ name }) => name));
+`;
+
 /**
  * The examples the playground offers, the first being its default
  */
@@ -111,6 +164,8 @@ export const examples: readonly Example[] = [
   { id: "unread-subjects", title: "Unread subjects", code: defaultExample },
   { id: "sequential-awaits", title: "Sequential awaits", code: sequentialAwaits },
   { id: "event-source", title: "Event source", code: eventSource },
+  { id: "rewrite-email-query", title: "Rewrite an email query", code: rewriteEmailQuery },
+  { id: "log-http-traffic", title: "Log HTTP traffic", code: logHttpTraffic },
 ];
 
 const withoutWhitespace = (text: string) => text.replaceAll(/\s+/g, "");

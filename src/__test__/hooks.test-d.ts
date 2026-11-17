@@ -30,46 +30,46 @@ describe("hook types", () => {
       auth: "token",
       hooks: {
         beforeFetch: [
-          ({ request }) => {
-            expectTypeOf(request).toEqualTypeOf<Request>();
-            return request;
+          ({ httpRequest }) => {
+            expectTypeOf(httpRequest).toEqualTypeOf<Request>();
+            return httpRequest;
           },
-          async ({ request }) => request,
+          async ({ httpRequest }) => httpRequest,
         ],
         afterFetch: [
-          ({ request, response }) => {
-            expectTypeOf(request).toEqualTypeOf<Request>();
-            expectTypeOf(response).toEqualTypeOf<Response>();
-            return response;
+          ({ httpRequest, httpResponse }) => {
+            expectTypeOf(httpRequest).toEqualTypeOf<Request>();
+            expectTypeOf(httpResponse).toEqualTypeOf<Response>();
+            return httpResponse;
           },
-          async ({ response }) => response,
+          async ({ httpResponse }) => httpResponse,
         ],
         beforeJmapRequest: [
-          ({ request }) => {
-            expectTypeOf(request).toEqualTypeOf<JmapRequest>();
-            return request;
+          ({ jmapRequest }) => {
+            expectTypeOf(jmapRequest).toEqualTypeOf<JmapRequest>();
+            return jmapRequest;
           },
-          async ({ request }) => request,
+          async ({ jmapRequest }) => jmapRequest,
         ],
         afterJmapResponse: [
-          ({ request, response }) => {
-            expectTypeOf(request).toEqualTypeOf<JmapRequest>();
-            expectTypeOf(response).toEqualTypeOf<JmapResponse>();
-            return response;
+          ({ jmapRequest, jmapResponse }) => {
+            expectTypeOf(jmapRequest).toEqualTypeOf<JmapRequest>();
+            expectTypeOf(jmapResponse).toEqualTypeOf<JmapResponse>();
+            return jmapResponse;
           },
-          async ({ response }) => response,
+          async ({ jmapResponse }) => jmapResponse,
         ],
         beforeEventSourceConnect: [
-          ({ request }) => {
-            expectTypeOf(request).toEqualTypeOf<Request>();
-            return request;
+          ({ httpRequest }) => {
+            expectTypeOf(httpRequest).toEqualTypeOf<Request>();
+            return httpRequest;
           },
-          async ({ request }) => request,
+          async ({ httpRequest }) => httpRequest,
         ],
         afterEventSourceConnect: [
-          ({ request, response }) => {
-            expectTypeOf(request).toEqualTypeOf<Request>();
-            expectTypeOf(response).toEqualTypeOf<Response>();
+          ({ httpRequest, httpResponse }) => {
+            expectTypeOf(httpRequest).toEqualTypeOf<Request>();
+            expectTypeOf(httpResponse).toEqualTypeOf<Response>();
           },
           async () => {
             await Promise.resolve();
@@ -77,7 +77,7 @@ describe("hook types", () => {
         ],
       },
     });
-    assertType<BeforeEventSourceConnectHook>(({ request }) => request);
+    assertType<BeforeEventSourceConnectHook>(({ httpRequest }) => httpRequest);
   });
 
   it("rejects removed hook properties and type exports", () => {
@@ -95,10 +95,14 @@ describe("hook types", () => {
   it("rejects cross-layer arguments, wrong replacements, and missing returns", () => {
     // @ts-expect-error - Fetch hooks receive an argument object.
     assertType<BeforeFetchHook>((request: Request) => request);
+    // @ts-expect-error - Fetch hooks receive an HTTP request.
+    assertType<BeforeFetchHook>(({ jmapRequest }) => new Request(jmapRequest));
+    // @ts-expect-error - JMAP response hooks receive JMAP envelopes.
+    assertType<AfterJmapResponseHook>(({ httpResponse }) => httpResponse);
     // @ts-expect-error - Request transformers must return a Request.
     assertType<BeforeFetchHook>(() => {});
     // @ts-expect-error - Response transformers cannot return a request.
-    assertType<AfterFetchHook>(({ request }) => request);
+    assertType<AfterFetchHook>(({ httpRequest }) => httpRequest);
     // @ts-expect-error - Envelopes are not Fetch requests.
     assertType<BeforeJmapRequestHook>(() => new Request("https://example.test"));
     // @ts-expect-error - Envelope hooks require all request fields.
@@ -112,6 +116,6 @@ describe("hook types", () => {
     // @ts-expect-error - Connection observers cannot replace the validated response.
     assertType<AfterEventSourceConnectHook>(() => new Response());
     // @ts-expect-error - Async observers cannot replace the validated response either.
-    assertType<AfterEventSourceConnectHook>(async ({ response }) => response);
+    assertType<AfterEventSourceConnectHook>(async ({ httpResponse }) => httpResponse);
   });
 });

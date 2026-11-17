@@ -179,12 +179,12 @@ export class Dispatcher {
     };
     for (const hook of this.#options.hooks?.beforeJmapRequest ?? []) {
       // oxlint-disable-next-line no-await-in-loop
-      request = await hook({ request });
+      request = await hook({ jmapRequest: request });
     }
     let response = await this.#options.transport(request, session);
     for (const hook of this.#options.hooks?.afterJmapResponse ?? []) {
       // oxlint-disable-next-line no-await-in-loop
-      response = await hook({ request, response });
+      response = await hook({ jmapRequest: request, jmapResponse: response });
     }
     return response;
   }

@@ -1,4 +1,5 @@
 /* oxlint-disable unicorn/require-post-message-target-origin */
+import { JsonMetaClient } from "../../../src/client.ts?playground-hooks";
 import type { RunEvent, RunRequest } from "./protocol.ts";
 import { describeError, run } from "./run.ts";
 
@@ -23,7 +24,7 @@ self.addEventListener(
   "message",
   ({ data }: MessageEvent<RunRequest>) => {
     connection = data.connection;
-    run(data.code, post, connection);
+    run(JsonMetaClient, data.code, post, connection);
   },
   { once: true },
 );

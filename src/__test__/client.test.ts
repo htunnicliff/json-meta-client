@@ -1293,7 +1293,7 @@ describe(JsonMetaClient, () => {
           capabilities: [mail],
           hooks: {
             beforeJmapRequest: [
-              ({ request }) => {
+              ({ jmapRequest: request }) => {
                 seen.push(structuredClone(request));
                 return request;
               },
@@ -1649,13 +1649,13 @@ describe(JsonMetaClient, () => {
       })
         .get(sessionUrlPath)
         .reply(200, DEFAULT_SESSION);
-      const firstHook = vi.fn<BeforeFetchHook>(async ({ request }) => {
+      const firstHook = vi.fn<BeforeFetchHook>(async ({ httpRequest: request }) => {
         const headers = new Headers(request.headers);
         headers.set("x-first-hook", "first");
         await Promise.resolve();
         return new Request(request, { headers });
       });
-      const secondHook = vi.fn<BeforeFetchHook>(({ request }) => {
+      const secondHook = vi.fn<BeforeFetchHook>(({ httpRequest: request }) => {
         const headers = new Headers(request.headers);
         headers.set("x-second-hook", "second");
         return new Request(request, { headers });
@@ -1680,13 +1680,13 @@ describe(JsonMetaClient, () => {
     it("runs hooks in order and uses each returned response", async () => {
       nock.cleanAll();
       const scope = mockSession();
-      const firstHook = vi.fn<AfterFetchHook>(async ({ response }) => {
+      const firstHook = vi.fn<AfterFetchHook>(async ({ httpResponse: response }) => {
         const headers = new Headers(response.headers);
         headers.set("x-first-hook", "first");
         await Promise.resolve();
         return new Response(response.body, { status: response.status, headers });
       });
-      const secondHook = vi.fn<AfterFetchHook>(({ response }) => {
+      const secondHook = vi.fn<AfterFetchHook>(({ httpResponse: response }) => {
         expect(response.headers.get("x-first-hook")).toBe("first");
         const headers = new Headers(response.headers);
         headers.set("x-second-hook", "second");

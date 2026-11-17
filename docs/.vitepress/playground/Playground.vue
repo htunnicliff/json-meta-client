@@ -14,7 +14,7 @@ import type { CodeEditor } from "./editor.ts";
 import { examples, findExample } from "./examples.ts";
 import type { SourceInfo } from "./instrument.ts";
 import OptionsMenu from "./OptionsMenu.vue";
-import type { Connection, Diagnostic } from "./protocol.ts";
+import type { Connection, Diagnostic, HookRun } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { labelsAt, sourceLines } from "./source-lines.ts";
@@ -30,6 +30,8 @@ import type { Trace } from "./tracer.ts";
  */
 interface RunView {
   requests: RecordedRequest[];
+  requestOperations: (number | undefined)[];
+  hookRuns: ReadonlyMap<number, HookRun>;
   diagnostics: Diagnostic[];
   errors: string[];
   logs: ConsoleLine[];
@@ -44,6 +46,8 @@ interface RunView {
 
 const emptyView = (code: string, status: RunStatus): RunView => ({
   requests: [],
+  requestOperations: [],
+  hookRuns: new Map(),
   diagnostics: [],
   errors: [],
   logs: [],
@@ -156,14 +160,30 @@ function onEvent(event: RunnerEvent) {
     case "start":
       break;
     case "request":
-      update(({ requests }) => {
-        const copy = [...requests];
-        copy[event.index] = event.request;
-        return { requests: copy };
+      update(({ requests, requestOperations }) => {
+        const nextRequests = [...requests];
+        const nextOperations = [...requestOperations];
+        nextRequests[event.index] = event.request;
+        nextOperations[event.index] = event.operation;
+        return { requests: nextRequests, requestOperations: nextOperations };
+      });
+      break;
+    case "hook":
+      update(({ hookRuns }) => {
+        const next = new Map(hookRuns);
+        const calls = [...(next.get(event.operation)?.calls ?? [])];
+        const previous = calls.findIndex(
+          ({ name, position }) => name === event.call.name && position === event.call.position,
+        );
+        calls[previous < 0 ? calls.length : previous] = event.call;
+        next.set(event.operation, { target: event.target, calls });
+        return { hookRuns: next };
       });
       break;
     case "idle":
-      update(() => ({ status: event.finished ? "finished" : "waiting" }));
+      update(({ status }) => ({
+        status: status === "failed" ? status : event.finished ? "finished" : "waiting",
+      }));
       break;
     case "diagnostics":
       update(() => ({ diagnostics: event.diagnostics, status: "failed" }));
@@ -459,6 +479,8 @@ onBeforeUnmount(() => {
         <div class="output">
           <TimelinePanel
             :requests="view.requests"
+            :request-operations="view.requestOperations"
+            :hook-runs="view.hookRuns"
             :responses="view.responses"
             :connected="server"
             :status="status"

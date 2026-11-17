@@ -1,4 +1,5 @@
 import type { RecordedKind, RecordedRequest } from "../recorder/index.ts";
+import type { HookRun, HookUpdate } from "./protocol.ts";
 
 /**
  * Where a run is: not run since the code last changed, running, waiting at a
@@ -51,6 +52,57 @@ export interface TimelineCall {
    * method call referred to, or its call id when it is not in the timeline
    */
   references: Record<string, string>;
+}
+
+interface TimelineStep {
+  key: string;
+  target: Pick<TimelineEntry, "kind" | "method" | "url">;
+  number?: number;
+  request?: TimelineEntry;
+  before: HookUpdate[];
+  after: HookUpdate[];
+}
+
+/** Keep requests in send order and also show operations that have started a hook before fetch. */
+export function buildTimelineSteps(
+  requests: readonly (RecordedRequest | undefined)[],
+  requestOperations: readonly (number | undefined)[],
+  hookRuns: ReadonlyMap<number, HookRun>,
+): TimelineStep[] {
+  const pending = new Map(hookRuns);
+  let batches = 0;
+  const steps = buildTimeline(requests).map((request): TimelineStep => {
+    const operation = requestOperations[request.index];
+    const hooks = operation === undefined ? undefined : pending.get(operation);
+    if (operation !== undefined) pending.delete(operation);
+    const { before, after } = partitionHooks(hooks?.calls ?? []);
+    return {
+      key: operation === undefined ? request.key : `operation-${operation}`,
+      target: request,
+      number: request.kind === "batch" ? ++batches : undefined,
+      request,
+      before,
+      after,
+    };
+  });
+  for (const [operation, { target, calls }] of pending) {
+    steps.push({
+      key: `operation-${operation}`,
+      target,
+      number: target.kind === "batch" ? ++batches : undefined,
+      ...partitionHooks(calls),
+    });
+  }
+  return steps;
+}
+
+function partitionHooks(calls: readonly HookUpdate[]) {
+  const before: HookUpdate[] = [];
+  const after: HookUpdate[] = [];
+  for (const call of calls) {
+    (call.name.startsWith("before") ? before : after).push(call);
+  }
+  return { before, after };
 }
 
 type Invocation = [name: string, args: Record<string, unknown>, callId: string];

@@ -38,7 +38,7 @@ describe("session", () => {
       {
         hooks: {
           beforeFetch: [
-            ({ request }) => {
+            ({ httpRequest: request }) => {
               if (request.url === sessionUrl) sessionFetches.push(request.url);
               return request;
             },

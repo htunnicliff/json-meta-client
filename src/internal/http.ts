@@ -49,7 +49,7 @@ export class HttpClient {
       ];
       for (const hook of beforeHooks) {
         // oxlint-disable-next-line no-await-in-loop
-        request = await hook({ request });
+        request = await hook({ httpRequest: request });
       }
       requestClone = request.clone();
       response = await fetch(request);
@@ -66,7 +66,7 @@ export class HttpClient {
     try {
       for (const hook of hooks.afterFetch ?? []) {
         // oxlint-disable-next-line no-await-in-loop
-        response = await hook({ request: requestClone, response });
+        response = await hook({ httpRequest: requestClone, httpResponse: response });
       }
       if (eventSource && response.status !== 204) {
         if (!isReadableEventStream(response)) {
@@ -74,7 +74,7 @@ export class HttpClient {
         }
         for (const hook of hooks.afterEventSourceConnect ?? []) {
           // oxlint-disable-next-line no-await-in-loop
-          await hook({ request: requestClone, response });
+          await hook({ httpRequest: requestClone, httpResponse: response });
         }
       }
       if (!response.ok) {

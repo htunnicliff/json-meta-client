@@ -39,27 +39,27 @@ describe("Fetch hooks", () => {
       auth: "token",
       hooks: {
         beforeFetch: [
-          async ({ request }) => {
+          async ({ httpRequest: request }) => {
             expect(request.headers.get("authorization")).toBe("Bearer token");
             await Promise.resolve();
             const headers = new Headers(request.headers);
             headers.set("x-hook", "first");
             return new Request(request, { headers });
           },
-          ({ request }) => {
+          ({ httpRequest: request }) => {
             expect(request.headers.get("x-hook")).toBe("first");
             request.headers.set("x-hook", "second");
             return request;
           },
         ],
         afterFetch: [
-          async ({ request, response }) => {
+          async ({ httpRequest: request, httpResponse: response }) => {
             seen.push(new URL(request.url).pathname);
             expect(request.headers.get("x-hook")).toBe("second");
             await Promise.resolve();
             return new Response(response.body, { headers: { "x-response": "first" } });
           },
-          ({ response }) => {
+          ({ httpResponse: response }) => {
             expect(response.headers.get("x-response")).toBe("first");
             return response;
           },
@@ -103,25 +103,25 @@ describe("JMAP envelope hooks", () => {
       capabilities: [],
       hooks: {
         beforeJmapRequest: [
-          ({ request }) => {
+          ({ jmapRequest: request }) => {
             events.push(`beforeJmapRequest ${JSON.stringify(request.methodCalls[0]![1])}`);
             return { ...request, createdIds: {} };
           },
         ],
         beforeFetch: [
-          ({ request }) => {
+          ({ httpRequest: request }) => {
             events.push(`beforeFetch ${new URL(request.url).pathname}`);
             return request;
           },
         ],
         afterFetch: [
-          ({ request, response }) => {
+          ({ httpRequest: request, httpResponse: response }) => {
             events.push(`afterFetch ${new URL(request.url).pathname}`);
             return response;
           },
         ],
         afterJmapResponse: [
-          ({ response }) => {
+          ({ jmapResponse: response }) => {
             events.push("afterJmapResponse");
             return { ...response, methodResponses: [["Core/echo", { changed: true }, "echo"]] };
           },
@@ -177,7 +177,7 @@ describe("event-stream connection hooks", () => {
       },
       hooks: {
         beforeFetch: [
-          ({ request }) => {
+          ({ httpRequest: request }) => {
             if (new URL(request.url).pathname === "/events") {
               order.push("beforeFetch");
             }
@@ -185,7 +185,7 @@ describe("event-stream connection hooks", () => {
           },
         ],
         beforeEventSourceConnect: [
-          async ({ request }) => {
+          async ({ httpRequest: request }) => {
             order.push("beforeConnect");
             await Promise.resolve();
             return new Request(request, {
@@ -194,7 +194,7 @@ describe("event-stream connection hooks", () => {
           },
         ],
         afterFetch: [
-          ({ request, response }) => {
+          ({ httpRequest: request, httpResponse: response }) => {
             if (new URL(request.url).pathname !== "/events") return response;
             order.push("afterFetch");
             return new Response(response.body, {
@@ -206,7 +206,7 @@ describe("event-stream connection hooks", () => {
           },
         ],
         afterEventSourceConnect: [
-          async ({ request, response }) => {
+          async ({ httpRequest: request, httpResponse: response }) => {
             await Promise.resolve();
             order.push("afterConnect");
             expect(request.headers.get("x-connect")).toBe("ready");
@@ -344,7 +344,7 @@ it("allows afterFetch to repair HTTP errors before validation and JSON parsing",
     auth: "token",
     hooks: {
       afterFetch: [
-        ({ response }) => {
+        ({ httpResponse: response }) => {
           expect(response.status).toBe(503);
           return Response.json(makeSession());
         },
