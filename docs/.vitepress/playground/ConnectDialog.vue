@@ -62,10 +62,6 @@ async function connect(event: SubmitEvent) {
             spellcheck="false"
           />
         </label>
-        <p class="privacy">
-          Paste credentials issued for the server at the Session URL. Your password manager may
-          suggest items saved for this docs site.
-        </p>
         <div class="methods" role="radiogroup" aria-label="Credentials">
           <label for="jmap-auth-bearer">
             <input
