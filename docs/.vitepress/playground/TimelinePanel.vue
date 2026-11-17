@@ -108,8 +108,11 @@ const waitingHint = computed(() => {
           <code class="method" :data-method="entry.method">{{ entry.method }}</code>
           <span class="target">
             <code class="url" :title="entry.url">{{ shortUrl(entry.url) }}</code>
-            <span v-if="entry.kind === 'session' && !connected" class="aside"
-              >answered by the playground</span
+            <span
+              v-if="entry.kind === 'session' && !connected"
+              class="mocked"
+              title="Not sent. Without a connected server, the playground answers with a placeholder Session that supports every built-in capability. Connect a server to fetch its real Session."
+              >Mocked</span
             >
             <span v-else-if="responses?.[entry.index]" class="aside">
               HTTP {{ responses[entry.index]!.status || "failed" }}
@@ -269,6 +272,20 @@ const waitingHint = computed(() => {
   flex: none;
   font-size: 12px;
   color: var(--vp-c-text-2);
+}
+
+.mocked {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-warning-1);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 18px;
+  text-transform: uppercase;
+  cursor: help;
 }
 
 /* Bodies and responses span from the title column to the end */
