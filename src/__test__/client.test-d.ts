@@ -272,24 +272,15 @@ describe(JsonMetaClient, () => {
         expectTypeOf(result).resolves.toHaveProperty("list").items.toHaveProperty("subject");
       });
 
-      it("rejects a reference nested in an argument's object value", () => {
-        const mailboxes = client.api.Mailbox.query({ filter: { role: "inbox" } });
+      it("rejects a reference nested in an object or array argument", () => {
+        const mailboxes = client.api.Mailbox.query({});
+        const id = mailboxes.resultRef("/ids/0");
         assertType(
-          client.api.Email.query({
-            // @ts-expect-error A reference can't be nested inside an argument.
-            filter: { inMailbox: mailboxes.resultRef("/ids/0") },
-          }),
+          // @ts-expect-error A reference can't be nested inside an argument.
+          client.api.Email.query({ filter: { inMailbox: id } }),
         );
-      });
-
-      it("rejects a reference inside an array argument", () => {
-        const mailboxes = client.api.Mailbox.query({ filter: { role: "inbox" } });
-        assertType(
-          client.api.Mailbox.get({
-            // @ts-expect-error A reference can't be an item of an array argument.
-            ids: [mailboxes.resultRef("/ids/0")],
-          }),
-        );
+        // @ts-expect-error A reference can't be an item of an array argument.
+        assertType(client.api.Mailbox.get({ ids: [id] }));
       });
     });
 

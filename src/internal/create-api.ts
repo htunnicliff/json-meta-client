@@ -10,11 +10,10 @@
 
 import type { JsonObject } from "type-fest";
 
-import { ResultReferenceError, UnknownEntityError } from "../errors/index.ts";
+import { UnknownEntityError } from "../errors/index.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
-import { addRefMethod, prepareResultRefArguments } from "./ref.ts";
-import type { ArgumentProblem } from "./ref.ts";
+import { addRefMethod, markResultRefs } from "./ref.ts";
 import type { AugmentedOptions } from "./types.ts";
 
 interface ApiOptions {
@@ -84,16 +83,14 @@ function createMethod(
     // the dispatcher, so they get no default account and are never sent
     const known = isKnownEntity(entity);
 
-    const prepared = known ? prepareArguments(args) : { args };
-
     const methodCall = new MethodCall({
       method: name,
-      args: prepared.args,
+      args: known ? prepareArguments(args) : args,
       id: options?.id ?? generateMethodCallId(name),
     });
 
     const pendingResult = known
-      ? dispatcher.send(methodCall, prepared.problem && argumentError(methodCall, prepared.problem))
+      ? dispatcher.send(methodCall)
       : Promise.reject(new UnknownEntityError({ entity, method }));
 
     const withRefMethod = addRefMethod(pendingResult, {
@@ -111,27 +108,14 @@ function createMethod(
 }
 
 /**
- * Mark each top-level result reference in a method call's arguments, and
- * find the first rule of RFC 8620 §3.7 they break
+ * Rewrite the key of each top-level result reference in a method call's
+ * arguments
  */
-function prepareArguments(args: JsonObject): ReturnType<typeof prepareResultRefArguments> {
+function prepareArguments(args: JsonObject): object {
   if (typeof args !== "object" || args === null || Array.isArray(args)) {
     throw new TypeError("JMAP method arguments must be an object");
   }
-  return prepareResultRefArguments(args);
-}
-
-function argumentError(
-  methodCall: MethodCall<object>,
-  { reason, path }: ArgumentProblem,
-): ResultReferenceError {
-  const message =
-    reason === "nested"
-      ? `Cannot send ${methodCall.method}: the result reference at "${path}" is nested inside an ` +
-        "argument. A result reference must be a whole, top-level argument (RFC 8620 section 3.7)."
-      : `Cannot send ${methodCall.method}: the argument at "${path}" is given both as a ` +
-        "value and as a result reference (RFC 8620 section 3.7).";
-  return new ResultReferenceError(message, { reason, methodCall, path });
+  return markResultRefs(args);
 }
 
 /**

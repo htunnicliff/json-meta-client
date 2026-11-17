@@ -10,7 +10,6 @@
 
 import type { IsUnknown } from "type-fest";
 
-import type { ResultReferenceErrorReason } from "../errors/index.ts";
 import type { ResultReference } from "../rfc-types/core/index.ts";
 import type { ExtractByPointer, PointerPaths } from "./types.ts";
 
@@ -59,63 +58,19 @@ export function addRefMethod<Output, T extends object>(
 }
 
 /**
- * A rule of RFC 8620 §3.7 that a method call's arguments break
- */
-export interface ArgumentProblem {
-  reason: Extract<ResultReferenceErrorReason, "nested" | "duplicate-argument">;
-  /** JSON Pointer to the misplaced reference or the duplicated argument */
-  path: string;
-}
-
-/**
  * Prefix the name of each top-level argument that is a result reference
- * with `#`, the only place RFC 8620 §3.7 lets a reference appear, and find
- * the first rule the arguments break: a reference nested inside an
- * argument's value, or an argument named both with and without `#`.
+ * with `#` (RFC 8620 §3.7)
  */
-export function prepareResultRefArguments(args: object): {
-  args: Record<string, unknown>;
-  problem?: ArgumentProblem;
-} {
-  const prepared: Record<string, unknown> = {};
-  let problem: ArgumentProblem | undefined;
-  for (const [key, value] of Object.entries(args)) {
-    const name = isRef(value) ? `#${key}` : key;
-    const plainName = name.replace(/^#/, "");
-    if (
-      Object.hasOwn(prepared, name) ||
-      Object.hasOwn(prepared, name === plainName ? `#${name}` : plainName)
-    ) {
-      problem ??= { reason: "duplicate-argument", path: toPointer([plainName]) };
-    }
-    if (!isRef(value)) {
-      const nested = findRef(value, [key]);
-      if (nested) problem ??= { reason: "nested", path: toPointer(nested) };
-    }
-    prepared[name] = value;
-  }
-  return problem ? { args: prepared, problem } : { args: prepared };
+export function markResultRefs(args: object): object {
+  return Object.fromEntries(
+    Object.entries(args).map(([key, value]) => [isRef(value) ? `#${key}` : key, value]),
+  );
 }
 
 /**
- * The path to the first result reference inside `value`, if any
+ * Whether a result reference appears anywhere inside `value`
  */
-function findRef(value: unknown, path: string[]): string[] | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
-  for (const [key, item] of Object.entries(value)) {
-    const itemPath = [...path, key];
-    if (isRef(item)) return itemPath;
-    const found = findRef(item, itemPath);
-    if (found) return found;
-  }
-  return undefined;
-}
-
-/**
- * Join path segments into a JSON Pointer (RFC 6901)
- */
-function toPointer(segments: string[]): string {
-  return segments
-    .map((segment) => `/${segment.replaceAll("~", "~0").replaceAll("/", "~1")}`)
-    .join("");
+export function containsRef(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  return Object.values(value).some((item) => isRef(item) || containsRef(item));
 }

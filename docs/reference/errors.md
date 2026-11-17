@@ -24,13 +24,10 @@
   - `CapabilityConfigurationError`: `givenCapability`, `availableBuiltIns`
   - `UnknownEntityError`: `entity`, `method`; the returned promise rejects when an API call
     names an entity no capability declares, and the call is never sent
-  - `ResultReferenceError`: `reason`, `methodCall`, `path`, `resultOf`; the
-    call's promise rejects before it is sent when it breaks a result reference
-    rule (RFC 8620 section 3.7), and the rest of its batch proceeds. `reason`
-    is `"nested"` (a ref inside an argument's value, with its `path`),
-    `"duplicate-argument"` (both `foo` and `#foo`, with the argument `path`),
-    `"cross-batch"` (the ref's `resultOf` call isn't earlier in the same
-    batch), or `"duplicate-id"` (another call in the batch has the same ID)
+  - `ResultReferenceError`: `reason`, `methodCall`; the call rejects before it
+    is sent when it breaks a result reference rule (RFC 8620 section 3.7), and
+    the rest of its batch proceeds. `reason` is `"nested"`,
+    `"duplicate-argument"`, `"cross-batch"` or `"duplicate-id"`
   - `InvalidUriTemplateError`: `uriTemplate`, `givenParameters`, `availableParameters`
 :::
 

@@ -11,67 +11,37 @@
 import type { MethodCall } from "../internal/method-call.ts";
 import { JsonMetaError } from "./json-meta-error.ts";
 
-/**
- * Why the client rejected a method call's result reference before sending it:
- *
- * - `"nested"`: a reference appears inside an argument's value instead of as
- *   a whole, top-level argument
- * - `"duplicate-argument"`: the arguments name both `foo` and `#foo`
- * - `"cross-batch"`: a reference names a method call that isn't earlier in
- *   the same batch
- * - `"duplicate-id"`: another method call in the batch already uses the
- *   method call's ID
- */
-export type ResultReferenceErrorReason =
-  | "nested"
-  | "duplicate-argument"
-  | "cross-batch"
-  | "duplicate-id";
+const messages = {
+  nested: "a result reference must be a top-level argument",
+  "duplicate-argument": "an argument is given both as a value and as a result reference",
+  "cross-batch": "a result reference must name an earlier method call in the same batch",
+  "duplicate-id": "another method call in the same batch has the same ID",
+} as const;
 
 /**
- * An error for a method call that would break the rules RFC 8620 §3.7 sets
- * for result references. The client rejects the method call before sending
- * it, and the rest of its batch proceeds.
+ * Which RFC 8620 §3.7 result reference rule a method call breaks
+ */
+export type ResultReferenceErrorReason = keyof typeof messages;
+
+/**
+ * An error for a method call that breaks a result reference rule. The client
+ * rejects it without sending it, and the rest of its batch proceeds.
  */
 export class ResultReferenceError extends JsonMetaError {
   override name = "ResultReferenceError";
 
-  constructor(
-    message: string,
-    options: {
-      reason: ResultReferenceErrorReason;
-      methodCall: MethodCall<object>;
-      path?: string;
-      resultOf?: string;
-    },
-  ) {
-    super(message);
-    this.reason = options.reason;
-    this.methodCall = options.methodCall;
-    this.path = options.path;
-    this.resultOf = options.resultOf;
+  constructor(reason: ResultReferenceErrorReason, methodCall: MethodCall<object>) {
+    super(`Cannot send ${methodCall.method}: ${messages[reason]}`);
+    this.reason = reason;
+    this.methodCall = methodCall;
   }
 
-  /**
-   * Which rule the method call breaks
-   */
   readonly reason: ResultReferenceErrorReason;
 
   /**
    * The rejected method call
    */
   readonly methodCall: MethodCall<object>;
-
-  /**
-   * The JSON Pointer, within the method call's arguments, of the misplaced
-   * reference (`"nested"`) or the duplicated argument (`"duplicate-argument"`)
-   */
-  readonly path: string | undefined;
-
-  /**
-   * The method call ID that the reference names (`"cross-batch"`)
-   */
-  readonly resultOf: string | undefined;
 }
 
 export function isResultReferenceError(input: unknown): input is ResultReferenceError {
