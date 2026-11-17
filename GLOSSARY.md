@@ -21,7 +21,7 @@ _Avoid_: request pipeline, exchange, call queue, flush
 **Capability details**:
 The data a server advertises for a capability URN, server-wide in the
 Session's `capabilities` or per account in `accountCapabilities`. Each RFC file
-exports the details it defines, and `src/rfc-types/extensions.ts` maps every
+exports the details it defines, and `src/rfc-types/capability-details.ts` maps every
 known URN to them.
 _Avoid_: capability extensions, metadata registry
 

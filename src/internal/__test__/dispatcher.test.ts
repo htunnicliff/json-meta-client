@@ -12,16 +12,21 @@ import { describe, expect, it, vi } from "vitest";
 
 import { coreSessionCapabilities, makeSession } from "../../__test__/fixtures.ts";
 import { core } from "../../capabilities/core.ts";
-import { CancellationError, ConfigurationError, JmapError, MethodCallError } from "../../errors.ts";
+import {
+  CancellationError,
+  ConfigurationError,
+  JmapError,
+  MethodCallError,
+} from "../../errors/index.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
   Session,
 } from "../../rfc-types/core/index.ts";
+import type { FindMethodOwner } from "../capability-index.ts";
 import { Dispatcher } from "../dispatcher.ts";
 import type { DispatcherOptions } from "../dispatcher.ts";
 import { MethodCall } from "../method-call.ts";
-import type { FindMethodOwner } from "../method-owners.ts";
 
 /**
  * Answers each method call with its own call id, the way a well-behaved

@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { ExtendingCapability } from "../internal/types.ts";
+import type { ExtendingCapability } from "../capability.ts";
 import type { EmptyCapabilityDetails } from "../rfc-types/core/index.ts";
 import type { EmailSmimeFilter, EmailSmimeProperties } from "../rfc-types/mail/index.ts";
 

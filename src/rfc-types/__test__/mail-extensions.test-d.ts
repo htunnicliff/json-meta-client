@@ -10,7 +10,7 @@
 
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
-import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
+import type { AccountCapabilities, SessionCapabilities } from "../capability-details.ts";
 import type {
   Disposition,
   EmailGet,

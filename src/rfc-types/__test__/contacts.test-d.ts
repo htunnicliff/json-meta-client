@@ -10,6 +10,7 @@
 
 import { assertType, describe, expectTypeOf, it } from "vitest";
 
+import type { AccountCapabilities, SessionCapabilities } from "../capability-details.ts";
 import type {
   AddressBook,
   AddressBookChanges,
@@ -26,7 +27,6 @@ import type {
   WritableAddressBook,
   WritableContactCard,
 } from "../contacts/index.ts";
-import type { AccountCapabilities, SessionCapabilities } from "../extensions.ts";
 
 describe("RFC 9610 contacts types", () => {
   it("advertises contacts account limits and permissions", () => {

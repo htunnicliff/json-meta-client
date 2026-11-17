@@ -9,7 +9,12 @@
 // ----------------------------------------------------------------------- //
 
 import { DEFAULT_CAPABILITIES } from "../built-ins.ts";
-import { CancellationError, ConfigurationError, JmapError, MethodCallError } from "../errors.ts";
+import {
+  CancellationError,
+  ConfigurationError,
+  JmapError,
+  MethodCallError,
+} from "../errors/index.ts";
 import type {
   Invocation,
   Request as JmapRequest,
@@ -17,9 +22,9 @@ import type {
   Session,
 } from "../rfc-types/core/index.ts";
 import type { CapabilityOption, Config } from "../types.ts";
-import { resolveDefaultAccount } from "./default-account.ts";
+import type { FindMethodOwner } from "./capability-index.ts";
+import { resolveDefaultAccount } from "./capability-index.ts";
 import type { MethodCall } from "./method-call.ts";
-import type { FindMethodOwner } from "./method-owners.ts";
 
 /**
  * Sends a JMAP Request envelope and returns the server's Response envelope

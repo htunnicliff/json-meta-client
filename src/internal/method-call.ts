@@ -9,7 +9,6 @@
 // ----------------------------------------------------------------------- //
 
 import type { Invocation } from "../rfc-types/core/index.ts";
-import { randomHex } from "./util/random-hex.ts";
 
 interface MethodCallParams<T> {
   readonly method: string;
@@ -31,4 +30,13 @@ export class MethodCall<T extends object> implements MethodCallParams<T> {
   toInvocation = (): Invocation<T> => {
     return [this.method, this.args, this.id];
   };
+}
+
+/**
+ * Generate a string of random hexadecimal characters
+ */
+function randomHex(length: number): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(Math.ceil(length / 2)));
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return hex.slice(0, length);
 }

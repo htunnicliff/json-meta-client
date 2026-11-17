@@ -9,7 +9,7 @@
 // ----------------------------------------------------------------------- //
 
 import { BUILT_IN_CAPABILITIES, getCapabilitiesForBuiltIns } from "../built-ins.ts";
-import { CapabilityConfigurationError, ConfigurationError } from "../errors.ts";
+import { CapabilityConfigurationError, ConfigurationError } from "../errors/index.ts";
 import type { Auth, CapabilityOption, Config } from "../types.ts";
 
 /**

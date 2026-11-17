@@ -23,7 +23,7 @@ import {
   vacationResponse,
 } from "./capabilities/index.ts";
 import type { Capability } from "./capability.ts";
-import { CapabilityConfigurationError } from "./errors.ts";
+import { CapabilityConfigurationError } from "./errors/index.ts";
 
 /**
  * Built-in capabilities by the names that configure them. A plain object

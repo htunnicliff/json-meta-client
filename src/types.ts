@@ -15,9 +15,13 @@ import type {
   BuiltInCapabilityName,
   DefaultCapabilities,
 } from "./built-ins.ts";
-import type { Capability, InferMethodsFromCapability } from "./capability.ts";
-import type { StateChangeError } from "./errors.ts";
-import type { Augment, InferContractExtensions, MarkDefaultAccounts } from "./internal/types.ts";
+import type {
+  Capability,
+  InferContractExtensions,
+  InferMethodsFromCapability,
+} from "./capability.ts";
+import type { StateChangeError } from "./errors/index.ts";
+import type { Augment, MarkDefaultAccounts } from "./internal/types.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,

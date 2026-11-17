@@ -11,7 +11,7 @@
 import nock from "nock";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigurationError, NetworkError } from "../errors.ts";
+import { ConfigurationError, NetworkError } from "../errors/index.ts";
 import type { OnStateChangeHandler } from "../index.ts";
 import { JsonMetaClient } from "../index.ts";
 import { accountId, host, makeSession, sessionUrl, sessionState } from "./fixtures.ts";
