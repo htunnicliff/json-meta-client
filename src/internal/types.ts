@@ -13,7 +13,6 @@ import type {
   IsUnknown,
   KeysOfUnion,
   Paths,
-  Primitive,
   Replace,
   SetOptional,
   SetRequired,
@@ -105,37 +104,20 @@ export type PointerPaths<T> =
     : never;
 
 /**
- * Deeply allows a {@link Ref} of the expected value at any position.
- * Used by the proxy API so callers may pass `resultRef(...)` in place of concrete args.
+ * Allows a {@link Ref} of the expected value in place of the value itself.
+ * RFC 8620 §3.7 marks a result reference by prefixing an argument's name with
+ * `#`, so the proxy API accepts a `Ref` only as a whole, top-level argument.
  */
-export type AllowRefs<T> =
-  | Ref<T>
-  | (T extends Primitive
-      ? T
-      : T extends readonly [any, ...any[]]
-        ? { [K in keyof T]: AllowRefs<T[K]> }
-        : T extends readonly any[]
-          ? { [K in keyof T]: AllowRefs<T[number]> }
-          : T extends object
-            ? { [K in keyof T]: AllowRefs<T[K]> }
-            : T);
+export type AllowRef<T> = T | Ref<T>;
+
+/** The type a {@link Ref} resolves to, or `T` itself when it isn't one. */
+type UnpackRef<T> = T extends Ref<infer U> ? U : T;
 
 /**
- * Deeply replaces {@link Ref} wrappers with the types they resolve to.
+ * Replaces each top-level {@link Ref} argument with the type it resolves to.
  * Used when deriving method response types from arguments that may contain refs.
  */
-export type UnpackRefs<T> =
-  T extends Ref<infer U>
-    ? U
-    : T extends Primitive
-      ? T
-      : T extends readonly [any, ...any[]]
-        ? { [K in keyof T]: UnpackRefs<T[K]> }
-        : T extends readonly any[]
-          ? Array<UnpackRefs<T[number]>>
-          : T extends object
-            ? { [K in keyof T]: UnpackRefs<T[K]> }
-            : T;
+export type UnpackRefs<T> = { [K in keyof T]: UnpackRef<T[K]> };
 
 export type Apply<Contract extends MethodContract, Input> = (Contract & {
   input: Input;
@@ -221,7 +203,7 @@ type AcceptedInput<Contract extends MethodContract> = Contract extends {
  * {@link WithoutDefaultAccountId}.
  */
 export type MethodArguments<Contract extends MethodContract> = {
-  [Key in keyof AcceptedInput<Contract>]: AllowRefs<AcceptedInput<Contract>[Key]>;
+  [Key in keyof AcceptedInput<Contract>]: AllowRef<AcceptedInput<Contract>[Key]>;
 } extends infer Args
   ? Args extends { accountId: unknown }
     ? Contract extends WithoutDefaultAccountId

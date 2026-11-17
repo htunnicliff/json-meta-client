@@ -18,7 +18,7 @@ import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
 import type { Ref, ResultRefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
-import type { AllowRefs, AugmentMethod, MethodArguments } from "../internal/types.ts";
+import type { AllowRef, AugmentMethod, MethodArguments } from "../internal/types.ts";
 import type { MethodGet } from "../rfc-types/core/index.ts";
 import type { ReadableEmail, EmailAddress, Mailbox } from "../rfc-types/mail/index.ts";
 import type { Config } from "../types.ts";
@@ -251,11 +251,45 @@ describe(JsonMetaClient, () => {
         const threads = client.api.Thread.get({ ids: ["<pretend-thread-id>"] });
         const emailIds = threads.resultRef("/list/*/emailIds");
 
-        expectTypeOf(emailIds).not.toExtend<AllowRefs<string>>();
-        void client.api.Email.query({
-          // @ts-expect-error A list of email IDs is not a mailbox ID.
-          filter: { inMailbox: emailIds },
+        expectTypeOf(emailIds).not.toExtend<AllowRef<string>>();
+        void client.api.Email.changes({
+          // @ts-expect-error A list of email IDs is not a state string.
+          sinceState: emailIds,
         });
+      });
+    });
+
+    describe("result reference placement (RFC 8620 section 3.7)", () => {
+      it("accepts a top-level reference, including accountId, and infers the result", () => {
+        const mailboxes = client.api.Mailbox.get({ ids: null });
+        const emails = client.api.Email.query({});
+        const result = client.api.Email.get({
+          accountId: mailboxes.resultRef("/accountId"),
+          ids: emails.resultRef("/ids"),
+          properties: ["subject"],
+        });
+
+        expectTypeOf(result).resolves.toHaveProperty("list").items.toHaveProperty("subject");
+      });
+
+      it("rejects a reference nested in an argument's object value", () => {
+        const mailboxes = client.api.Mailbox.query({ filter: { role: "inbox" } });
+        assertType(
+          client.api.Email.query({
+            // @ts-expect-error A reference can't be nested inside an argument.
+            filter: { inMailbox: mailboxes.resultRef("/ids/0") },
+          }),
+        );
+      });
+
+      it("rejects a reference inside an array argument", () => {
+        const mailboxes = client.api.Mailbox.query({ filter: { role: "inbox" } });
+        assertType(
+          client.api.Mailbox.get({
+            // @ts-expect-error A reference can't be an item of an array argument.
+            ids: [mailboxes.resultRef("/ids/0")],
+          }),
+        );
       });
     });
 
@@ -350,7 +384,7 @@ describe(JsonMetaClient, () => {
         expectTypeOf<GivenArgs["accountId"]>().toEqualTypeOf<string>();
 
         type ClientArgs = Parameters<typeof client.api.Example.get>[0];
-        expectTypeOf<ClientArgs["accountId"]>().toEqualTypeOf<AllowRefs<string | undefined>>();
+        expectTypeOf<ClientArgs["accountId"]>().toEqualTypeOf<AllowRef<string | undefined>>();
       });
 
       it("respects generics (`properties` for Get requests, in this case)", async () => {
@@ -576,7 +610,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf(client.api.Blob.copy)
         .parameter(0)
         .toHaveProperty("accountId")
-        .toEqualTypeOf<AllowRefs<string>>();
+        .toEqualTypeOf<AllowRef<string>>();
       void client.api.Blob.copy({ fromAccountId: "from", accountId: "to", blobIds: ["blob"] });
       // @ts-expect-error The client cannot choose the account to copy blobs into.
       void client.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
@@ -587,7 +621,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf(blobClient.api.Blob.get)
         .parameter(0)
         .toHaveProperty("accountId")
-        .toEqualTypeOf<AllowRefs<string> | undefined>();
+        .toEqualTypeOf<AllowRef<string> | undefined>();
       void blobClient.api.Blob.get({ ids: ["blob"] });
       // @ts-expect-error The client cannot choose the account to copy blobs into.
       void blobClient.api.Blob.copy({ fromAccountId: "from", blobIds: ["blob"] });
@@ -597,7 +631,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf(client.api.Email.copy)
         .parameter(0)
         .toHaveProperty("accountId")
-        .toEqualTypeOf<AllowRefs<string> | undefined>();
+        .toEqualTypeOf<AllowRef<string> | undefined>();
       void client.api.Email.copy({ fromAccountId: "from", create: {} });
     });
 
@@ -610,7 +644,7 @@ describe(JsonMetaClient, () => {
       expectTypeOf(contactsClient.api.ContactCard.copy)
         .parameter(0)
         .toHaveProperty("accountId")
-        .toEqualTypeOf<AllowRefs<string> | undefined>();
+        .toEqualTypeOf<AllowRef<string> | undefined>();
       void contactsClient.api.ContactCard.copy({ fromAccountId: "from", create: {} });
     });
   });

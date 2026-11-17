@@ -14,6 +14,7 @@ import {
   ConfigurationError,
   JmapError,
   MethodCallError,
+  ResultReferenceError,
 } from "../errors/index.ts";
 import type {
   Invocation,
@@ -25,6 +26,7 @@ import type { CapabilityOption, Config } from "../types.ts";
 import type { FindMethodOwner } from "./capability-index.ts";
 import { resolveDefaultAccount } from "./capability-index.ts";
 import type { MethodCall } from "./method-call.ts";
+import { isRef } from "./ref.ts";
 
 /**
  * Sends a JMAP Request envelope and returns the server's Response envelope
@@ -59,6 +61,10 @@ export interface DispatcherOptions {
 interface PendingMethodCall {
   methodCall: MethodCall<object>;
   handle: PromiseWithResolvers<unknown>;
+  /**
+   * Why the method call can't be sent, when the client already knows
+   */
+  rejection?: Error | undefined;
 }
 
 /**
@@ -80,9 +86,10 @@ export class Dispatcher {
 
   /**
    * Add a method call to the current batch and get a promise for its
-   * response arguments
+   * response arguments. A method call given a `rejection` is rejected with it
+   * instead of sent.
    */
-  send = (methodCall: MethodCall<object>): Promise<unknown> => {
+  send = (methodCall: MethodCall<object>, rejection?: Error): Promise<unknown> => {
     const handle = Promise.withResolvers<unknown>();
     if (this.#batch.length === 0) {
       queueMicrotask(() => {
@@ -90,7 +97,7 @@ export class Dispatcher {
         if (batch.length > 0) void this.#dispatch(batch);
       });
     }
-    this.#batch.push({ methodCall, handle });
+    this.#batch.push({ methodCall, handle, rejection });
     return handle.promise;
   };
 
@@ -106,15 +113,22 @@ export class Dispatcher {
 
   /**
    * Send a batch and settle its method calls, rejecting every method call
-   * with the same error when the batch fails as a whole. A method call whose
-   * default account is ambiguous is rejected on its own and left out of the
-   * Request.
+   * with the same error when the batch fails as a whole. A method call that
+   * breaks a result reference rule, or whose default account is ambiguous,
+   * is rejected on its own and left out of the Request.
    */
   async #dispatch(batch: PendingMethodCall[]): Promise<void> {
-    let unsettled = batch;
+    const batchIds = new Set<string>();
+    for (const pending of batch) {
+      pending.rejection ??=
+        duplicateIdError(pending.methodCall, batchIds) ??
+        crossBatchError(pending.methodCall, batchIds);
+      batchIds.add(pending.methodCall.id);
+    }
+    let unsettled = batch.filter(keepSendable);
     try {
       const session = await this.#options.session();
-      unsettled = batch.filter((pending) => this.#addDefaultAccount(pending, session));
+      unsettled = unsettled.filter((pending) => this.#addDefaultAccount(pending, session));
       if (unsettled.length === 0) return;
 
       const response = await this.#sendBatch(
@@ -188,6 +202,56 @@ export class Dispatcher {
     }
     return response;
   }
+}
+
+/**
+ * An error for a method call whose ID another method call in its batch
+ * already uses, which would make its result references and its response
+ * ambiguous
+ */
+function duplicateIdError(
+  methodCall: MethodCall<object>,
+  batchIds: ReadonlySet<string>,
+): ResultReferenceError | undefined {
+  if (!batchIds.has(methodCall.id)) return undefined;
+  return new ResultReferenceError(
+    `Cannot send ${methodCall.method}: another method call in the same batch already uses ` +
+      `the ID "${methodCall.id}". Give each method call in a batch a unique ID.`,
+    { reason: "duplicate-id", methodCall },
+  );
+}
+
+/**
+ * An error for a method call with a result reference that names no earlier
+ * method call in its batch, which RFC 8620 §3.7 requires. A reference to a
+ * method call that the client rejects is still sent, and the server answers
+ * it with `invalidResultReference`.
+ */
+function crossBatchError(
+  methodCall: MethodCall<object>,
+  earlierIds: ReadonlySet<string>,
+): ResultReferenceError | undefined {
+  for (const [key, value] of Object.entries(methodCall.args)) {
+    if (!key.startsWith("#") || !isRef(value) || earlierIds.has(value.resultOf)) continue;
+    return new ResultReferenceError(
+      `Cannot send ${methodCall.method}: its result reference "${key}" names the method call ` +
+        `"${value.resultOf}", which is not earlier in the same batch. Make the referenced ` +
+        "method call in the same tick, without awaiting in between (RFC 8620 section 3.7).",
+      { reason: "cross-batch", methodCall, resultOf: value.resultOf },
+    );
+  }
+  return undefined;
+}
+
+/**
+ * Reject a method call that the client already knows can't be sent
+ *
+ * @returns whether the method call can still be sent
+ */
+function keepSendable({ handle, rejection }: PendingMethodCall): boolean {
+  if (!rejection) return true;
+  handle.reject(rejection);
+  return false;
 }
 
 /**

@@ -17,6 +17,7 @@ export * from "./jmap-error.ts";
 export * from "./json-meta-error.ts";
 export * from "./method-call-error.ts";
 export * from "./network-error.ts";
+export * from "./result-reference-error.ts";
 export * from "./state-change-error.ts";
 export * from "./unknown-entity-error.ts";
 export * from "./unknown-error.ts";
