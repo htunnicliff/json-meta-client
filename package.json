@@ -81,7 +81,7 @@
     "@valtown/codemirror-ts": "2.3.1",
     "codemirror": "6.0.2",
     "comlink": "4.4.2",
-    "cspell": "10.5.1",
+    "cspell": "10.5.2",
     "husky": "9.1.7",
     "nock": "15.0.6",
     "opentype.js": "2.0.0",
