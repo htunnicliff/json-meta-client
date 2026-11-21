@@ -48,7 +48,6 @@ export default defineConfig({
         text: "Getting Started",
         items: [
           { text: "Introduction", link: "/getting-started" },
-          { text: "Best Practices", link: "/best-practices" },
           { text: "Testing", link: "/testing" },
           { text: "Examples", link: "/examples" },
         ],
