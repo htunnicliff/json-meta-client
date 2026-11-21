@@ -1,5 +1,152 @@
 # json-meta-client
 
+## 1.0.0-alpha.3
+
+### Major Changes
+
+- [#198](https://github.com/htunnicliff/json-meta-client/pull/198) [`01d1b6d`](https://github.com/htunnicliff/json-meta-client/commit/01d1b6dd6ca82b8871f23058e8c1d0844d895054) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** the default `accountId` now comes from the primary account of
+  the capability that owns the method, `session.primaryAccounts[urn]`, instead
+  of always the primary mail account. A `ContactCard/get` call, for example,
+  now uses the primary contacts account. Servers must list each capability's
+  URN in `primaryAccounts`; when one is missing, the client sends that
+  capability's calls without `accountId`, so pass it explicitly. `Core/echo`
+  and `PushSubscription` calls are not scoped to an account and no longer get
+  an `accountId` added.
+
+  Custom capabilities can choose which methods get a default with the new
+  `defaultAccount` setting:
+
+  ```ts
+  const tasks = defineCapability({
+    urn: "urn:example:tasks",
+    entities: ["Task"],
+    defaultAccount: { "*": "primary", "Task/copy": null },
+  });
+  ```
+
+  A method set to `null` gets no default, and its `accountId` becomes required
+  at the type level. Leaving the setting out is the same as
+  `{ "*": "primary" }`. When two capabilities claim the same method with
+  different settings, such as two capabilities with different URNs that both
+  declare an entity without a `defaultAccount`, the client constructor throws
+  `CapabilityConfigurationError`.
+
+- [#223](https://github.com/htunnicliff/json-meta-client/pull/223) [`3cf4d0f`](https://github.com/htunnicliff/json-meta-client/commit/3cf4d0f8260a2c6f38ef36ca99f8c76fd94c09cd) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** the default `accountId` is now chosen when a batch is sent,
+  and no longer only from `session.primaryAccounts`.
+
+  When a method call doesn't pass `accountId` and the session names no primary
+  account for the capability that owns the method, the client now looks at the
+  accounts whose `accountCapabilities` list that capability's URN:
+
+  - **One account:** the client uses it. These calls used to be sent without
+    `accountId`.
+  - **No account:** the call is sent without `accountId`, as before.
+  - **Several accounts:** the call rejects with a `ConfigurationError` that
+    names the method and the URN. Only that call is rejected: it is left out of
+    the request, and the other calls in the batch still go ahead. If every call
+    in a batch is rejected, no request is made. Pass `accountId` to choose an
+    account.
+
+  The `accountId` is written onto the call's arguments once the session has
+  loaded, right before the `beforeJmapRequest` hooks run:
+
+  - `$args.accountId` is absent until the batch is sent and set afterwards.
+    Reading it before the session loaded used to throw "Session not yet
+    resolved".
+  - `beforeJmapRequest` hooks receive `accountId` as a plain value on the
+    arguments. It used to be a getter.
+
+  A result reference passed as `accountId` is now kept. The client used to add
+  a default `accountId` beside it.
+
+  Method calls in one batch can go to different accounts, such as the primary
+  mail and primary contacts accounts. A result reference between two such
+  calls may need an explicit `accountId`.
+
+- [#223](https://github.com/htunnicliff/json-meta-client/pull/223) [`3cf4d0f`](https://github.com/htunnicliff/json-meta-client/commit/3cf4d0f8260a2c6f38ef36ca99f8c76fd94c09cd) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** `isPrimaryAccount` on state changes is now decided per entity.
+  It used to be true only for the primary mail account, whatever had changed.
+
+  It is now true when an `Entity/get` call for the changed entity that passes
+  no `accountId` would go to that account, by the same rules as method calls.
+  With a primary mail account A and a primary contacts account B:
+
+  | State change       | Before  | Now     |
+  | ------------------ | ------- | ------- |
+  | `Email` in A       | `true`  | `true`  |
+  | `ContactCard` in B | `false` | `true`  |
+  | `Email` in B       | `false` | `false` |
+  | `ContactCard` in A | `true`  | `false` |
+
+  Some types have no such call to resolve, such as the push-only
+  `EmailDelivery`, or an entity whose `/get` method has no default account.
+  For those, `isPrimaryAccount` is true when the account is the primary
+  account of any configured capability, or is the session's only account.
+
+  `isPrimaryAccount` is `false` when several accounts could serve the entity
+  and the session names no primary account for it.
+
+  `onStateChange` no longer needs a primary mail account, so it reports
+  `isPrimaryAccount` correctly on a session with no mail capability.
+
+- [#249](https://github.com/htunnicliff/json-meta-client/pull/249) [`ca7f446`](https://github.com/htunnicliff/json-meta-client/commit/ca7f446e0554a38ba5ca8ebcdcf37a12384e287b) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Breaking change to hook callback arguments. JMAP hooks receive `jmapRequest`
+  and, in `afterJmapResponse`, `jmapResponse`. Fetch and event-source hooks
+  receive `httpRequest` and, in after hooks, `httpResponse`.
+
+- [#198](https://github.com/htunnicliff/json-meta-client/pull/198) [`01d1b6d`](https://github.com/htunnicliff/json-meta-client/commit/01d1b6dd6ca82b8871f23058e8c1d0844d895054) Thanks [@htunnicliff](https://github.com/htunnicliff)! - BREAKING: `client.blob.upload()`, `client.blob.download()`, and `Blob.copy`
+  now require `accountId`. The client no longer fills it in from the primary
+  mail account, because the right account depends on what the blob is for. On
+  a server with no primary mail account, the old default was missing at
+  runtime even though the types let callers omit it.
+
+  Pass the account explicitly:
+
+  ```ts
+  await client.blob.upload(body, { accountId });
+  await client.blob.download({
+    accountId,
+    blobId,
+    type,
+    name,
+  });
+  await client.api.Blob.copy({
+    fromAccountId,
+    accountId,
+    blobIds,
+  });
+  ```
+
+  For `Blob.copy`, `accountId` is the destination account. `Email.copy` and
+  `ContactCard.copy` still default it, and so do the RFC 9404 `Blob.upload`,
+  `Blob.get`, and `Blob.lookup` methods.
+
+- [#257](https://github.com/htunnicliff/json-meta-client/pull/257) [`2333e72`](https://github.com/htunnicliff/json-meta-client/commit/2333e7283a4e64f17f85962a0d203789ccc14ed7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** result references now follow RFC 8620 §3.7. A `resultRef()`
+  is accepted only as a whole, top-level argument; the types reject one nested
+  in an object value (such as a `filter` condition) or an array item. The
+  client now rejects a method call with the new `ResultReferenceError` before
+  sending it when a reference is nested, when the arguments name both `foo`
+  and `#foo`, when a reference names a call from an earlier batch, or when
+  another call in the same batch already uses its method call ID. The rest of
+  the batch is still sent.
+
+### Minor Changes
+
+- [#247](https://github.com/htunnicliff/json-meta-client/pull/247) [`afa867d`](https://github.com/htunnicliff/json-meta-client/commit/afa867df58bcd83024de4759c32458f85c8bf972) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Set `generateMethodCallId` on a client to generate custom method call IDs.
+  The callback receives the JMAP method name and returns a string synchronously.
+  This also applies to isolated batches. An explicit `{ id }` on a method call
+  takes precedence.
+
+### Patch Changes
+
+- [#254](https://github.com/htunnicliff/json-meta-client/pull/254) [`8c0d8fb`](https://github.com/htunnicliff/json-meta-client/commit/8c0d8fb6a53af14463f3588884b6e38a8561843d) Thanks [@htunnicliff](https://github.com/htunnicliff)! - `resultRef` now flattens arrays collected by a `*` wildcard, as RFC 8620
+  section 3.7 specifies. `thread.resultRef("/list/*/emailIds")` on a
+  `Thread/get` call is typed `Ref<string[]>` instead of `Ref<string[][]>`, so
+  it can be passed as `ids` to `Email/get`. Pointers whose values are not
+  arrays, such as `/list/*/threadId`, are unchanged.
+
+- [#250](https://github.com/htunnicliff/json-meta-client/pull/250) [`c6b38ef`](https://github.com/htunnicliff/json-meta-client/commit/c6b38ef6a9473e6c483a3b365563c3335a90b8b7) Thanks [@htunnicliff](https://github.com/htunnicliff)! - The package README now opens with a json-meta-client banner that links to the
+  documentation site, shows npmx badges for the version, license, and bundled
+  types, and links to the playground.
+
 ## 1.0.0-alpha.2
 
 ### Major Changes
