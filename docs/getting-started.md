@@ -1,16 +1,27 @@
 # Introduction
 
+Thanks for trying out this library! I hope it makes your experience
+working with JMAP intuitive, straightforward, and possibly even a little
+bit fun.
+
+This Getting Started guide walks you through a few basic steps to
+install the library, configure it, and then use it to begin working with JMAP.
+
+::: note
+
+If you are unfamiliar with the JSON meta application protocol (JMAP)
+standard, no worries. The library is fully typed and has a fairly smooth
+learning curve.
+
+If you want to learn more about the underlying standards, the [JMAP.io](https://jmap.io/)
+website is a great place to dive in.
+
+:::
+
 ## Requirements
 
-To use `json-meta-client`, you'll need an environment that supports ES modules, `fetch`, `Promise.withResolvers`, `URL.canParse`, and `Object.hasOwn`.
-
-If your environment meets [Baseline](https://web-platform-dx.github.io/baseline/),
-you are all set! Runtimes that meet that standard include:
-
-- Node (22+)
-- Deno
-- Bun
-- Browsers released after 2024
+To use this library, you'll need an environment that supports [modern JavaScript
+features](https://web-platform-dx.github.io/baseline/).
 
 ## Installation
 
@@ -49,84 +60,85 @@ const installPath = pkg.exports['.'].replace('./', '');
 const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 </script>
 
-::: code-group
-
-```html-vue [Script ~vscode-icons:file-type-html~]
+```html-vue [index.html]
 <script type="module">
   import { JsonMetaClient } from "{{cdnUrl}}";
 </script>
 ```
 
-```html-vue [Import Map ~vscode-icons:file-type-xml~]
-<html>
-  <head>
-    <script type="importmap">
-      {
-        "imports": {
-          "json-meta-client": "{{cdnUrl}}"
-        }
-      }
-    </script>
-  </head>
-  <body>
-    <script type="module">
-      import { JsonMetaClient } from "json-meta-client";
-    </script>
-  </body>
-</html>
-```
+## Setup
 
-:::
-
-<!--
-- Short table of all `Config` fields: `auth`, `sessionUrl` (string or `URL`),
-  `capabilities`, `hooks`
-- `core` is always included, so empty capabilities still give `Core.echo`,
-  `Blob.copy`, and `PushSubscription`
-- Constructor validates config immediately and throws `ConfigurationError` /
-  `CapabilityConfigurationError` (link to Errors)
-- The client object is frozen
--->
-
-Configure a client with authentication, a session URL, and capabilities:
-
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  auth: "<credentials>",
-  sessionUrl: "<server>/.well-known/jmap",
-  capabilities: ["mail", "submission"],
-});
-```
-
-Pass a string as `auth` to send it as a Bearer token. Clients also support Basic
-authentication with `auth: { username, password }`.
-
-For other kinds of authentication (e.g. a proxy header), a custom callback can
-be used to modify fetch requests as needed. See
-[Authentication](./reference/api.md#authentication) for more examples.
-
-## Usage
-
-:::warning TODO
-- Add a sentence explaining that `accountId` was filled in automatically
-:::
-
-Find the inbox:
+To begin, initialize an instance of `JsonMetaClient` with a session URL,
+credentials, and capabilities:
 
 ::: code-group
 
-```ts [example.ts]
-const mailboxes = await client.api.Mailbox.query({
-  filter: { role: "inbox" },
-  limit: 1,
-});
+```ts [Bearer Auth]
+import { JsonMetaClient } from "json-meta-client";
 
-const inboxId = mailboxes.ids[0]!;
+const client = new JsonMetaClient({
+  capabilities: ["mail", "submission"],
+  sessionUrl: "<url>",
+  auth: "<bearerToken>",
+});
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
+```ts [Basic Auth]
+import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  capabilities: ["mail", "submission"],
+  sessionUrl: "<url>",
+  auth: {
+    username: "<username>",
+    password: "<password>",
+  },
+});
+```
+
+```ts [Custom Auth]
+import { JsonMetaClient } from "json-meta-client";
+
+const client = new JsonMetaClient({
+  capabilities: ["mail", "submission"],
+  sessionUrl: "<url>",
+  auth: async ({ request }) => {
+    const token = await getCustomToken();
+    request.headers.set("X-Custom", token);
+  },
+});
+```
+
+:::
+
+The `capabilities` value determines which entities and methods your client
+can use. These vary depending on the JMAP server. Review the
+[capabilities guide](./features/capabilities.md) to learn more.
+
+The `sessionUrl` is used to procure a session from your provider. These
+sometimes use the path `/.well-known/jmap`.
+
+The `auth` value is used to authenticate all requests sent by a client. It
+supports several strategies: bearer auth, basic auth, or custom, which is a
+callback to modify each [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+instance. See the [auth API reference](./reference/api.md#auth) to learn more.
+
+To learn more about these and other options, review the
+[configuration types](./reference/api.md#config) in the API reference guide.
+
+## Usage
+
+With a client configured, you can now make requests. Here is a simple example:
+
+```ts
+await client.api.Mailbox.query({
+  filter: { role: "inbox" },
+});
+```
+
+This function call results in the following JMAP request:
+
+```json
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -136,10 +148,7 @@ const inboxId = mailboxes.ids[0]!;
     [
       "Mailbox/query",
       {
-        "filter": {
-          "role": "inbox"
-        },
-        "limit": 1,
+        "filter": { "role": "inbox" },
         "accountId": "<account-id>"
       },
       "mailboxes"
@@ -148,29 +157,33 @@ const inboxId = mailboxes.ids[0]!;
 }
 ```
 
+::: tip
+For convenience, the client will automatically set the `accountId` based on the primary account associated with the URNs used in a request.
 :::
 
-Get the first ten unread emails in the inbox:
+To use the result of one method call as a parameter in a different method call,
+you may use a [result reference](./features/method-calls.md#result-references):
 
-::: code-group
-
-```ts [example.ts]
+```ts
 const query = client.api.Email.query({
-  filter: { inMailbox: inboxId },
+  filter: { inMailbox: "<inboxId>" },
   limit: 10,
 });
 
-const emails = await client.api.Email.get({
+await client.api.Email.get({
   ids: query.resultRef("/ids"),
   properties: ["id", "to", "from", "subject", "sentAt"],
 });
-
-for (const email of emails.list) {
-  // ...
-}
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
+:::tip
+_Result references_ enable the passing of values between requests without requiring
+additional HTTP request round trips.
+:::
+
+This is the resulting JMAP request:
+
+```json
 {
   "using": [
     "urn:ietf:params:jmap:core",
@@ -180,9 +193,7 @@ for (const email of emails.list) {
     [
       "Email/query",
       {
-        "filter": {
-          "inMailbox": "<inboxId>"
-        },
+        "filter": { "inMailbox": "<inboxId>" },
         "limit": 10,
         "accountId": "<account-id>"
       },
@@ -211,20 +222,65 @@ for (const email of emails.list) {
 }
 ```
 
-:::
+To fetch new emails as soon as they are received, use the `onStateChange`
+handler:
+
+```ts
+client.onStateChange(async (error, stateChange) => {
+  if (error) {
+    throw new Error("Something went awry", {
+      cause: error,
+    });
+  }
+
+  const { entity, state } = stateChange;
+
+  if (entity === "Email") {
+    const changes = client.api.Email.changes({
+      sinceState: state,
+    });
+
+    await client.api.Email.get({
+      ids: changes.resultRef("/created"),
+    });
+  }
+});
+```
+
+You can also upload and download files:
+
+```ts
+const emails = await client.api.Email.get({
+  ids: ["<emailId>"],
+  properties: ["id", "attachments"],
+});
+
+const email = emails.list.at(0);
+
+const { blobId, type, name } = email.attachments.at(0);
+
+const request = await client.blob.download({
+  accountId: "<accountId>",
+  blobId,
+  type,
+  name,
+});
+
+const data = await request.json();
+//           await request.blob();
+//           await request.arrayBuffer();
+//           etc.
+```
+
+Great work!
 
 ## Next Steps
-
-:::warning TODO
-- Add rows for Capabilities and Types
-:::
 
 | I want to...                            | Read                                       |
 | --------------------------------------- | ------------------------------------------ |
 | Make JMAP requests                      | [Method Calls](./features/method-calls.md) |
 | Listen for state changes                | [Events](./features/events.md)             |
 | Upload and download files               | [Blobs](./features/blobs.md)               |
-| Do things the _right way™_              | [Best Practices](./best-practices.md)      |
 | Test with this library                  | [Testing](./testing.md)                    |
 | Understand the API                      | [API](./reference/api.md)                  |
 | Handle failures                         | [Errors](./reference/errors.md)            |
