@@ -6,15 +6,30 @@ A JMAP server can push a notice whenever data changes, such as when a new
 email arrives. Subscribe with `client.onStateChange()`:
 
 ```ts
+let mailboxState = (
+  await client.api.Mailbox.get({ ids: [] })
+).state;
+
 const subscription = await client.onStateChange(
-  (error, change) => {
+  async (error, change) => {
     if (error) {
       console.error(error);
       return;
     }
-    console.log(
-      `${change.entity} changed in ${change.accountId}`,
-    );
+
+    // Refresh unread counts only when mailboxes have new data
+    if (
+      change.entity === "Mailbox" &&
+      change.state !== mailboxState
+    ) {
+      mailboxState = change.state;
+      const mailboxes = await client.api.Mailbox.get({
+        properties: ["name", "unreadEmails"],
+      });
+      for (const { name, unreadEmails } of mailboxes.list) {
+        console.log(`${name}: ${unreadEmails} unread`);
+      }
+    }
   },
 );
 ```
@@ -25,6 +40,13 @@ stays open. It subscribes to every type (`types: "*"`) and keeps the
 connection open after each change (`closeafter: "no"`). The stream support
 comes from [`eventsource-client`](https://www.npmjs.com/package/eventsource-client),
 which the client loads only when you first subscribe.
+
+::: note
+The client uses `eventsource-client` instead of the browser's built-in
+`EventSource` because `EventSource` can't send custom headers. Without
+them, the event stream couldn't carry the `Authorization` header that
+[`auth`](../reference/api.md#auth) sets on every other request.
+:::
 
 `onStateChange()` takes an optional second argument:
 
@@ -57,15 +79,8 @@ So if the mail primary account is A and the contacts primary account is B:
 - An `Email` change in A and a `ContactCard` change in B are primary.
 - An `Email` change in B and a `ContactCard` change in A are not.
 
-Push-only types such as `EmailDelivery` have no `/get` method to resolve.
-For those, `isPrimaryAccount` is `true` when the account is the primary
-account of any configured capability, or is the session's only account.
-
 `isPrimaryAccount` is `false` when the default account would be ambiguous:
 several accounts qualify and the session names no primary account.
-
-The stream can carry messages other than `StateChange`; the client ignores
-them.
 
 ## Reacting to changes
 
@@ -77,27 +92,27 @@ the last state you have seen, pass it as `sinceState` to the type's
 let emailState = (await client.api.Email.get({ ids: [] }))
   .state;
 
-await client.onStateChange((error, change) => {
+await client.onStateChange(async (error, change) => {
   if (
     error ||
     change.entity !== "Email" ||
     !change.isPrimaryAccount
-  )
+  ) {
     return;
+  }
 
   const changes = client.api.Email.changes({
     sinceState: emailState,
   });
   emailState = change.state;
 
-  void client.api.Email.get({
+  const created = await client.api.Email.get({
     ids: changes.resultRef("/created"),
     properties: ["subject", "from"],
-  }).then((created) => {
-    for (const email of created.list) {
-      console.log("New email:", email.subject);
-    }
   });
+  for (const email of created.list) {
+    console.log("New email:", email.subject);
+  }
 });
 ```
 

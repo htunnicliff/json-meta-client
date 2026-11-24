@@ -39,7 +39,7 @@ doesn't guess, so pass the account where the blob will be used.
 ## Downloading
 
 `client.blob.download({ accountId, blobId, type, name })` resolves to the raw
-`Response`, so you can stream it or read it however you need:
+`Response`, so you can stream it or read it however you need to:
 
 ```ts
 const response = await client.blob.download({
@@ -53,9 +53,8 @@ const text = await response.text();
 // or: response.blob(), response.arrayBuffer(), response.body
 ```
 
-`type` and `name` are filled into the session's download URL. Servers use
-them for the `Content-Type` and file name of the download, which matters
-most when the URL is handed to a browser.
+`type` and `name` set the `Content-Type` and file name that the server
+gives the download.
 
 A failed download, such as an unknown `blobId`, rejects with
 [`HttpError`](../reference/errors.md).
@@ -67,8 +66,8 @@ Once uploaded, a blob is used by ID in method calls on the same account:
 - **`Email/set`** takes uploaded blobs as attachments, with a body part
   whose `blobId` is the upload's. See
   [Send an attachment](../examples.md#send-an-attachment).
-- **`Email/import`** adds a raw RFC 5322 message, uploaded as a blob, to
-  mailboxes as an email.
+- **`Email/import`** adds a raw email message, uploaded as a blob, to
+  mailboxes.
 - **`Email/parse`** reads a message blob without importing it, such as an
   attached `message/rfc822` email.
 
@@ -105,21 +104,16 @@ void client.api.Email.import({
 ## Copying between accounts
 
 A blob ID is only valid in its own account. To use a blob in another
-account, copy it with `Blob/copy`, which comes with `core` and is available
+account, copy it with `Blob/copy`, which is included with `core` and is available
 on every client:
 
 ```ts
-const [, otherAccountId] = Object.keys(session.accounts);
-
 void client.api.Blob.copy({
   fromAccountId: mailAccountId,
-  accountId: otherAccountId!,
+  accountId: "<destination-account-id>",
   blobIds: [uploaded.blobId],
 });
 ```
-
-`accountId` is the destination and is required. The client never fills it
-in, since nothing in the call says where the copy should go.
 
 ## Blob management (RFC 9404)
 
@@ -136,36 +130,7 @@ them:
 - **`Blob/lookup`** finds the objects that refer to a blob, such as the
   emails that use it.
 
-```ts
-import { JsonMetaClient } from "json-meta-client";
-
-const blobClient = new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: "<token>",
-  capabilities: ["mail", "blob"],
-});
-
-void blobClient.api.Blob.upload({
-  create: {
-    note: {
-      data: [{ "data:asText": "Hello, world" }],
-      type: "text/plain",
-    },
-  },
-});
-
-const [contents, usedBy] = await Promise.all([
-  blobClient.api.Blob.get({
-    // The blob that `Blob/upload` creates as "note"
-    ids: ["#note"],
-    properties: ["data:asText", "digest:sha", "size"],
-  }),
-  blobClient.api.Blob.lookup({
-    typeNames: ["Email"],
-    ids: [uploaded.blobId],
-  }),
-]);
-```
+<<< @/snippets/blob-management.ts
 
 `createdRef()` exists only on `/set` calls, so the `Blob/get` call above
 refers to the new blob with its creation ID written out as `"#note"`. These

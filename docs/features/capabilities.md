@@ -10,7 +10,7 @@ with typed arguments and results.
 
 ## Enabling capabilities
 
-Pass the capabilities your app needs in the `capabilities` option:
+Pass the capabilities your app uses in the `capabilities` option:
 
 ```ts
 import { JsonMetaClient } from "json-meta-client";
@@ -37,6 +37,15 @@ The built-in capabilities are configured by name:
 | `"sharing"`               | `urn:ietf:params:jmap:principals`          | `Principal`, `ShareNotification`              |
 | `"sieve"`                 | `urn:ietf:params:jmap:sieve`               | `SieveScript`                                 |
 | `"community:maskedEmail"` | `https://www.fastmail.com/dev/maskedemail` | `MaskedEmail`                                 |
+
+::: note
+Names with the `community:` prefix are capabilities that aren't defined by
+an IETF RFC. They come from a server vendor or community specification, and
+their URN is often a URL rather than a `urn:ietf:params:jmap:` URN.
+`"community:maskedEmail"`, for example, supports
+[Fastmail's Masked Email](https://www.fastmail.com/dev/maskedemail)
+specification.
+:::
 
 The [capabilities reference](../reference/capabilities.md) lists every
 entity and method that each one adds.
@@ -153,57 +162,4 @@ if (mailDetails) {
     `Mailboxes can nest ${mailDetails.maxMailboxDepth ?? "any number of"} levels deep`,
   );
 }
-```
-
-## Community capabilities
-
-Names with the `community:` prefix are capabilities that aren't defined by
-an IETF RFC. They come from a server vendor or community specification, and
-their URN is often a URL rather than a `urn:ietf:params:jmap:` URN.
-
-### Masked Email
-
-`"community:maskedEmail"` supports
-[Fastmail's Masked Email](https://www.fastmail.com/dev/maskedemail)
-specification, `https://www.fastmail.com/dev/maskedemail`. A masked email is
-a unique address that forwards to your inbox, which you can hand out to a
-single website and turn off later.
-
-It adds `MaskedEmail/get` and `MaskedEmail/set`. A `MaskedEmail` has these
-properties:
-
-| Property        | Type             | Description                                            |
-| --------------- | ---------------- | ------------------------------------------------------ |
-| `id`            | `string`         | The masked email's ID                                  |
-| `email`         | `string`         | The address itself                                     |
-| `state`         | `string`         | `"pending"`, `"enabled"`, `"disabled"`, or `"deleted"` |
-| `forDomain`     | `string`         | The website the address is for                         |
-| `description`   | `string`         | A note to help you recognize the address               |
-| `lastMessageAt` | `string \| null` | When the address last received a message               |
-| `createdAt`     | `string`         | When the address was created                           |
-| `createdBy`     | `string`         | The client that created it                             |
-| `url`           | `string \| null` | A URL related to the address                           |
-
-When creating one, you can also pass `emailPrefix` to choose how the address
-begins.
-
-```ts
-const fastmail = new JsonMetaClient({
-  sessionUrl: "https://api.fastmail.com/jmap/session",
-  auth: "<token>",
-  capabilities: ["community:maskedEmail"],
-});
-
-const result = await fastmail.api.MaskedEmail.set({
-  create: {
-    shop: {
-      state: "enabled",
-      forDomain: "https://shop.example.com",
-      description: "Online shop",
-      emailPrefix: "shop",
-    },
-  },
-});
-
-console.log(result.created?.shop?.email);
 ```

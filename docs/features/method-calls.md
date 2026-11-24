@@ -82,8 +82,7 @@ afterwards it does, and so do the requests that
 
 ## Getting results
 
-A method call returns a promise for the method's response arguments: the
-object in the middle of the JMAP response invocation.
+Each method call returns a promise for the method's response:
 
 ```ts
 const { ids, total } = await client.api.Email.query({
@@ -92,15 +91,16 @@ const { ids, total } = await client.api.Email.query({
 });
 ```
 
-The call is sent when its batch is sent, not when you `await` it. Calls made
-in the same tick share one request, whether or not you await them. See
-[Batching](../advanced/batching.md) for how batches form.
+Awaiting a call doesn't send it. Calls made in the same tick are sent
+together in one request, whether or not you await them. See
+[Batching](../advanced/batching.md) for how that works.
 
 ## Selecting properties
 
 `/get` methods take an optional `properties` list. When you pass one, each
 item of `list` is typed with only those properties; when you don't, it has
-the method's default properties. `id` is always included.
+the method's default properties. `id` is always included, since JMAP
+servers return it whether or not it is requested.
 
 ```ts
 const recent = client.api.Email.query({ limit: 5 });
@@ -148,30 +148,34 @@ const unreadEmails = await client.api.Email.get({
 });
 ```
 
-The client sends the reference under the argument name with a `#` prefix, as
-RFC 8620 section 3.7 requires.
+In the request, the reference replaces the argument's value, and the
+argument's name gets a `#` prefix. These are the arguments of the
+`Email/get` call above:
+
+```json
+{
+  "#ids": {
+    "name": "Email/query",
+    "resultOf": "Email/query::1a2b3c4d",
+    "path": "/ids"
+  },
+  "properties": ["subject", "from"],
+  "accountId": "<account-id>"
+}
+```
+
+`name` is the source call's method, `resultOf` is its method call ID, and
+`path` is the pointer. The server replaces the reference with the value
+it points to before running the call.
 
 The pointer is type-checked against the source call's result, including the
 `*` wildcard that maps over an array, as in `"/list/*/threadId"`. The value
 it points to is checked against the argument's type, so a pointer to a
 number can't be passed where a list of IDs is expected.
 
-The client also enforces the RFC's rules for where references can appear.
-A call that breaks one rejects with
-[`ResultReferenceError`](../reference/errors.md) before it is sent, and the
-rest of its batch is still sent. The error's `reason` says which rule:
-
-- **`"nested"`**: a reference must be a whole, top-level argument. A
-  reference inside an object value or an array item is a type error, and
-  rejects at runtime.
-- **`"duplicate-argument"`**: an argument can't be passed both as a value and
-  as a reference, such as `ids` together with a reference for `ids`, or a
-  literal `"#ids"` key.
-- **`"cross-batch"`**: the referenced call must be in the same batch. Make
-  both calls in the same tick, without an `await` between them.
-- **`"duplicate-id"`**: method call IDs must be unique within a batch. This
-  happens when two calls are given the same ID with the
-  [`id` option](#call-metadata).
+A reference must be a whole, top-level argument, and the source call must
+be in the same batch. A call that breaks a rule rejects with
+[`ResultReferenceError`](../reference/errors.md) before it is sent.
 
 One call can be referenced any number of times. Here a single search feeds
 both the emails and their highlighted search snippets:
@@ -192,17 +196,13 @@ const [found, snippets] = await Promise.all([
 ]);
 ```
 
-If a referenced call is itself rejected by the client, the call that
-references it is still sent, and the server answers it with an
-`invalidResultReference` error.
-
 ## Creation references
 
-A `/set` call that creates objects names each one with a creation ID, the
-key in `create`. Other calls in the same request can refer to an object
-before it exists by using `createdRef()`, which returns `"#"` followed by the
-creation ID. This example creates a draft and sends it in one request,
-given the ID of the drafts mailbox:
+When you create objects with a `/set` call, you give each one a creation
+ID: its key in `create`. Other calls in the same request can refer to an
+object before it exists by passing that ID to `createdRef()`, which returns
+`"#"` followed by the ID. This example creates a draft and sends it in one
+request, given the ID of the drafts mailbox:
 
 ```ts
 const draftsMailboxId = (
@@ -250,12 +250,13 @@ uses the reference must be in the same batch. The
 ## Patch updates
 
 The `update` argument of a `/set` call takes a patch object for each ID. Its
-keys are paths into the object, and the paths are typed:
+keys are paths into the object. Both the paths and their values are typed, so
+a misspelled path or a value of the wrong type is a type error:
 
 ```ts
 const email = subjects.list[0]!;
 
-void client.api.Email.set({
+await client.api.Email.set({
   update: {
     [email.id]: {
       // Set one keyword, leaving the others as they are
@@ -277,16 +278,35 @@ const archiveId = (
   })
 ).ids[0]!;
 
-void client.api.Email.set({
+await client.api.Email.set({
   update: {
     [email.id]: { mailboxIds: { [archiveId]: true } },
   },
 });
 ```
 
-A `null` value removes a property. Arrays are always replaced whole, so a
-path can't point inside one. Keys that contain `~` or `/` are escaped as `~0` and
-`~1`, following JSON Pointer, and the types expect the escaped form.
+A `null` value removes a property. Keys that contain `~` or `/` are escaped
+as `~0` and `~1`, following JSON Pointer, and the types expect the escaped
+form.
+
+Arrays are always replaced whole, so a path can't point inside one. To
+change an array, send the whole new array. This adds an address to an
+identity's `bcc` list:
+
+```ts
+const sender = (await client.api.Identity.get({})).list[0]!;
+
+await client.api.Identity.set({
+  update: {
+    [sender.id]: {
+      bcc: [
+        ...(sender.bcc ?? []),
+        { name: null, email: "archive@example.com" },
+      ],
+    },
+  },
+});
+```
 
 ## Call metadata
 
