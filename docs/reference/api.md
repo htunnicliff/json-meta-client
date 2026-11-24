@@ -199,9 +199,8 @@ A getter that returns a promise for the [`ClientSession`](./types.md#client-type
 The first read fetches the session from `sessionUrl`; later reads return the
 same cached promise, so they make no request.
 
-- Type: `Promise<ClientSession<Capabilities>>`
-- Rejects with: [`HttpError`](./errors.md#httperror) or
-  [`NetworkError`](./errors.md#networkerror) when the session can't be fetched
+**Returns** a promise for the `ClientSession`. It rejects with an
+[error](./errors.md) when the session can't be fetched.
 
 ```ts
 const session = await client.session;
@@ -226,9 +225,8 @@ The session still resolves. Refer to
 Fetches the session again and replaces the cached promise, so that later
 reads of [`.session`](#session) and later batches use the new session.
 
-- Signature: `() => Promise<ClientSession<Capabilities>>`
-- Rejects with: [`HttpError`](./errors.md#httperror) or
-  [`NetworkError`](./errors.md#networkerror)
+**Returns** a promise for the new `ClientSession`. It rejects with an
+[error](./errors.md) when the session can't be fetched.
 
 ```ts
 const refreshed = await client.refreshSession();
@@ -248,12 +246,14 @@ Unlike method calls, both require an explicit `accountId`. Refer to the
 
 ### `.blob.upload()`
 
-- Signature: `(body: BodyInit, params: { accountId: string }) => Promise<FileUpload.Result>`
-- Resolves with: `{ accountId, blobId, type, size }`, as the server reports them
-- Rejects with: [`HttpError`](./errors.md#httperror),
-  [`NetworkError`](./errors.md#networkerror), or
-  [`InvalidUriTemplateError`](./errors.md#invaliduritemplateerror) when the
-  session's `uploadUrl` has no `{accountId}` variable
+| Parameter          | Type       | Description                       |
+| ------------------ | ---------- | --------------------------------- |
+| `body`             | `BodyInit` | The data to upload                |
+| `params.accountId` | `string`   | The account to upload the blob to |
+
+**Returns** a promise for the server's upload result: `accountId`, `blobId`,
+`type` and `size`. It rejects with an [error](./errors.md) when the upload
+fails.
 
 The body is sent as the request body of a `POST`. A `Blob` or `File` body
 sends its own `type` as the `Content-Type`.
@@ -273,16 +273,17 @@ console.log(uploaded.blobId, uploaded.size);
 
 ### `.blob.download()`
 
-- Signature: `(params: { accountId: string; blobId: string; type: string; name: string }) => Promise<Response>`
-- Resolves with: the Fetch `Response`, with its body unread
-- Rejects with: [`HttpError`](./errors.md#httperror),
-  [`NetworkError`](./errors.md#networkerror), or
-  [`InvalidUriTemplateError`](./errors.md#invaliduritemplateerror) when the
-  session's `downloadUrl` lacks one of the parameters
+| Parameter          | Type     | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `params.accountId` | `string` | The account that holds the blob            |
+| `params.blobId`    | `string` | The blob to download                       |
+| `params.type`      | `string` | The `Content-Type` to ask the server for   |
+| `params.name`      | `string` | The file name to ask the server to suggest |
+
+**Returns** a promise for the Fetch `Response`, with its body unread. It
+rejects with an [error](./errors.md) when the download fails.
 
 Each parameter fills the matching variable in the session's `downloadUrl`.
-`type` asks the server for a `Content-Type`, and `name` for the file name it
-suggests.
 
 ```ts
 const download = await client.blob.download({
@@ -300,18 +301,15 @@ console.log(await download.text());
 Subscribes to the server's event source and calls a handler for each changed
 entity type in each account. Refer to the [Events guide](../features/events.md).
 
-- Signature: `(handler: OnStateChangeHandler, options?: OnStateChangeOptions) => Promise<Disposable>`
-- Resolves with: a `Disposable`; disposing it closes the connection
-- Rejects with: [`HttpError`](./errors.md#httperror) or
-  [`NetworkError`](./errors.md#networkerror) when the session can't be loaded,
-  or [`InvalidUriTemplateError`](./errors.md#invaliduritemplateerror) when the
-  session's `eventSourceUrl` lacks the `types`, `closeafter` or `ping`
-  variable
+| Parameter             | Type                   | Description                                                         |
+| --------------------- | ---------------------- | ------------------------------------------------------------------- |
+| `handler`             | `OnStateChangeHandler` | Called with each change, or with an error                           |
+| `options.signal`      | `AbortSignal`          | Optional. Closes the connection when aborted                        |
+| `options.pingSeconds` | `number`               | Optional. How often the server should send a ping. Defaults to `30` |
 
-| Option        | Type          | Default | Description                                             |
-| ------------- | ------------- | ------- | ------------------------------------------------------- |
-| `signal`      | `AbortSignal` |         | Closes the connection when aborted                      |
-| `pingSeconds` | `number`      | `30`    | How often the server should send a ping to keep it open |
+**Returns** a promise for a `Disposable`; disposing it closes the
+connection. It rejects with an [error](./errors.md) when the subscription
+can't be started.
 
 The handler receives `(null, change)` for each change, where `change` is a
 [`StateChangePayload`](./types.md#event-types), or `(error, undefined)` when
@@ -345,7 +343,7 @@ Rejects every method call waiting in the client's current batch with a
 [`CancellationError`](./errors.md#cancellationerror), and drops the batch so
 it is never sent.
 
-- Signature: `() => void`
+**Returns** nothing.
 
 ```ts
 const cancelled = client.api.Mailbox.get({ ids: null });
@@ -367,10 +365,12 @@ Runs a callback with its own `api`, whose method calls are batched apart from
 `client.api` and from every other isolated `api`. Use it to keep a group of
 calls in a JMAP Request of its own.
 
-- Signature: `<R>(fn: (api: Api, cancel: () => void) => R) => R`
-- Returns: whatever the callback returns, unchanged. An async callback's
-  promise is returned as is
-- Throws: whatever the callback throws
+| Parameter | Type                 | Description                                                      |
+| --------- | -------------------- | ---------------------------------------------------------------- |
+| `fn`      | `(api, cancel) => R` | Called at once with the isolated `api` and its `cancel` function |
+
+**Returns** whatever `fn` returns, unchanged, so an async callback's promise
+is returned as is. An error thrown by `fn` propagates.
 
 ```ts
 const isolatedMailboxes = client.isolated((api) =>
@@ -394,14 +394,15 @@ Each method on `client.api`, such as `client.api.Email.get(args)`, returns a
 pending method call: a promise for the method's response arguments, with
 extra members for referencing the call before it settles.
 
-- Signature: `(args: Arguments, options?: { id?: string }) => PendingMethodCall`
-- Resolves with: the method's response arguments
-- Rejects with: [`JmapError`](./errors.md#jmaperror) for a method-level error,
-  or with any of the errors listed in
-  [Errors](./errors.md#hierarchy)
+| Parameter    | Type     | Description                                                                                            |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| `args`       | `object` | The method's arguments, typed from its capability                                                      |
+| `options.id` | `string` | Optional. The method call ID, used instead of [`generateMethodCallId`](#generatemethodcallid-optional) |
 
-The `id` option sets the method call ID instead of
-[`generateMethodCallId`](#generatemethodcallid-optional).
+**Returns** a pending method call. It resolves with the method's response
+arguments, and rejects with a [`JmapError`](./errors.md#jmaperror) when the
+server returns an error for the call, or with another [error](./errors.md)
+when the call or its batch fails.
 
 | Member               | Type           | Description                                                                                                                       |
 | -------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -475,10 +476,10 @@ Defines a capability for entities and methods the library doesn't build in.
 Pass the result in [`capabilities`](#capabilities). Refer to the
 [Extending guide](../advanced/extending.md).
 
-- Signature: `(options) => { withMethods<Methods, AccountDetails?, SessionDetails?>(): Capability }`
-- Returns: an object whose `withMethods()` returns the
-  [`Capability`](./types.md#capability-types). `withMethods()` takes only
-  type arguments: the method contracts, then the account and session details
+**Returns** an object with a `withMethods()` method, which returns the
+[`Capability`](./types.md#capability-types). `withMethods()` takes no
+arguments, only type arguments: the method contracts, then optionally the
+account and session details.
 
 | Option           | Type                               | Description                                                                           |
 | ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |

@@ -37,27 +37,17 @@ code.
 
 ### `ConfigurationError`
 
-The client is configured in a way it can't use.
+The client's configuration can't be used as given, such as an invalid option
+passed to the constructor, or a method call whose account can't be
+determined from the configuration and session. Its message says what to
+change.
 
-- Thrown by the constructor when `auth` is not a non-empty token, a username
-  and password, or a callback, when `sessionUrl` is not a valid URL, or when
-  `capabilities` is not an array
-- A method call rejects with it, without being sent, when it passes no
-  `accountId` and several accounts support its capability while the session
-  names no primary account for it. Pass `accountId` to choose one
-- Logged, not thrown, with `console.warn` when the first session lacks a
-  configured capability. Refer to
-  [Checking server support](../features/capabilities.md#checking-server-support)
 - Type guard: `isConfigurationError()`
 
 ### `CapabilityConfigurationError`
 
-A subclass of `ConfigurationError` for an invalid entry in `capabilities`. The
-constructor throws it for an unknown built-in name, a custom capability with a
-missing `urn` or malformed `entities`, `dependsOn` or `defaultAccount`, an
-extending capability such as `smime` without the capability it extends, and
-two capabilities that claim the same method with different `defaultAccount`
-settings.
+A subclass of `ConfigurationError` for a problem with the `capabilities`
+option, such as an unknown built-in name or a malformed custom capability.
 
 | Property            | Type                | Description                                    |
 | ------------------- | ------------------- | ---------------------------------------------- |
@@ -68,15 +58,10 @@ settings.
 
 ### `HttpError`
 
-The server answered with a status outside the 200 range. It applies to every
-request the client makes: the session, JMAP Requests, blob uploads and
-downloads, and event-source connections. Every method call in a failed batch
-rejects with the same `HttpError`.
-
-The message is the `detail` of the response's problem details when it has one,
-and otherwise `HTTP request failed (<status>)`. Request-level JMAP errors, such
-as `urn:ietf:params:jmap:error:unknownCapability`, arrive this way, with their
-problem details in `responseData`.
+The server answered a request with an unsuccessful HTTP response. When the
+request carried a batch, every method call in it rejects with the same error.
+Request-level JMAP errors arrive this way, with their problem details in
+`responseData`.
 
 | Property       | Type       | Description                                                       |
 | -------------- | ---------- | ----------------------------------------------------------------- |
@@ -85,18 +70,12 @@ problem details in `responseData`.
 | `responseData` | `unknown`  | The body, parsed as JSON for a JSON content type, or else as text |
 | `status`       | `number`   | The response's status code                                        |
 
-An event-source connection that answers `200` without a readable
-`text/event-stream` body also fails with an `HttpError`.
-
 - Type guard: `isHttpError()`
 
 ### `NetworkError`
 
-The request failed before a response arrived, for example because the host
-couldn't be reached, or because reading the response body failed. It is also
-used when the `auth` callback or a `beforeFetch` or `beforeEventSourceConnect`
-hook throws an error that isn't a `JsonMetaError`; the request is then never
-sent.
+A request failed without a usable HTTP response, for example because the
+server couldn't be reached. `cause` holds the underlying error.
 
 | Property  | Type                   | Description                                                        |
 | --------- | ---------------------- | ------------------------------------------------------------------ |
@@ -107,9 +86,9 @@ sent.
 
 ### `JmapError`
 
-The server answered a method call with an `error` response (RFC 8620 section
-3.6.2). Only that method call rejects; the others in its batch settle from their
-own responses.
+The server answered a method call with a method-level error (RFC 8620 section
+3.6.2). Only that method call rejects; the others in its batch settle from
+their own responses.
 
 | Property       | Type                      | Description                                       |
 | -------------- | ------------------------- | ------------------------------------------------- |
@@ -129,9 +108,8 @@ has a string `type`, the shape of problem details. Use it to read the
 
 ### `MethodCallError`
 
-The response to a method call couldn't be used: the JMAP Response has no
-invocation with the call's ID, the invocation names a different method, or an
-`error` invocation has no string `type`.
+The server's response to a method call couldn't be matched to the call or
+understood, so the client can't settle it with a result or a `JmapError`.
 
 | Property       | Type         | Description                                 |
 | -------------- | ------------ | ------------------------------------------- |
@@ -142,28 +120,24 @@ invocation with the call's ID, the invocation names a different method, or an
 
 ### `CancellationError`
 
-A method call was waiting in a batch that [`cancelBatch()`](./api.md#cancelbatch)
-or an [`isolated()`](./api.md#isolated) `cancel` function cancelled. The call
-was never sent.
+A method call was cancelled before its batch was sent, for example with
+[`cancelBatch()`](./api.md#cancelbatch).
 
 - Type guard: `isCancellationError()`
 
 ### `StateChangeError`
 
-Passed as the first argument of an [`onStateChange()`](./api.md#onstatechange)
-handler, never thrown. It reports a failed event-source connection or an
-unreadable message, and its `cause` holds the original error, such as an
-`HttpError`, `NetworkError` or `SyntaxError`. The subscription stays open.
+A problem with a state change subscription. It is passed to the
+[`onStateChange()`](./api.md#onstatechange) handler rather than thrown, and its
+`cause` holds the underlying error.
 
 - Type guard: `isStateChangeError()`
 
 ### `InvalidUriTemplateError`
 
-A URL template from the session lacks a variable the client needs to fill:
-`{accountId}` in `uploadUrl`, any of the download parameters in
-`downloadUrl`, or `{types}`, `{closeafter}` or `{ping}` in `eventSourceUrl`.
-[`blob.upload()`, `blob.download()`](./api.md#blob-upload-blob-download) and
-[`onStateChange()`](./api.md#onstatechange) reject with it.
+A URL template from the session, such as `uploadUrl` or `downloadUrl`, lacks
+a variable the client needs to fill in. This usually points to a server that
+doesn't follow RFC 8620.
 
 | Property              | Type                     | Description                             |
 | --------------------- | ------------------------ | --------------------------------------- |
@@ -175,8 +149,8 @@ A URL template from the session lacks a variable the client needs to fill:
 
 ### `ResultReferenceError`
 
-A method call breaks a result reference rule of RFC 8620 section 3.7. The call
-rejects before it is sent, and the rest of its batch proceeds.
+A method call uses a result reference in a way RFC 8620 section 3.7 doesn't
+allow. The call rejects before it is sent, and the rest of its batch proceeds.
 
 | Property     | Type         | Description                |
 | ------------ | ------------ | -------------------------- |
@@ -190,17 +164,12 @@ rejects before it is sent, and the rest of its batch proceeds.
 | `"cross-batch"`        | The reference names a call that isn't earlier in the same batch  |
 | `"duplicate-id"`       | Another call in the same batch has the same method call ID       |
 
-A call that references a rejected call is still sent, and the server answers
-it with an `invalidResultReference` method error.
-
 - Type guard: `isResultReferenceError()`
 
 ### `UnknownEntityError`
 
-A call on `client.api` names an entity that no configured capability declares,
-such as `client.api.Note.get()` without a capability for `Note`. The returned
-promise rejects and the call is never sent. The types normally catch this
-first.
+A call on `client.api` names an entity that no configured capability
+declares. The call is never sent. The types normally catch this first.
 
 | Property | Type     | Description                |
 | -------- | -------- | -------------------------- |
@@ -211,28 +180,20 @@ first.
 
 ### `UnknownError`
 
-A fallback for an error the library can't classify. The client does not raise
-it in normal operation: `JmapError`'s constructor throws it when given a cause
-that isn't problem details.
+A fallback for an error the library can't classify.
 
 - Type guard: `isUnknownError()`
 
 ## Errors not wrapped by the library
 
-A few failures reach you as they are, without a `JsonMetaError` around them:
-
-- **Malformed JSON.** A successful response whose body isn't valid JSON
-  rejects with the `SyntaxError` from `JSON.parse`.
-- **`afterFetch` hook errors.** An error thrown by an `afterFetch` or
-  `afterEventSourceConnect` hook passes through unchanged. So does a
-  `JsonMetaError` thrown by a `beforeFetch` hook; any other error from a
-  before hook becomes a `NetworkError`. Refer to
-  [Errors in hooks](../advanced/hooks.md#errors-in-hooks).
-- **Invalid calls.** `createdRef()` throws a `RangeError` for a creation ID
-  that isn't in the call's `create` argument. A method call throws a
-  `TypeError` when its arguments aren't an object, or when
-  `generateMethodCallId` returns something other than a string. These are
-  thrown synchronously, when the call is made.
+Not every error is a `JsonMetaError`. Errors from your own code, such as a
+hook, and some errors from the platform, such as a `SyntaxError` for a
+response that isn't valid JSON, can reach you as they are. A mistake in how
+a method is called, such as an invalid argument, may also throw a standard
+`TypeError` or `RangeError` at the call site. Use `isJsonMetaError()` to tell
+the library's errors apart, and refer to
+[Errors in hooks](../advanced/hooks.md#errors-in-hooks) for errors thrown by
+hooks.
 
 ## Handling patterns
 
@@ -288,7 +249,7 @@ from the result's `notCreated`, `notUpdated` and `notDestroyed` properties.
 
 ### Request-level error types
 
-These arrive as an `HttpError` whose `responseData.type` is one of:
+RFC 8620 defines these request-level types. They arrive in the `responseData.type` of an `HttpError`:
 
 | `type`                                         | Meaning                                                           |
 | ---------------------------------------------- | ----------------------------------------------------------------- |
@@ -299,8 +260,8 @@ These arrive as an `HttpError` whose `responseData.type` is one of:
 
 ### Method-level error types
 
-These arrive as a `JmapError` whose `type` is one of the following, among
-others that individual methods define:
+RFC 8620 defines these common method-level types, and other specifications
+add more. They arrive as the `type` of a `JmapError`:
 
 | `type`                        | Meaning                                                             |
 | ----------------------------- | ------------------------------------------------------------------- |
