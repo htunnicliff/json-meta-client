@@ -75,6 +75,43 @@ The pieces fit together like this:
   details](#session-and-account-details). It exists only for the types and
   adds nothing at runtime.
 
+::: tip Declaring the type explicitly
+`withMethods()` infers the capability's type. When you need to write that
+type out, such as for an exported capability in a project that enables
+TypeScript's
+[`isolatedDeclarations`](https://www.typescriptlang.org/tsconfig/#isolatedDeclarations),
+annotate a plain object with the `Capability` type instead:
+
+```ts
+import type { Capability } from "json-meta-client";
+
+interface NoteMethods {
+  Note: {
+    get: {
+      input: { accountId: string; ids: string[] };
+      output: { list: Note[] };
+    };
+  };
+}
+
+export const declaredNotes: Capability<
+  "Note",
+  NoteMethods,
+  "urn:example:notes"
+> = {
+  urn: "urn:example:notes",
+  entities: ["Note"],
+};
+```
+
+Its type arguments are, in order: the entity names, the methods, the URN,
+the account details, the session details, and the type of the
+[`defaultAccount`](#default-account) setting. The last three are optional;
+pass the setting's literal type, such as `{ "Note/copy": null }`, when the
+object sets `defaultAccount`. This is how the built-in capabilities are
+declared.
+:::
+
 Pass the result in the client's `capabilities` option, alongside the names
 of any built-in capabilities you use. The client checks the definition when
 it is constructed and throws `CapabilityConfigurationError` if it is
@@ -200,44 +237,45 @@ do, the client constructor throws `CapabilityConfigurationError`.
 
 Each method is described by a `MethodContract`: an object type with an
 `input`, the method's arguments, and an `output`, what the call resolves
-to. Calls are checked against `input`, including at any depth, so a
-misspelled or undeclared property fails to compile.
+to.
 
 An output can depend on the arguments of the call. Inside a contract
 interface, `this["input"]` is the type of the arguments actually passed.
 TypeScript allows `this` only directly in an interface member, so pass it to
-a helper type for anything more involved. This contract narrows the returned notes to the `properties` the call asks
-for:
+a helper type for anything more involved.
+
+::: info Why `this`?
+A contract is a type, not a function, so it can't declare type parameters
+for each call to fill in. The polymorphic `this` type stands in for them.
+When you make a call, the client combines the contract with the call's
+argument types, and `this["input"]` then refers to those arguments. Any
+type that TypeScript can compute from them, from a simple conditional to
+mapped and inferred types, can shape the output. The built-in `get` methods
+use this to return only the `properties` a call asks for.
+:::
+
+This contract adds snippets to a search's result only when the call asks
+for them:
 
 ```ts
 import type { MethodContract } from "json-meta-client";
 
-interface NoteGetOutput<Input> {
-  list: Pick<
-    Note,
-    Input extends {
-      properties: readonly (infer Property extends
-        keyof Note)[];
-    }
-      ? Property
-      : keyof Note
-  >[];
-}
-
-interface NoteGet extends MethodContract {
+interface PageSearch extends MethodContract {
   input: {
     accountId: string;
-    ids: readonly string[];
-    properties?: readonly (keyof Note)[];
+    text: string;
+    withSnippets?: boolean;
   };
-  output: NoteGetOutput<this["input"]>;
+  output: this["input"] extends { withSnippets: true }
+    ? { ids: string[]; snippets: string[] }
+    : { ids: string[] };
 }
 
 const notebook = defineCapability({
   urn: "urn:example:notebook",
   entities: ["Page"],
 }).withMethods<{
-  Page: { get: NoteGet };
+  Page: { search: PageSearch };
 }>();
 
 const notebookClient = new JsonMetaClient({
@@ -246,24 +284,29 @@ const notebookClient = new JsonMetaClient({
   capabilities: [notebook],
 });
 
-// Each page has only `id` and `title`
-const { list: titles } = await notebookClient.api.Page.get({
-  ids: ["<pageId>"],
-  properties: ["id", "title"] as const,
+const { snippets } = await notebookClient.api.Page.search({
+  text: "groceries",
+  withSnippets: true,
 });
 ```
 
-The `as const` keeps the property names as literal types, so the output
-type can read them.
+## How the client adapts contracts
 
-When a contract's `input` has `accountId: string`, the argument becomes
-optional at the call site for any method that gets a
-[default account](#default-account), as `Page.get` does above. A method
-with no default keeps `accountId` required.
+The client doesn't use a contract's `input` exactly as written. Each method
+it exposes adjusts the contract in a few ways:
 
-Top-level arguments also accept
-[result references](../features/method-calls.md#result-references) in
-place of their values, without any change to the contract.
+- **`accountId` becomes optional** when the method gets a
+  [default account](#default-account), as `Page.search` does above, since
+  the client fills it in. A method with no default keeps `accountId`
+  required.
+- **Top-level arguments accept
+  [result references](../features/method-calls.md#result-references)** in
+  place of their values, without any change to the contract.
+- **Undeclared properties are rejected.** Arguments are checked against
+  `input` at any depth, so a misspelled property fails to compile.
+- **`this["input"]` is the call's arguments**, with any result references
+  resolved to the types they point at and `accountId` included, as
+  described [above](#method-contracts).
 
 ## Untyped capabilities
 

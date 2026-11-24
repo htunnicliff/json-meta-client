@@ -29,10 +29,6 @@ A few rules follow from sending the queue in a microtask:
 - **A batch in flight is closed.** A call made while an earlier request is
   still waiting for its response starts a new request. It doesn't wait for
   the earlier one to finish.
-- **Order is kept.** Method calls appear in the request's `methodCalls` in
-  the order you made them. The server runs them in that order, which is what
-  lets a later call use an earlier call's result through a
-  [result reference](../features/method-calls.md#result-references).
 - **References stay inside a batch.** A result reference can only point at
   a method call earlier in the same batch. A call that references one from
   another batch is rejected with `ResultReferenceError` and is not sent.
@@ -60,7 +56,7 @@ const { list: recentEmails } = await client.api.Email.get({
 });
 ```
 
-When you don't need a call's result, prefix the statement with `void` to
+When you don't need a call's result, you may prefix the statement with `void` to
 show that the promise is discarded on purpose. Here, marking an email as
 read rides along with the request that fetches it:
 
@@ -114,47 +110,6 @@ include `maxCallsInRequest`, the most method calls in one request, and
 limit fails as a whole: the server answers with a request-level `limit`
 error, and every call in the batch rejects with an `HttpError`.
 
-The client does not split a batch to fit these limits. It sends every call
-made together as one request, however many there are. When you make a
-variable number of calls, such as one per item in a list, split them into
-chunks yourself. Awaiting each chunk sends it as its own request:
-
-```ts
-const session = await client.session;
-const { maxCallsInRequest } =
-  session.capabilities["urn:ietf:params:jmap:core"]!;
-
-const mailboxIds = [
-  "<mailboxId1>",
-  "<mailboxId2>",
-  "<mailboxId3>",
-];
-const totals: number[] = [];
-
-for (
-  let start = 0;
-  start < mailboxIds.length;
-  start += maxCallsInRequest
-) {
-  const chunk = mailboxIds.slice(
-    start,
-    start + maxCallsInRequest,
-  );
-  const results = await Promise.all(
-    chunk.map((inMailbox) =>
-      client.api.Email.query({
-        filter: { inMailbox },
-        calculateTotal: true,
-      }),
-    ),
-  );
-  totals.push(...results.map(({ total }) => total!));
-}
-```
-
-Keep calls that are linked by result references in the same chunk, since a
-reference can't cross from one request to another.
-
 ## Failure behavior
 
 Because a batch is one HTTP request, a failure of the request itself fails
@@ -178,16 +133,18 @@ See the [errors reference](../reference/errors.md) for each error class.
 
 The server answers with one or more responses per method call, each tagged
 with the call's ID. The client matches each response to its call by that
-ID, not by position, so the order of the responses doesn't matter.
+ID, not by position.
 
+If no response carries a call's ID, or the only responses with it are for a
+different method, the call rejects with `MethodCallError`.
+
+::: info
 Some methods produce more than one response under the same ID. For example,
 an `EmailSubmission/set` call with `onSuccessDestroyEmail` also returns an
 implicit `Email/set` response for the emails it destroyed. Among the
 responses that share a call's ID, the client settles the call with the one
 named after its method, or with an `error` response, and ignores the rest.
-
-If no response carries a call's ID, or the only responses with it are for a
-different method, the call rejects with `MethodCallError`.
+:::
 
 ## Cancelling
 
