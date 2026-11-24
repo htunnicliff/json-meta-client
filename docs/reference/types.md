@@ -44,8 +44,8 @@ See [Transports](../advanced/transports.md#writing-a-transport) for
 - How to get `Email`, `Mailbox`, etc. today (e.g. `Awaited<ReturnType<...>>`)
 - `JmapRequest`, `JmapResponse`, `Session`, `StateChange` and the RFC 8887
   message types are exported for writing transports
-- Blocked: other RFC types (and `Ref`, `ConfigurableCapability`,
-  `CapabilityMethods`) are not exported from the package entry point yet
+- The other RFC types come from `json-meta-client/rfc-types`; `Ref`,
+  `ConfigurableCapability` and `CapabilityMethods` are not exported yet
 :::
 
 ### `JmapRequest`
