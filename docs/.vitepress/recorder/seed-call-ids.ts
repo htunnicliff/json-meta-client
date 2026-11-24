@@ -1,8 +1,8 @@
 /**
  * Replace `crypto.getRandomValues`, which the client draws call ids from, with
  * a generator seeded by `seed`, so the same method calls get the same ids on
- * every run. Docs examples then stay free of explicit `id` options, and the
- * generated JMAP Requests do not change from build to build. Returns a
+ * every run. Playground code then stays free of explicit `id` options, and
+ * its JMAP Requests do not change from run to run. Returns a
  * function that restores the original.
  */
 export function seedCallIds(seed: number): () => void {

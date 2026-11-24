@@ -46,40 +46,6 @@ for (const mailbox of getMailboxes.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "filter": {
-          "role": "inbox"
-        },
-        "accountId": "<account-id>"
-      },
-      "queryMailboxes"
-    ],
-    [
-      "Mailbox/get",
-      {
-        "#ids": {
-          "name": "Mailbox/query",
-          "resultOf": "queryMailboxes",
-          "path": "/ids"
-        },
-        "properties": ["id", "name"],
-        "accountId": "<account-id>"
-      },
-      "getMailboxes"
-    ]
-  ]
-}
-```
-
 :::
 
 ## List unread emails
@@ -108,51 +74,6 @@ for (const email of getEmails.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "filter": {
-          "operator": "AND",
-          "conditions": [
-            {
-              "inMailbox": "<inboxId>"
-            },
-            {
-              "notKeyword": "$seen"
-            },
-            {
-              "notKeyword": "$draft"
-            }
-          ]
-        },
-        "accountId": "<account-id>"
-      },
-      "queryEmails"
-    ],
-    [
-      "Email/get",
-      {
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "queryEmails",
-          "path": "/ids"
-        },
-        "properties": ["from", "subject", "sentAt"],
-        "accountId": "<account-id>"
-      },
-      "getEmails"
-    ]
-  ]
-}
-```
-
 :::
 
 ## Send an email
@@ -175,35 +96,6 @@ const [mailboxes, identities] = await Promise.all([
 
 const draftMailboxId = mailboxes.ids[0]!;
 const identity = identities.list[0]!;
-```
-
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail",
-    "urn:ietf:params:jmap:submission"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "filter": {
-          "role": "drafts"
-        },
-        "accountId": "<account-id>"
-      },
-      "mailboxes"
-    ],
-    [
-      "Identity/get",
-      {
-        "accountId": "<account-id>"
-      },
-      "identities"
-    ]
-  ]
-}
 ```
 
 :::
@@ -270,67 +162,6 @@ await client.api.EmailSubmission.set({
   // Delete the draft if it is sent successfully
   onSuccessDestroyEmail: ["#submission"],
 });
-```
-
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail",
-    "urn:ietf:params:jmap:submission"
-  ],
-  "methodCalls": [
-    [
-      "Email/set",
-      {
-        "create": {
-          "draft": {
-            "keywords": {
-              "$draft": true
-            },
-            "mailboxIds": {
-              "<draftMailboxId>": true
-            },
-            "from": [{}],
-            "to": [
-              {
-                "name": null,
-                "email": "someone@example.com"
-              }
-            ],
-            "subject": "Hi there",
-            "bodyValues": {
-              "body": {
-                "value": "Hello there!\nI hope you are well.\nBest,\nMe"
-              }
-            },
-            "textBody": [
-              {
-                "partId": "body",
-                "type": "text/plain"
-              }
-            ]
-          }
-        },
-        "accountId": "<account-id>"
-      },
-      "draft"
-    ],
-    [
-      "EmailSubmission/set",
-      {
-        "create": {
-          "submission": {
-            "emailId": "#draft"
-          }
-        },
-        "onSuccessDestroyEmail": ["#submission"],
-        "accountId": "<account-id>"
-      },
-      "EmailSubmission/set"
-    ]
-  ]
-}
 ```
 
 :::

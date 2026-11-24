@@ -10,8 +10,7 @@ import { createShim } from "./shim.ts";
 import { createTracer, TRACER } from "./tracer.ts";
 
 /**
- * The seed of call ids, the same as the docs build's, so a docs example shows
- * the same ids in the playground as in its "JMAP Request" tab
+ * The seed of call ids, so the same code shows the same ids on every run
  */
 export const CALL_ID_SEED = 1;
 
