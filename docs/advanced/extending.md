@@ -1,20 +1,130 @@
 # Extending
 
+The built-in capabilities cover the JMAP standards, but servers often offer
+more: vendor extensions, drafts, or methods of their own. Define a
+capability for them, and the client calls them like any built-in method,
+with the same batching, default accounts, result references, and types.
+
 ## Defining a capability
 
-:::warning TODO
-- `defineCapability({ urn, entities }).withMethods<Methods, AccountCaps?, SessionCaps?>()`,
-  then pass the object in `capabilities`
-:::
+`defineCapability()` takes the capability's URN and the entities it adds,
+and `withMethods()` describes their methods as types:
+
+```ts
+import {
+  defineCapability,
+  JsonMetaClient,
+} from "json-meta-client";
+
+interface Note {
+  id: string;
+  title: string;
+  body: string;
+}
+
+const notes = defineCapability({
+  urn: "urn:example:notes",
+  entities: ["Note"],
+}).withMethods<{
+  Note: {
+    get: {
+      input: { accountId: string; ids: string[] };
+      output: {
+        state: string;
+        list: Note[];
+        notFound: string[];
+      };
+    };
+    query: {
+      input: {
+        accountId: string;
+        filter?: { text?: string };
+      };
+      output: { ids: string[] };
+    };
+  };
+}>();
+
+const notesClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: ["mail", notes],
+});
+
+const groceryNotes = notesClient.api.Note.query({
+  filter: { text: "groceries" },
+});
+
+const { list: groceryList } =
+  await notesClient.api.Note.get({
+    ids: groceryNotes.resultRef("/ids"),
+  });
+```
+
+The pieces fit together like this:
+
+- **`urn`** is the capability's identifier. The client adds it to the
+  `using` array of every request that calls one of the capability's
+  methods, and uses it to find the default account.
+- **`entities`** lists the entity names the capability adds. Each one
+  becomes a property of `client.api`, such as `client.api.Note`. Calling
+  a method on an entity that no configured capability lists rejects with
+  `UnknownEntityError` without sending anything.
+- **`withMethods()`** takes up to three type arguments: the methods of each
+  entity, then the capability's [account and session
+  details](#session-and-account-details). It exists only for the types and
+  adds nothing at runtime.
+
+Pass the result in the client's `capabilities` option, alongside the names
+of any built-in capabilities you use. The client checks the definition when
+it is constructed and throws `CapabilityConfigurationError` if it is
+malformed. When the session first loads, the client logs a warning if the
+server doesn't list the URN.
 
 ## Depending on other URNs
 
-:::warning TODO
-- `defineCapability({ urn, entities, dependsOn })` lists other URNs that the
-  server needs in `using` for this capability's methods
-- The client adds them whenever one of the capability's entities is called
-- Built-in example: `mdn` depends on the mail URN because `MDN/send` updates Emails
-:::
+Some methods need the server to enable another capability too. List those
+URNs in `dependsOn`, and the client adds them to `using` whenever one of the
+capability's entities is called:
+
+```ts
+const labels = defineCapability({
+  urn: "urn:example:labels",
+  entities: ["Label"],
+  dependsOn: ["urn:ietf:params:jmap:mail"],
+}).withMethods<{
+  Label: {
+    apply: {
+      input: {
+        accountId: string;
+        label: string;
+        emailIds: string[];
+      };
+      output: { updated: string[] };
+    };
+  };
+}>();
+```
+
+A `Label/apply` call is then sent with all three URNs:
+
+```json
+{
+  "using": [
+    "urn:ietf:params:jmap:core",
+    "urn:example:labels",
+    "urn:ietf:params:jmap:mail"
+  ]
+}
+```
+
+The built-in `mdn` capability works this way. `MDN/send` can update the
+email it answers, so it depends on the mail URN.
+
+`dependsOn` only changes `using`. It doesn't add the other capability's
+entities or types, and the default account still comes from the
+capability's own URN. To call `Email` methods as well, configure `"mail"`
+too.
 
 ## Default account
 
@@ -31,11 +141,6 @@ the destination. The `defaultAccount` setting tells the client which methods
 those are:
 
 ```ts
-import {
-  defineCapability,
-  JsonMetaClient,
-} from "json-meta-client";
-
 interface Task {
   id: string;
   title: string;
@@ -93,45 +198,263 @@ do, the client constructor throws `CapabilityConfigurationError`.
 
 ## Method contracts
 
-:::warning TODO
-- `MethodContract` is `{ input, output }`
-- Output can depend on input via `this["input"]` (show the `properties`-narrowing
-  example from `custom-capabilities.test-d.ts`)
-- A contract with `accountId` makes it optional at the call site
-:::
+Each method is described by a `MethodContract`: an object type with an
+`input`, the method's arguments, and an `output`, what the call resolves
+to. Calls are checked against `input`, including at any depth, so a
+misspelled or undeclared property fails to compile.
+
+An output can depend on the arguments of the call. Inside a contract
+interface, `this["input"]` is the type of the arguments actually passed.
+TypeScript allows `this` only directly in an interface member, so pass it to
+a helper type for anything more involved. This contract narrows the returned notes to the `properties` the call asks
+for:
+
+```ts
+import type { MethodContract } from "json-meta-client";
+
+interface NoteGetOutput<Input> {
+  list: Pick<
+    Note,
+    Input extends {
+      properties: readonly (infer Property extends
+        keyof Note)[];
+    }
+      ? Property
+      : keyof Note
+  >[];
+}
+
+interface NoteGet extends MethodContract {
+  input: {
+    accountId: string;
+    ids: readonly string[];
+    properties?: readonly (keyof Note)[];
+  };
+  output: NoteGetOutput<this["input"]>;
+}
+
+const notebook = defineCapability({
+  urn: "urn:example:notebook",
+  entities: ["Page"],
+}).withMethods<{
+  Page: { get: NoteGet };
+}>();
+
+const notebookClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: [notebook],
+});
+
+// Each page has only `id` and `title`
+const { list: titles } = await notebookClient.api.Page.get({
+  ids: ["<pageId>"],
+  properties: ["id", "title"] as const,
+});
+```
+
+The `as const` keeps the property names as literal types, so the output
+type can read them.
+
+When a contract's `input` has `accountId: string`, the argument becomes
+optional at the call site for any method that gets a
+[default account](#default-account), as `Page.get` does above. A method
+with no default keeps `accountId` required.
+
+Top-level arguments also accept
+[result references](../features/method-calls.md#result-references) in
+place of their values, without any change to the contract.
 
 ## Untyped capabilities
 
-:::warning TODO
-- Omitting `withMethods` types allows any method name with `unknown` results
-:::
+Leave out `withMethods()`, and the capability accepts any method name on its
+entities:
+
+```ts
+const widgets = defineCapability({
+  urn: "urn:example:widgets",
+  entities: ["Widget"],
+});
+
+const widgetClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: [widgets],
+});
+
+const widget = await widgetClient.api.Widget.spin!({
+  ids: ["<widgetId>"],
+});
+```
+
+Every method's result is `unknown`, and its arguments aren't checked. The
+methods are typed through an index signature, so the non-null assertion
+(`!`) is needed when `noUncheckedIndexedAccess` is on. The client still
+batches the calls, adds the URN to `using`, and fills in the default
+account. Untyped capabilities are handy for trying out a server's methods;
+add contracts once you rely on them.
 
 ## Session and account details
 
-:::warning TODO
-- The second and third generics type `session.capabilities[urn]` and `accountCapabilities[urn]`
-:::
+The second and third type arguments of `withMethods()` type the details the
+server publishes about the capability: the second for each account's
+`accountCapabilities[urn]`, the third for the session's
+`capabilities[urn]`:
+
+```ts
+interface ReminderAccountDetails {
+  maxRemindersPerDay: number;
+}
+
+interface ReminderSessionDetails {
+  supportsRecurrence: boolean;
+}
+
+const reminders = defineCapability({
+  urn: "urn:example:reminders",
+  entities: ["Reminder"],
+}).withMethods<
+  {
+    Reminder: {
+      get: {
+        input: { accountId: string; ids: string[] };
+        output: {};
+      };
+    };
+  },
+  ReminderAccountDetails,
+  ReminderSessionDetails
+>();
+
+const reminderClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: [reminders],
+});
+
+const reminderSession = await reminderClient.session;
+
+const { supportsRecurrence } =
+  reminderSession.capabilities["urn:example:reminders"]!;
+const { maxRemindersPerDay } =
+  reminderSession.accounts["<accountId>"]!
+    .accountCapabilities["urn:example:reminders"]!;
+```
+
+Both default to `unknown`. Either may be missing from a real session, since
+a server or an account may not support the capability, so both are typed
+as possibly `undefined`.
 
 ## Extending built-in URNs
 
-:::warning TODO
-- Define a vendor capability with the same URN (e.g. vendor `Email` methods under the mail URN)
-- Contracts are intersected, not replaced
-- Session details are merged (e.g. with `core`)
-:::
+To add vendor methods or details to a standard capability, define a
+capability with the standard URN. Here a vendor adds an `Email/snooze`
+method and an account detail under the mail URN:
+
+```ts
+const snoozing = defineCapability({
+  urn: "urn:ietf:params:jmap:mail",
+  entities: ["Email"],
+}).withMethods<
+  {
+    Email: {
+      snooze: {
+        input: {
+          accountId: string;
+          ids: string[];
+          until: string;
+        };
+        output: { snoozed: string[] };
+      };
+    };
+  },
+  { maySnooze: boolean }
+>();
+
+const vendorClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: ["mail", snoozing],
+});
+
+const vendorSession = await vendorClient.session;
+const mailDetails =
+  vendorSession.accounts["<accountId>"]!
+    .accountCapabilities["urn:ietf:params:jmap:mail"]!;
+
+if (mailDetails.maySnooze) {
+  void vendorClient.api.Email.snooze({
+    ids: ["<emailId>"],
+    until: "2026-12-01T09:00:00Z",
+  });
+}
+```
+
+The built-in `Email` methods stay available next to `snooze`. The two
+capabilities combine rather than replace each other:
+
+- **Methods are merged per entity.** When both declare the same method,
+  the contracts are intersected, so a call must satisfy both inputs and
+  resolves to both outputs.
+- **Details are merged per URN.** `mailDetails` has the vendor's
+  `maySnooze` and the standard `maxMailboxesPerEmail` alike. The same goes
+  for session details, such as extending the core capability's limits.
+
+Because both capabilities share a URN, the request's `using` lists it once,
+and `snooze` gets the same default account as the standard mail methods.
 
 ## Sharing entities across capabilities
 
-:::warning TODO
-- Method types are intersected; the request includes every URN providing the entity
-- Each method's default account comes from one capability: give the capability
-  that adds methods to a shared entity a `defaultAccount` that lists them,
-  since two capabilities with different URNs can't both claim `"*"`
-:::
+Capabilities with different URNs can declare the same entity, such as an
+extension that adds methods to another capability's entity. The client
+merges them:
+
+- The entity's method types are intersected, as for a shared URN.
+- Every call on the entity lists the URN of every capability that declares
+  it in `using`, since the client can't tell which one the server needs.
+
+Each method's default account comes from exactly one capability, so the
+two can't both claim the entity's methods with `"*"`, which an omitted
+`defaultAccount` does. When they do, the client constructor throws
+`CapabilityConfigurationError`. Give the capability that adds methods a
+`defaultAccount` that lists them:
+
+```ts
+const archiving = defineCapability({
+  urn: "urn:example:archiving",
+  entities: ["Note"],
+  defaultAccount: { "Note/archive": "primary" },
+}).withMethods<{
+  Note: {
+    archive: {
+      input: { accountId: string; ids: string[] };
+      output: { archived: string[] };
+    };
+  };
+}>();
+
+const archiveClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: [notes, archiving],
+});
+
+const { archived } = await archiveClient.api.Note.archive({
+  ids: ["<noteId>"],
+});
+```
+
+`Note/archive` now gets the primary account for `urn:example:archiving`,
+while `notes` keeps every other `Note` method through its `"*"`.
 
 ## Reusing RFC helper types
 
-:::warning TODO
-- `MethodGet`, `MethodSet`, etc., as `masked-email.ts` does
-- Blocked: RFC types are not exported from the package entry point yet
-:::
+The built-in capabilities build their contracts from generic helpers for
+the standard method shapes, such as `MethodGet` and `MethodSet`. The
+community `maskedEmail` capability uses them too, for its
+`MaskedEmail/get` and `MaskedEmail/set`.
+
+These helpers aren't exported from the package yet, so custom capabilities
+can't import them. Until they are, write contracts by hand as on this page,
+following the argument and response shapes in
+[RFC 8620 section 5](https://www.rfc-editor.org/rfc/rfc8620.html#section-5).
