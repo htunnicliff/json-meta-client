@@ -18,8 +18,10 @@ import { core } from "../capabilities/core.ts";
 import { mail } from "../capabilities/mail.ts";
 import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
+import { CancellationError } from "../errors/cancellation-error.ts";
 import { StateChangeError } from "../errors/state-change-error.ts";
 import type { Session } from "../rfc-types/core/index.ts";
+import type { PushEvents, Transport, TransportFactory } from "../transports/types.ts";
 import type { CapabilityOption, OnStateChangeHandler } from "../types.ts";
 
 vi.mock("eventsource-client", () => ({ createEventSource: vi.fn<typeof createEventSource>() }));
@@ -94,6 +96,24 @@ async function isPrimaryAccount(
   emit(JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { [entity]: "state" } } }));
   expect(handler).toHaveBeenCalledExactlyOnceWith(null, expect.objectContaining({ entity }));
   return handler.mock.calls[0]![1]?.isPrimaryAccount;
+}
+
+function client(transport?: TransportFactory) {
+  return new JsonMetaClient({
+    sessionUrl: `${host}/session`,
+    auth: "token",
+    capabilities: [mail],
+    ...(transport ? { transport } : {}),
+  });
+}
+
+/** Emit a message on the nth event source the client opened */
+function emitOn(index: number, data: string): void {
+  const options = vi.mocked(createEventSource).mock.calls[index]?.[0];
+  if (!options || typeof options !== "object" || options instanceof URL) {
+    throw new Error(`Expected event source ${index}`);
+  }
+  options.onMessage!({ data, event: "message", id: undefined });
 }
 
 describe("onStateChange", () => {
@@ -302,6 +322,139 @@ describe("onStateChange", () => {
           false,
         );
       });
+    });
+  });
+
+  describe("sharing a push channel", () => {
+    const change = JSON.stringify({
+      "@type": "StateChange",
+      changed: { [accountId]: { Email: "s1" } },
+    });
+    const payload = { accountId, entity: "Email", state: "s1", isPrimaryAccount: true };
+
+    it("opens one event stream for handlers that ask for the same ping interval", async () => {
+      const jmap = client();
+      const first = vi.fn<OnStateChangeHandler>();
+      const second = vi.fn<OnStateChangeHandler>();
+
+      await jmap.onStateChange(first);
+      await jmap.onStateChange(second);
+      emitOn(0, change);
+
+      expect(createEventSource).toHaveBeenCalledOnce();
+      expect(first).toHaveBeenCalledExactlyOnceWith(null, payload);
+      expect(second).toHaveBeenCalledExactlyOnceWith(null, payload);
+    });
+
+    it("opens one event stream per ping interval", async () => {
+      const jmap = client();
+
+      await jmap.onStateChange(vi.fn<OnStateChangeHandler>());
+      await jmap.onStateChange(vi.fn<OnStateChangeHandler>(), { pingSeconds: 5 });
+
+      expect(createEventSource).toHaveBeenCalledTimes(2);
+      const urls = vi.mocked(createEventSource).mock.results.map(({ value }) => value.url);
+      expect(urls).toEqual([expect.stringContaining("ping=30"), expect.stringContaining("ping=5")]);
+    });
+
+    it("closes the event stream when the last handler leaves", async () => {
+      const jmap = client();
+      const first = vi.fn<OnStateChangeHandler>();
+      const second = vi.fn<OnStateChangeHandler>();
+      const a = await jmap.onStateChange(first);
+      const controller = new AbortController();
+      await jmap.onStateChange(second, { signal: controller.signal });
+
+      a[Symbol.dispose]();
+      emitOn(0, change);
+      expect(close).not.toHaveBeenCalled();
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledOnce();
+
+      controller.abort();
+      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+
+      // A new handler opens a new stream
+      await jmap.onStateChange(vi.fn<OnStateChangeHandler>());
+      expect(createEventSource).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps delivering to other handlers when one throws", async () => {
+      const failure = new Error("Handler failed");
+      const thrown: unknown[] = [];
+      const onError = (error: unknown) => thrown.push(error);
+      process.on("uncaughtException", onError);
+      try {
+        const jmap = client();
+        const second = vi.fn<OnStateChangeHandler>();
+        await jmap.onStateChange(() => {
+          throw failure;
+        });
+        await jmap.onStateChange(second);
+
+        emitOn(0, change);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(second).toHaveBeenCalledExactlyOnceWith(null, payload);
+        expect(thrown).toEqual([failure]);
+      } finally {
+        process.off("uncaughtException", onError);
+      }
+    });
+
+    it("uses the event stream when the transport's subscribe returns null", async () => {
+      const subscribe = vi.fn<NonNullable<Transport["subscribe"]>>(() => null);
+      const jmap = client(() => ({ send: vi.fn<Transport["send"]>(), subscribe }));
+      const handler = vi.fn<OnStateChangeHandler>();
+
+      await jmap.onStateChange(handler);
+      emitOn(0, change);
+
+      expect(subscribe).toHaveBeenCalledOnce();
+      expect(handler).toHaveBeenCalledExactlyOnceWith(null, payload);
+    });
+
+    it("delivers the same payloads from the transport's push channel, subscribing once", async () => {
+      let events: PushEvents | undefined;
+      const unsubscribe = vi.fn<() => void>();
+      const subscribe = vi.fn<NonNullable<Transport["subscribe"]>>((_, pushEvents) => {
+        events = pushEvents;
+        return { [Symbol.dispose]: unsubscribe };
+      });
+      const jmap = client(() => ({ send: vi.fn<Transport["send"]>(), subscribe }));
+      const first = vi.fn<OnStateChangeHandler>();
+      const second = vi.fn<OnStateChangeHandler>();
+
+      const a = await jmap.onStateChange(first);
+      const b = await jmap.onStateChange(second, { pingSeconds: 5 });
+      events!.onStateChange(JSON.parse(change));
+      const error = new StateChangeError("Dropped");
+      events!.onError(error);
+
+      expect(createEventSource).not.toHaveBeenCalled();
+      expect(subscribe).toHaveBeenCalledOnce();
+      expect(first.mock.calls).toEqual([
+        [null, payload],
+        [error, undefined],
+      ]);
+      expect(second.mock.calls).toEqual(first.mock.calls);
+
+      a[Symbol.dispose]();
+      expect(unsubscribe).not.toHaveBeenCalled();
+      b[Symbol.dispose]();
+      await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+    });
+
+    it("ends every subscription when the client is disposed", async () => {
+      const jmap = client();
+      const handler = vi.fn<OnStateChangeHandler>();
+      await jmap.onStateChange(handler);
+      await jmap.onStateChange(handler, { pingSeconds: 5 });
+
+      jmap[Symbol.dispose]();
+
+      await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(2));
+      await expect(jmap.onStateChange(handler)).rejects.toBeInstanceOf(CancellationError);
     });
   });
 });

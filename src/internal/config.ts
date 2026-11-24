@@ -19,6 +19,16 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
   assertValidAuth(options.auth);
   assertValidSessionUrl(options.sessionUrl);
   assertValidCapabilities(options.capabilities);
+  assertValidTransport(options.transport);
+}
+
+function assertValidTransport(transport: unknown): void {
+  if (transport !== undefined && typeof transport !== "function") {
+    throw new ConfigurationError(
+      "`transport` must be a transport factory, such as `httpTransport()` or `webSocketTransport()`",
+      { cause: { transport } },
+    );
+  }
 }
 
 function assertValidAuth(auth: Auth): void {

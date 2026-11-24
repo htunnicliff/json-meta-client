@@ -10,16 +10,20 @@
 
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { getCapabilitiesForBuiltIns } from "./built-ins.ts";
-import { ConfigurationError, StateChangeError } from "./errors/index.ts";
+import { CancellationError, ConfigurationError } from "./errors/index.ts";
 import { CapabilityIndex } from "./internal/capability-index.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
+import { dispose } from "./internal/disposable.ts";
+import { openEventStream } from "./internal/event-stream.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { HttpClient } from "./internal/http.ts";
-import { readStateChanges } from "./internal/read-state-changes.ts";
-import type { FileDownload, FileUpload, Response as JMAPResponse } from "./rfc-types/core/index.ts";
+import { StateChangeHub } from "./internal/state-change-hub.ts";
+import type { FileDownload, FileUpload } from "./rfc-types/core/index.ts";
+import { httpTransport } from "./transports/http.ts";
+import type { Transport, TransportContext } from "./transports/types.ts";
 import type {
   CapabilityOption,
   ClientApi,
@@ -41,14 +45,24 @@ export class JsonMetaClient<
     this.#capabilities = new CapabilityIndex(getCapabilitiesForBuiltIns(options.capabilities));
     this.#generateMethodCallId = options.generateMethodCallId ?? defaultMethodCallId;
 
+    // One transport per client, shared by every dispatcher
+    const context: TransportContext = {
+      authenticate: this.#http.authenticate,
+      fetch: async (url, init) => (await this.#http.fetch(url, init)).response,
+    };
+    this.#transport = (options.transport ?? httpTransport())(context);
+    this.#stateChanges = new StateChangeHub({
+      transport: this.#transport,
+      openEventStream: (session, events, pingSeconds) =>
+        openEventStream(this.#http, session, events, pingSeconds),
+      isPrimaryAccount: (session, entity, accountId) =>
+        this.#capabilities.isPrimaryAccount(session, entity, accountId),
+    });
+
     // Everything a dispatcher needs; each API gets its own dispatcher
     this.#dispatcherOptions = {
-      transport: (request, session) =>
-        this.#http.fetchJson<JMAPResponse>(session.apiUrl, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(request),
-        }),
+      transport: this.#transport,
+      signal: this.#lifetime.signal,
       session: () => this.session,
       urnsForEntity: this.#capabilities.urnsForEntity,
       findMethodOwner: this.#capabilities.findMethodOwner,
@@ -124,60 +138,32 @@ export class JsonMetaClient<
   };
 
   /**
-   * Subscribe to state changes
+   * Subscribe to state changes. Every handler shares one push channel: the
+   * transport's, when it provides one, or else the session's event stream.
    */
   onStateChange = async (
     handler: OnStateChangeHandler,
     options: OnStateChangeOptions = {},
   ): Promise<Disposable> => {
     const { pingSeconds = 30, signal } = options;
+    if (this.#lifetime.signal.aborted) throw new CancellationError("The client was disposed");
     const session = await this.session;
-    const url = expandURITemplate(session.eventSourceUrl, {
-      types: "*",
-      // spellchecker:disable-next-line
-      closeafter: "no",
-      ping: pingSeconds.toFixed(0),
-    });
-    const { createEventSource } = await import("eventsource-client");
+    if (signal?.aborted) return { [Symbol.dispose ?? "disconnect"]: () => {} };
+    const subscription = await this.#stateChanges.add(session, handler, pingSeconds);
+    signal?.addEventListener("abort", () => dispose(subscription), { once: true });
+    return subscription;
+  };
 
-    const eventSource = createEventSource({
-      url,
-      fetch: async (url, options) => {
-        const requestOptions: RequestInit = options ?? {};
-        try {
-          return (await this.#http.fetch(url, requestOptions, true)).response;
-        } catch (cause) {
-          if (!requestOptions.signal?.aborted) {
-            handler(new StateChangeError("Event-stream connection failed", { cause }), undefined);
-          }
-          throw cause;
-        }
-      },
-      onMessage: (event) => {
-        try {
-          for (const change of readStateChanges(event.data)) {
-            handler(null, {
-              ...change,
-              isPrimaryAccount: this.#capabilities.isPrimaryAccount(
-                session,
-                change.entity,
-                change.accountId,
-              ),
-            });
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : `An error occurred when parsing a state change message payload`;
-          handler(new StateChangeError(message, { cause: error }), undefined);
-        }
-      },
-    });
-    signal?.addEventListener("abort", () => eventSource.close());
-    return {
-      [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
-    };
+  /**
+   * Release the client's connections: reject JMAP Requests in flight with
+   * `CancellationError`, end every `onStateChange` subscription, and dispose
+   * the transport. Later method calls reject with `CancellationError`.
+   */
+  [Symbol.dispose] = (): void => {
+    if (this.#lifetime.signal.aborted) return;
+    this.#lifetime.abort();
+    this.#stateChanges.close();
+    this.#transport[Symbol.dispose]?.();
   };
 
   /**
@@ -204,6 +190,21 @@ export class JsonMetaClient<
    * Makes every HTTP request, with authentication and the fetch hooks
    */
   readonly #http: HttpClient;
+
+  /**
+   * Carries every JMAP Request, and push messages when it supports them
+   */
+  readonly #transport: Transport;
+
+  /**
+   * Shares push channels between `onStateChange` handlers
+   */
+  readonly #stateChanges: StateChangeHub;
+
+  /**
+   * Aborted when the client is disposed
+   */
+  readonly #lifetime = new AbortController();
 
   /**
    * Lookups over the default and configured capabilities
