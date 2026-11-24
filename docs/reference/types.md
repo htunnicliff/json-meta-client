@@ -263,25 +263,49 @@ Checking `error` narrows `change` to a `StateChangePayload`.
 
 ## JMAP Types
 
-The RFC types, such as `Email`, `Mailbox` and the method argument types, are
-not exported from the package entry point yet. Until they are, derive them
-from the client's API, whose types come from the configured capabilities.
-
-The full object type comes from a method's return type:
+The types of the JMAP standards are exported from a separate, types-only
+entry point, `json-meta-client/rfc-types`. It holds the objects, such as
+`Mailbox`, `ReadableEmail` and `Session`, the capability details, and the
+method helpers, such as `MethodGet` and `MethodSet`, that the built-in
+capabilities are made from. JSContact (RFC 9553) types are under the
+`JSContact` namespace, because some of their names are also JMAP type names.
 
 ```ts
-type Api = typeof client.api;
+import type {
+  JSContact,
+  Mailbox,
+  ReadableEmail,
+} from "json-meta-client/rfc-types";
 
-type Email = Awaited<
-  ReturnType<Api["Email"]["get"]>
->["list"][number];
-type Mailbox = Awaited<
-  ReturnType<Api["Mailbox"]["get"]>
->["list"][number];
+function describe(
+  mailbox: Mailbox,
+  email: ReadableEmail,
+  card: JSContact.Card,
+) {
+  console.log(mailbox.name, email.subject, card.name?.full);
+}
 ```
 
-A result's own type is narrower: a `/get` call that passes `properties` lists
-only those properties.
+`Request` and `Response` share their names with the Fetch globals, so rename
+them when importing:
+
+```ts
+import type { Request as JmapRequest } from "json-meta-client/rfc-types";
+
+const echo: JmapRequest = {
+  using: ["urn:ietf:params:jmap:core"],
+  methodCalls: [["Core/echo", { hello: true }, "c1"]],
+};
+```
+
+To build contracts for a custom capability from these types, refer to
+[Reusing RFC helper types](../advanced/extending.md#reusing-rfc-helper-types).
+
+### Types of a result
+
+A method's result can be narrower than the RFC object: a `/get` call that
+passes `properties` lists only those properties. Derive the type from the
+result itself:
 
 ```ts
 const summaries = await client.api.Email.get({
@@ -292,17 +316,19 @@ const summaries = await client.api.Email.get({
 type EmailSummary = (typeof summaries)["list"][number];
 ```
 
-These envelope types are also not exported, but are what the
-[JMAP hooks](#hook-types) receive:
+### Envelope types
 
-### `JmapRequest`
+The [JMAP hooks](#hook-types) receive these envelopes, also exported from
+`json-meta-client/rfc-types`.
+
+#### `JmapRequest`
 
 <<< ../../src/rfc-types/core/rfc8620-jmap.ts#jmap-request
 
-### `Invocation`
+#### `Invocation`
 
 <<< ../../src/rfc-types/core/rfc8620-jmap.ts#invocation
 
-### `JmapResponse`
+#### `JmapResponse`
 
 <<< ../../src/rfc-types/core/rfc8620-jmap.ts#jmap-response
