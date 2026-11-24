@@ -2,54 +2,191 @@
 
 ## Subscribing
 
-:::warning TODO
-- `await client.onStateChange(handler, { signal?, pingSeconds? })`; loads `eventsource-client` lazily
-- Always subscribes with `types: "*"` and `closeafter: "no"`; `pingSeconds` defaults to 30
+A JMAP server can push a notice whenever data changes, such as when a new
+email arrives. Subscribe with `client.onStateChange()`:
+
+```ts
+let mailboxState = (
+  await client.api.Mailbox.get({ ids: [] })
+).state;
+
+const subscription = await client.onStateChange(
+  async (error, change) => {
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    // Refresh unread counts only when mailboxes have new data
+    if (
+      change.entity === "Mailbox" &&
+      change.state !== mailboxState
+    ) {
+      mailboxState = change.state;
+      const mailboxes = await client.api.Mailbox.get({
+        properties: ["name", "unreadEmails"],
+      });
+      for (const { name, unreadEmails } of mailboxes.list) {
+        console.log(`${name}: ${unreadEmails} unread`);
+      }
+    }
+  },
+);
+```
+
+The client connects to the session's `eventSourceUrl`, an
+[event stream](https://www.rfc-editor.org/rfc/rfc8620#section-7.3) that
+stays open. It subscribes to every type (`types: "*"`) and keeps the
+connection open after each change (`closeafter: "no"`). The stream support
+comes from [`eventsource-client`](https://www.npmjs.com/package/eventsource-client),
+which the client loads only when you first subscribe.
+
+::: note
+The client uses `eventsource-client` instead of the browser's built-in
+`EventSource` because `EventSource` can't send custom headers. Without
+them, the event stream couldn't carry the `Authorization` header that
+[`auth`](../reference/api.md#auth) sets on every other request.
 :::
+
+`onStateChange()` takes an optional second argument:
+
+- **`signal`**: an `AbortSignal` that closes the connection when aborted. See
+  [Unsubscribing](#unsubscribing).
+- **`pingSeconds`**: how often, in seconds, the server should send a ping to
+  keep the connection alive. Defaults to `30`.
 
 ## The handler
 
-:::warning TODO
-- Called Node-style as `(error, change)`
-- Called once per entity per account with a `StateChangePayload`:
-  `accountId`, `isPrimaryAccount`, `entity`, `state`
-- `isPrimaryAccount` is per entity: true when an `Entity/get` call without
-  `accountId` would go to that account (link to Account IDs). With mail primary
-  A and contacts primary B, `Email` in A and `ContactCard` in B are true;
-  `Email` in B and `ContactCard` in A are false
-- Push-only types such as `EmailDelivery` have no `/get` to resolve, so they
-  are true when the account is primary for any configured capability, or is
-  the session's only account
-- False when the default would be ambiguous (several accounts qualify and the
-  session names no primary)
-- Messages other than `StateChange` are ignored
-:::
+The handler is called Node-style, with an error first and the change second.
+When `error` is `null`, `change` is a `StateChangePayload`:
+
+| Property           | Type      | Description                                              |
+| ------------------ | --------- | -------------------------------------------------------- |
+| `accountId`        | `string`  | The account where the change happened                    |
+| `entity`           | `string`  | The type that changed, such as `"Email"` or `"Mailbox"`  |
+| `state`            | `string`  | The new state of that type                               |
+| `isPrimaryAccount` | `boolean` | Whether the account is the default account for that type |
+
+A server's `StateChange` message can report several types in several
+accounts at once. The client calls the handler once for each type in each
+account.
+
+`isPrimaryAccount` is worked out per type. It is `true` when an
+`Entity/get` call without an `accountId` would go to that account, by the
+same rules the client uses to [fill in account IDs](./method-calls.md#account-ids).
+So if the mail primary account is A and the contacts primary account is B:
+
+- An `Email` change in A and a `ContactCard` change in B are primary.
+- An `Email` change in B and a `ContactCard` change in A are not.
+
+`isPrimaryAccount` is `false` when the default account would be ambiguous:
+several accounts qualify and the session names no primary account.
 
 ## Reacting to changes
 
-:::warning TODO
-- Usual follow-up: pass `state` as `sinceState` to `Entity/changes` (example)
-:::
+A state change says only that something changed. To find out what, keep
+the last state you have seen, pass it as `sinceState` to the type's
+`/changes` method, and then remember the new `state`:
+
+```ts
+let emailState = (await client.api.Email.get({ ids: [] }))
+  .state;
+
+await client.onStateChange(async (error, change) => {
+  if (
+    error ||
+    change.entity !== "Email" ||
+    !change.isPrimaryAccount
+  ) {
+    return;
+  }
+
+  const changes = client.api.Email.changes({
+    sinceState: emailState,
+  });
+  emailState = change.state;
+
+  const created = await client.api.Email.get({
+    ids: changes.resultRef("/created"),
+    properties: ["subject", "from"],
+  });
+  for (const email of created.list) {
+    console.log("New email:", email.subject);
+  }
+});
+```
+
+`Email/changes` and `Email/get` are sent together in one request, with the
+created IDs passed by a [result reference](./method-calls.md#result-references).
 
 ## Errors
 
-:::warning TODO
-- Malformed messages and failed connections reach the handler as `StateChangeError`;
-  its `cause` may be `HttpError` (bad status or content type) or `NetworkError`
-- Delivery continues after a malformed message
-- Intentional aborts are not reported
-:::
+Problems with the stream reach the handler as a
+[`StateChangeError`](../reference/errors.md), with `change` set to
+`undefined`:
+
+- A message the client can't read, such as malformed JSON, gives a
+  `StateChangeError` whose `cause` is the parsing error. Delivery continues
+  with the next message.
+- A failed connection gives a `StateChangeError` whose `cause` is an
+  `HttpError`, when the server answers with an error status or a response
+  that isn't an event stream, or a `NetworkError`, when the request couldn't
+  be made.
+
+```ts
+import { isHttpError } from "json-meta-client";
+
+await client.onStateChange((error, _change) => {
+  if (
+    error &&
+    isHttpError(error.cause) &&
+    error.cause.status === 401
+  ) {
+    console.error(
+      "Sign in again to keep receiving changes",
+    );
+  }
+});
+```
+
+Closing the connection yourself, with the signal or by disposing the
+subscription, is not reported as an error.
 
 ## Reconnects
 
-:::warning TODO
-- The stream reconnects automatically
-- `auth` and hooks run again on every reconnect, so credentials stay current
-- HTTP 204 stops reconnecting
-:::
+When the connection drops, the stream reconnects automatically. Each
+reconnect is a new request that goes through
+[`auth`](../reference/api.md#auth) and the
+[fetch and event source hooks](../advanced/hooks.md) again, so a callback
+that refreshes credentials keeps the stream authenticated.
+
+If the server answers a connection with HTTP `204 No Content`, the stream
+stops and doesn't reconnect.
 
 ## Unsubscribing
 
-:::warning TODO
-- `using sub = await client.onStateChange(...)`, `sub[Symbol.dispose]()`, or abort the `signal`
-:::
+`onStateChange()` resolves to a `Disposable`. Dispose of it to close the
+connection. With a `using` declaration, that happens when the scope ends:
+
+```ts
+async function watchFor(ms: number) {
+  using _subscription = await client.onStateChange(
+    (error, change) => {
+      if (!error) console.log(change.entity, change.state);
+    },
+  );
+  await new Promise((resolve) => setTimeout(resolve, ms));
+} // The connection closes here
+```
+
+You can also close it directly, or with an abort signal:
+
+```ts
+subscription[Symbol.dispose]();
+
+const controller = new AbortController();
+await client.onStateChange(() => {}, {
+  signal: controller.signal,
+});
+controller.abort();
+```
