@@ -3,10 +3,22 @@
 // published declarations, then run.
 
 import { defineCapability, JsonMetaClient } from "json-meta-client";
+import type { JSContact, MethodGet } from "json-meta-client/rfc-types";
 
 const notes = defineCapability({ urn: "urn:example:notes", entities: ["Note"] }).withMethods<{
   Note: { get: { input: { ids: string[] }; output: { list: { id: string }[] } } };
 }>();
+
+interface Bookmark {
+  id: string;
+  url: string;
+  title: string;
+}
+
+const bookmarks = defineCapability({
+  urn: "urn:example:bookmarks",
+  entities: ["Bookmark"],
+}).withMethods<{ Bookmark: { get: MethodGet.Contract<Bookmark> } }>();
 
 const options = { auth: "token", sessionUrl: "https://jmap.test/session" } as const;
 
@@ -23,6 +35,14 @@ export function withSmime(): unknown {
 export function custom(): unknown {
   const client = new JsonMetaClient({ ...options, capabilities: [notes] });
   return client.api.Note.get({ ids: [] });
+}
+
+export function rfcHelpers(): unknown {
+  const client = new JsonMetaClient({ ...options, capabilities: [bookmarks] });
+  return client.api.Bookmark.get({ properties: ["url"] }).then(({ list }) => list[0]?.url);
+}
+export function jsContactNamespace(card: JSContact.Card): string | undefined {
+  return card.name?.full;
 }
 
 const session = {
