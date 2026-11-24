@@ -19,6 +19,7 @@ import type { Connection, Diagnostic, HookRun } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { labelsAt, sourceLines } from "./source-lines.ts";
+import Spinner from "./Spinner.vue";
 import { loadOptions, saveOptions } from "./stored-options.ts";
 import { timelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
@@ -400,7 +401,7 @@ onBeforeUnmount(() => {
           </option>
         </select>
       </label>
-      <!-- Icons from Lucide (ISC license): play, loader-circle, plug and unplug -->
+      <!-- Icons from Lucide (ISC license): play, plug and unplug -->
       <!-- Running again replaces the current run, so the button stays enabled -->
       <button
         type="button"
@@ -408,10 +409,8 @@ onBeforeUnmount(() => {
         aria-keyshortcuts="Meta+Enter Control+Enter"
         @click="run()"
       >
-        <svg v-if="spinning" class="icon spinner" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-        </svg>
-        <svg v-else class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <Spinner v-if="spinning" />
+        <svg v-else class="icon play" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 3l14 9-14 9Z" fill="currentColor" />
         </svg>
         Run <kbd aria-hidden="true">⌘↵</kbd>
@@ -634,29 +633,11 @@ onBeforeUnmount(() => {
   color: var(--vp-button-brand-text);
 }
 
-.run .icon {
+/* The spinner's size, so the button keeps its width when one replaces the other */
+.play {
   width: 12px;
   height: 12px;
   stroke-width: 0;
-}
-
-/* The same size as the play icon it replaces, so the button keeps its width */
-.run .spinner {
-  stroke-width: 3;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-/* Slower, but still turning: it is the only sign on the button that a run is under way */
-@media (prefers-reduced-motion: reduce) {
-  .run .spinner {
-    animation-duration: 2.4s;
-  }
 }
 
 .run:hover {
@@ -933,6 +914,19 @@ onBeforeUnmount(() => {
 
 .playground .cm-content {
   caret-color: var(--vp-c-text-1);
+}
+
+/* Highlights follow the pointer between the panes; easing them in and out keeps that calm */
+.playground .cm-line {
+  transition:
+    background-color 0.1s,
+    box-shadow 0.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playground .cm-line {
+    transition: none;
+  }
 }
 
 .playground .pg-hovered-line {

@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 
 import { checkConnection } from "./connect.ts";
 import type { Connection } from "./protocol.ts";
+import Spinner from "./Spinner.vue";
 
 const emit = defineEmits<{ connect: [connection: Connection, remember: boolean]; close: [] }>();
 
@@ -154,6 +155,7 @@ async function connect(event: SubmitEvent) {
       <footer class="footer">
         <button type="button" class="button cancel" @click="dialog?.close()">Cancel</button>
         <button type="submit" class="button primary" :disabled="checking">
+          <Spinner v-if="checking" />
           {{ checking ? "Connecting…" : "Connect" }}
         </button>
       </footer>
@@ -199,6 +201,12 @@ async function connect(event: SubmitEvent) {
 
 .remember {
   display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.primary {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }

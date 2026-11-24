@@ -188,7 +188,7 @@ const waitingHint = computed(() => {
         </template>
         <HookRows v-if="entry.after.length" :calls="entry.after" phase="after" />
       </li>
-      <li v-if="waitingStep" class="entry waiting" role="status">
+      <li v-if="waitingStep" class="entry waiting" :class="{ answering: connected }" role="status">
         <span class="step" aria-hidden="true"></span>
         <header class="entry-header">
           <span class="entry-title">Waiting</span>
@@ -254,6 +254,21 @@ const waitingHint = computed(() => {
   grid-template-columns: subgrid;
   row-gap: 8px;
   min-width: 0;
+  animation: arrive 0.15s ease-out backwards;
+}
+
+/* Each step fades in as it happens, so a run that repeats the last shows it ran */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry {
+    animation: none;
+  }
 }
 
 /* The rail joining each step to the next */
@@ -355,6 +370,23 @@ const waitingHint = computed(() => {
 .waiting .step {
   border-style: dashed;
   border-color: var(--vp-c-yellow-1);
+}
+
+/* A connected server will answer, so the step turns; mocked calls go unanswered, so it stays */
+.answering .step {
+  animation: turn 6s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answering .step {
+    animation-duration: 18s;
+  }
 }
 
 .waiting .entry-title {

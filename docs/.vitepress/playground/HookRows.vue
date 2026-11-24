@@ -9,7 +9,12 @@ defineProps<{
 
 <template>
   <ol class="hooks" :aria-label="phase === 'before' ? 'Request hooks' : 'Response hooks'">
-    <li v-for="call in calls" :key="`${call.name}-${call.position}`" class="hook">
+    <li
+      v-for="call in calls"
+      :key="`${call.name}-${call.position}`"
+      class="hook"
+      :data-state="call.status"
+    >
       <code class="name">{{ call.name }}</code>
       <code class="callback">{{ call.callback || `#${call.position}` }}</code>
       <span class="state" :data-state="call.status">{{
@@ -55,6 +60,23 @@ defineProps<{
   height: 5px;
   background: var(--vp-c-brand-1);
   transform: rotate(45deg);
+}
+
+/* A hook still running pulses its marker */
+.hook[data-state="running"]::before {
+  animation: pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hook[data-state="running"]::before {
+    animation-duration: 2.4s;
+  }
 }
 
 .name {
