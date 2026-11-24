@@ -3,9 +3,26 @@
 ## Subscribing
 
 :::warning TODO
-- `await client.onStateChange(handler, { signal?, pingSeconds? })`; loads `eventsource-client` lazily
-- Always subscribes with `types: "*"` and `closeafter: "no"`; `pingSeconds` defaults to 30
+- `await client.onStateChange(handler, { signal?, pingSeconds? })`
+- Always subscribes to every data type
 :::
+
+## Push channels
+
+State changes arrive on one of two push channels:
+
+- **WebSocket push**, when the client uses `webSocketTransport()` and the
+  session's WebSocket capability sets `supportsPush`. It shares the socket
+  that carries method calls. See [Transports](../advanced/transports.md#push).
+- **The event stream** otherwise. The client opens the session's
+  `eventSourceUrl` with `closeafter: "no"`, loading `eventsource-client`
+  lazily.
+
+Handlers share a channel: the client opens one WebSocket push subscription
+for all of them, or one event stream for each distinct `pingSeconds` value.
+The channel closes when the last handler leaves.
+
+`pingSeconds` applies only to the event stream and defaults to 30.
 
 ## The handler
 
@@ -46,10 +63,13 @@
 - The stream reconnects automatically
 - `auth` and hooks run again on every reconnect, so credentials stay current
 - HTTP 204 stops reconnecting
+- WebSocket push reports a dropped socket as `StateChangeError`, reconnects
+  with backoff, and resumes from the last `pushState`
 :::
 
 ## Unsubscribing
 
 :::warning TODO
 - `using sub = await client.onStateChange(...)`, `sub[Symbol.dispose]()`, or abort the `signal`
+- `client[Symbol.dispose]()` ends every subscription
 :::

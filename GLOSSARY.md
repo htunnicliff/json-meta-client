@@ -14,10 +14,24 @@ The method calls made in the same tick, sent together as one JMAP Request.
 _Avoid_: queue, bundle
 
 **JMAP Request**:
-The JMAP envelope that carries a batch in the body of an HTTP request.
+The JMAP envelope that carries a batch to the server, whatever the transport.
 
 **JMAP Response**:
-The JMAP envelope in an HTTP response body that carries the results of a batch.
+The JMAP envelope that carries the results of a batch back from the server,
+whatever the transport.
+
+**Transport**:
+What carries each JMAP Request to the server and returns its JMAP Response,
+such as HTTP or the JMAP WebSocket subprotocol. A client creates one from its
+transport factory and shares it with every Dispatcher. It may also provide a
+push channel.
+_Avoid_: connection (one socket a transport may open), adapter, driver
+
+**Push channel**:
+What delivers the server's `StateChange` messages to the client: the
+transport's own, such as WebSocket push, or else the session's event stream.
+Every `onStateChange` handler of a client shares one.
+_Avoid_: subscription (reserve for one handler's `onStateChange` registration), event source (only one kind of channel)
 
 **Dispatcher**:
 The client's owner of batches: it collects method calls into a batch, sends it,

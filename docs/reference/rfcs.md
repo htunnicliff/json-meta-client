@@ -19,8 +19,10 @@
 | [RFC 9661](https://www.rfc-editor.org/info/rfc9661/) | JMAP for Sieve Scripts                                                     | ✅    | ✅      |
 | [RFC 9670](https://www.rfc-editor.org/info/rfc9670/) | JMAP for Sharing                                                           | ✅    | ✅      |
 | [RFC 9749](https://www.rfc-editor.org/info/rfc9749/) | JMAP VAPID                                                                 | ✅    | ✅      |
-| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket (see [note](#note-about-websocket-support)) | ✅    | ❌      |
+| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket (see [note](#note-about-websocket-support)) | ✅    | ✅      |
 
 ## Note About WebSocket Support
 
-At this time, WebSocket support is not planned.
+The client sends JMAP Requests over HTTP unless it is configured with
+`webSocketTransport()`. With it, requests and push state changes share one
+WebSocket. See [Transports](../advanced/transports.md).

@@ -109,6 +109,24 @@ new JsonMetaClient({
 });
 ```
 
+### `transport` (optional)
+
+A transport factory that creates the client's transport, which carries JMAP
+Requests and optionally state changes. Defaults to `httpTransport()`. Use
+`webSocketTransport()` for the JMAP WebSocket subprotocol. To learn more,
+refer to the [transports guide](../advanced/transports.md).
+
+```ts {7}
+import { webSocketTransport } from "json-meta-client";
+
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  transport: webSocketTransport({ idleSeconds: 30 }),
+});
+```
+
 ### `hooks` (optional)
 
 To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks.md).
@@ -208,6 +226,26 @@ A more thorough explanation can be found in the
 ## `.cancelBatch()`
 
 ## `.isolated()`
+
+## `[Symbol.dispose]()`
+
+Release the client's connections. JMAP Requests in flight reject with
+`CancellationError`, every `onStateChange` subscription ends, and the
+transport is disposed. Later method calls and subscriptions reject with
+`CancellationError`.
+
+## `httpTransport()`
+
+The default transport factory: sends each JMAP Request as an HTTP `POST` to
+the session's `apiUrl`.
+
+## `webSocketTransport()`
+
+A transport factory for the JMAP WebSocket subprotocol (RFC 8887).
+
+<<< ../../src/transports/websocket/types.ts#websocket-transport-options
+
+<<< ../../src/transports/websocket/types.ts#websocket-like
 
 :::warning TODO
 - Each entry: signature, return type, errors thrown, link to the feature page

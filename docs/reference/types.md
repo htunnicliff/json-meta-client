@@ -6,6 +6,13 @@
 - `Config`, `Auth`, `AuthCallback`
 :::
 
+## Transport types
+
+See [Transports](../advanced/transports.md#writing-a-transport) for
+`TransportFactory`, `TransportContext`, `Transport` and `PushEvents`, and
+[the API reference](./api.md#websockettransport) for `WebSocketLike` and
+`WebSocketTransportOptions`.
+
 ## Hook types
 
 :::warning TODO
@@ -35,7 +42,9 @@
 
 :::warning TODO
 - How to get `Email`, `Mailbox`, etc. today (e.g. `Awaited<ReturnType<...>>`)
-- Blocked: RFC types (and `Ref`, `ConfigurableCapability`,
+- `JmapRequest`, `JmapResponse`, `Session`, `StateChange` and the RFC 8887
+  message types are exported for writing transports
+- Blocked: other RFC types (and `Ref`, `ConfigurableCapability`,
   `CapabilityMethods`) are not exported from the package entry point yet
 :::
 

@@ -76,6 +76,7 @@ export default defineConfig({
         items: [
           { text: "Batching", link: "/advanced/batching" },
           { text: "Hooks", link: "/advanced/hooks" },
+          { text: "Transports", link: "/advanced/transports" },
           { text: "Extending", link: "/advanced/extending" },
         ],
       },
