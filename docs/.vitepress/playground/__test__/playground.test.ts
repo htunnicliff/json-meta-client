@@ -2,7 +2,6 @@ import { Worker } from "node:worker_threads";
 
 import { describe, expect, it } from "vitest";
 
-import homeRequest from "../../../snippets/home-request.md?raw";
 import { PLACEHOLDER_ACCOUNT_ID } from "../../recorder/index.ts";
 import type { RecordedRequest } from "../../recorder/index.ts";
 import { compile } from "../compile.ts";
@@ -11,6 +10,7 @@ import { SHIM_SPECIFIER } from "../protocol.ts";
 import type { RunEvent } from "../protocol.ts";
 import { run } from "../run.ts";
 import { createShim } from "../shim.ts";
+import { homeRequestBody } from "./home-request-body.ts";
 
 function compiled(source: string): string {
   const output = compile(source);
@@ -88,13 +88,11 @@ describe(compile, () => {
 });
 
 describe(run, () => {
-  it("makes the same JMAP Request for the home page example as its generated tab", async () => {
-    const tab = /```json \[JMAP Request[^\n]*\n([\s\S]*?)^```/m.exec(homeRequest)?.[1];
-
+  it("makes the JMAP Request for the home page example", async () => {
     const { finished, requests, messages } = await runUntilIdle(defaultExample);
 
     expect(finished).toBe(false);
-    expect(jmapRequests(requests)).toEqual([JSON.parse(tab!)]);
+    expect(jmapRequests(requests)).toEqual([homeRequestBody]);
     expect(messages.some(({ type }) => type === "hook")).toBe(false);
   });
 

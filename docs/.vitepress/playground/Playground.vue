@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 
 import type { RecordedRequest, RecordedResponse } from "../recorder/index.ts";
 import { PLACEHOLDER_ORIGIN } from "../recorder/placeholders.ts";
+import { readCodeLink } from "./code-link.ts";
 import { codeOptions } from "./code-options.ts";
 import { loadCode, saveCode } from "./code-storage.ts";
 import ConnectDialog from "./ConnectDialog.vue";
@@ -323,11 +324,18 @@ watch([panelHovered, lines], ([label, current]) => {
 
 onMounted(async () => {
   addEventListener("keydown", onRunShortcut, true);
-  const [{ createEditor }, { startTypeScriptWorker }] = await Promise.all([
+  const [{ createEditor }, { startTypeScriptWorker }, linked] = await Promise.all([
     import("./editor.ts"),
     import("./ts-worker.ts"),
+    readCodeLink(location.hash),
   ]);
   if (unmounted || !editorHost.value) return;
+  // Code opened from a docs example replaces the stored code, and the link
+  // leaves the address bar, so a reload keeps any edits made since
+  if (linked !== undefined) {
+    code.value = linked;
+    history.replaceState(history.state, "", location.pathname + location.search);
+  }
   const worker = startTypeScriptWorker();
   runner = createRunner((source) => worker.compile(source), onEvent);
   editor = createEditor(editorHost.value, {

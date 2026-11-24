@@ -4,10 +4,9 @@
  *
  * Two files build a client from these, and they must agree. `docs-client.ts`
  * declares the ambient `client` that examples are type-checked against, and
- * `docs/.vitepress/plugins/jmap-request-tabs/run-example.ts` creates the client that examples run with
- * during the docs build, replacing `<server>` with a placeholder origin.
- * Keeping the options here stops the types and the runtime client drifting
- * apart.
+ * `docs/.vitepress/plugins/playground-links/playground-code.ts` writes the
+ * client that examples open with in the playground. Keeping the options here
+ * stops the types and the playground's client drifting apart.
  */
 export const docsClientOptions = {
   auth: "<credentials>",

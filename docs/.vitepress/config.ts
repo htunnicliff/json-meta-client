@@ -3,10 +3,7 @@ import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-i
 
 import { playgroundHookPatch } from "./playground/hook-patch.ts";
 import { playgroundTypes } from "./playground/types-plugin.ts";
-import { syncJmapRequests } from "./plugins/jmap-request-tabs/index.ts";
-
-// Fails when a generated JMAP Request fence is out of date
-await syncJmapRequests({ write: false });
+import { playgroundLinks } from "./plugins/playground-links/index.ts";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -95,6 +92,7 @@ export default defineConfig({
   markdown: {
     config(md) {
       md.use(groupIconMdPlugin);
+      md.use(playgroundLinks);
     },
   },
   vite: {

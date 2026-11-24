@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import homeRequest from "../../../snippets/home-request.md?raw";
 import type { RecordedRequest } from "../../recorder/index.ts";
 import { annotateRequest, buildTimeline, jsonLines } from "../timeline.ts";
 import type { BatchEntry } from "../timeline.ts";
+import { homeRequestBody } from "./home-request-body.ts";
 
-const homeBody: unknown = JSON.parse(
-  /```json \[JMAP Request[^\n]*\n([\s\S]*?)^```/m.exec(homeRequest)![1],
-);
+const homeBody: unknown = homeRequestBody;
 
 const sessionUrl = "https://jmap.example.com/.well-known/jmap";
 const apiUrl = "https://jmap.example.com/jmap/api";
