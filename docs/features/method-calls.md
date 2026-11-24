@@ -91,9 +91,9 @@ const { ids, total } = await client.api.Email.query({
 });
 ```
 
-Awaiting a call doesn't send it. Calls made in the same tick are sent
-together in one request, whether or not you await them. See
-[Batching](../advanced/batching.md) for how that works.
+Calls made in the same tick are collected into a batch and sent together
+in one request. To batch several calls, make them all before awaiting any
+of them. See [Batching](../advanced/batching.md) for how that works.
 
 ## Selecting properties
 
