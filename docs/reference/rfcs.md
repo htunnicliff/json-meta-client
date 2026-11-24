@@ -1,28 +1,52 @@
 # RFCs
 
-:::warning TODO
-- Fix the "Runtime" column: RFC 9749 (VAPID) has types only and adds session
-  details, with no capability
-- Add a column naming the built-in capability that covers each RFC
-:::
+The client implements these JMAP specifications. **Types** means the
+specification's objects, method arguments and capability details are typed.
+**Runtime** means the client can call the specification's methods once the
+listed capability is enabled. Refer to the
+[capabilities reference](./capabilities.md) for each capability's methods.
 
-| Standard                                             | Title                                                                      | Types | Runtime |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- | ----- | ------- |
-| [RFC 8620](https://www.rfc-editor.org/info/rfc8620/) | The JSON Meta Application Protocol (JMAP)                                  | ✅    | ✅      |
-| [RFC 8621](https://www.rfc-editor.org/info/rfc8621/) | JMAP for Mail                                                              | ✅    | ✅      |
-| [RFC 9007](https://www.rfc-editor.org/info/rfc9007/) | JMAP MDN                                                                   | ✅    | ✅      |
-| [RFC 9219](https://www.rfc-editor.org/info/rfc9219/) | JMAP S/MIME Signature Verification                                         | ✅    | ✅      |
-| [RFC 9404](https://www.rfc-editor.org/info/rfc9404/) | JMAP for Blob Management                                                   | ✅    | ✅      |
-| [RFC 9425](https://www.rfc-editor.org/info/rfc9425/) | JMAP for Quotas                                                            | ✅    | ✅      |
-| [RFC 9553](https://www.rfc-editor.org/info/rfc9553/) | JSContact                                                                  | ✅    | ✅      |
-| [RFC 9610](https://www.rfc-editor.org/info/rfc9610/) | JMAP for Contacts                                                          | ✅    | ✅      |
-| [RFC 9661](https://www.rfc-editor.org/info/rfc9661/) | JMAP for Sieve Scripts                                                     | ✅    | ✅      |
-| [RFC 9670](https://www.rfc-editor.org/info/rfc9670/) | JMAP for Sharing                                                           | ✅    | ✅      |
-| [RFC 9749](https://www.rfc-editor.org/info/rfc9749/) | JMAP VAPID                                                                 | ✅    | ✅      |
-| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket (see [note](#note-about-websocket-support)) | ✅    | ✅      |
+| Standard                                             | Title                                     | Capability                                                                                                                               | Types | Runtime |
+| ---------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------- |
+| [RFC 8620](https://www.rfc-editor.org/info/rfc8620/) | The JSON Meta Application Protocol (JMAP) | [`core`](./capabilities.md#default-capability) (always on)                                                                               | ✅    | ✅      |
+| [RFC 8621](https://www.rfc-editor.org/info/rfc8621/) | JMAP for Mail                             | [`mail`](./capabilities.md#mail), [`submission`](./capabilities.md#submission), [`vacationResponse`](./capabilities.md#vacationResponse) | ✅    | ✅      |
+| [RFC 9007](https://www.rfc-editor.org/info/rfc9007/) | JMAP MDN                                  | [`mdn`](./capabilities.md#mdn)                                                                                                           | ✅    | ✅      |
+| [RFC 9219](https://www.rfc-editor.org/info/rfc9219/) | JMAP S/MIME Signature Verification        | [`smime`](./capabilities.md#smime)                                                                                                       | ✅    | ✅      |
+| [RFC 9404](https://www.rfc-editor.org/info/rfc9404/) | JMAP for Blob Management                  | [`blob`](./capabilities.md#blob)                                                                                                         | ✅    | ✅      |
+| [RFC 9425](https://www.rfc-editor.org/info/rfc9425/) | JMAP for Quotas                           | [`quota`](./capabilities.md#quota)                                                                                                       | ✅    | ✅      |
+| [RFC 9553](https://www.rfc-editor.org/info/rfc9553/) | JSContact                                 | [`contacts`](./capabilities.md#contacts) (data format of `ContactCard`)                                                                  | ✅    | ✅      |
+| [RFC 9610](https://www.rfc-editor.org/info/rfc9610/) | JMAP for Contacts                         | [`contacts`](./capabilities.md#contacts)                                                                                                 | ✅    | ✅      |
+| [RFC 9661](https://www.rfc-editor.org/info/rfc9661/) | JMAP for Sieve Scripts                    | [`sieve`](./capabilities.md#sieve)                                                                                                       | ✅    | ✅      |
+| [RFC 9670](https://www.rfc-editor.org/info/rfc9670/) | JMAP for Sharing                          | [`sharing`](./capabilities.md#sharing)                                                                                                   | ✅    | ✅      |
+| [RFC 9749](https://www.rfc-editor.org/info/rfc9749/) | JMAP VAPID                                | None (see [note](#note-about-vapid))                                                                                                     | ✅    | ❌      |
+| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket            | None (see [note](#note-about-websocket-support))                                                                                         | ✅    | ✅      |
+
+## Note About VAPID
+
+RFC 9749 defines no methods. It adds a server-wide capability,
+`urn:ietf:params:jmap:webpush-vapid`, whose `applicationServerKey` a client
+passes to its push service when it creates a `PushSubscription`. The library
+types that capability on every session, so there is nothing to enable:
+
+```ts
+const session = await client.session;
+const vapid =
+  session.capabilities[
+    "urn:ietf:params:jmap:webpush-vapid"
+  ];
+
+if (vapid) {
+  console.log(vapid.applicationServerKey);
+}
+```
+
+Creating the subscription itself uses `PushSubscription/set` from `core`.
 
 ## Note About WebSocket Support
 
-The client sends JMAP Requests over HTTP unless it is configured with
-`webSocketTransport()`. With it, requests and push state changes share one
-WebSocket. See [Transports](../advanced/transports.md).
+RFC 8887 needs no capability in `capabilities`. The client sends JMAP
+Requests over HTTP unless it is configured with
+[`webSocketTransport()`](./api.md#websockettransport). With it, method calls
+and push state changes share one WebSocket at the URL in the session's
+`urn:ietf:params:jmap:websocket` capability. Refer to
+[Transports](../advanced/transports.md).
