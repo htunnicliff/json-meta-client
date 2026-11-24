@@ -9,9 +9,7 @@ values found by the examples before it.
 The client fetches the session once and caches it. Call `refreshSession()`
 to fetch it again, for example after the server reports a new session state.
 
-::: code-group
-
-```ts [example.ts]
+```ts
 // Get the current session (cached)
 const session = await client.session;
 
@@ -19,13 +17,9 @@ const session = await client.session;
 const freshSession = await client.refreshSession();
 ```
 
-:::
-
 ## Find the inbox
 
-::: code-group
-
-```ts [example.ts]
+```ts
 const queryMailboxes = client.api.Mailbox.query({
   filter: { role: "inbox" },
 });
@@ -42,47 +36,9 @@ for (const mailbox of getMailboxes.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "filter": {
-          "role": "inbox"
-        },
-        "accountId": "<account-id>"
-      },
-      "queryMailboxes"
-    ],
-    [
-      "Mailbox/get",
-      {
-        "#ids": {
-          "name": "Mailbox/query",
-          "resultOf": "queryMailboxes",
-          "path": "/ids"
-        },
-        "properties": ["id", "name"],
-        "accountId": "<account-id>"
-      },
-      "getMailboxes"
-    ]
-  ]
-}
-```
-
-:::
-
 ## List unread emails
 
-::: code-group
-
-```ts [example.ts]
+```ts
 const queryEmails = client.api.Email.query({
   filter: {
     operator: "AND",
@@ -104,62 +60,13 @@ for (const email of getEmails.list) {
 }
 ```
 
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "filter": {
-          "operator": "AND",
-          "conditions": [
-            {
-              "inMailbox": "<inboxId>"
-            },
-            {
-              "notKeyword": "$seen"
-            },
-            {
-              "notKeyword": "$draft"
-            }
-          ]
-        },
-        "accountId": "<account-id>"
-      },
-      "queryEmails"
-    ],
-    [
-      "Email/get",
-      {
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "queryEmails",
-          "path": "/ids"
-        },
-        "properties": ["from", "subject", "sentAt"],
-        "accountId": "<account-id>"
-      },
-      "getEmails"
-    ]
-  ]
-}
-```
-
-:::
-
 ## Send an email
 
 ### Prep
 
 Before sending, the drafts mailbox and the sending identity must be known.
 
-::: code-group
-
-```ts [prep.ts]
+```ts
 const [mailboxes, identities] = await Promise.all([
   client.api.Mailbox.query({
     filter: { role: "drafts" },
@@ -171,37 +78,6 @@ const [mailboxes, identities] = await Promise.all([
 const draftMailboxId = mailboxes.ids[0]!;
 const identity = identities.list[0]!;
 ```
-
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail",
-    "urn:ietf:params:jmap:submission"
-  ],
-  "methodCalls": [
-    [
-      "Mailbox/query",
-      {
-        "filter": {
-          "role": "drafts"
-        },
-        "accountId": "<account-id>"
-      },
-      "mailboxes"
-    ],
-    [
-      "Identity/get",
-      {
-        "accountId": "<account-id>"
-      },
-      "identities"
-    ]
-  ]
-}
-```
-
-:::
 
 ### Draft and send
 
@@ -215,9 +91,7 @@ It can be a good idea to use short, unambiguous strings
 that are easily identifiable for debugging purposes.
 :::
 
-::: code-group
-
-```ts [draft-and-send.ts]
+```ts
 const bodyId = "body";
 
 const draft = client.api.Email.set({
@@ -266,69 +140,6 @@ await client.api.EmailSubmission.set({
   onSuccessDestroyEmail: ["#submission"],
 });
 ```
-
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail",
-    "urn:ietf:params:jmap:submission"
-  ],
-  "methodCalls": [
-    [
-      "Email/set",
-      {
-        "create": {
-          "draft": {
-            "keywords": {
-              "$draft": true
-            },
-            "mailboxIds": {
-              "<draftMailboxId>": true
-            },
-            "from": [{}],
-            "to": [
-              {
-                "name": null,
-                "email": "someone@example.com"
-              }
-            ],
-            "subject": "Hi there",
-            "bodyValues": {
-              "body": {
-                "value": "Hello there!\nI hope you are well.\nBest,\nMe"
-              }
-            },
-            "textBody": [
-              {
-                "partId": "body",
-                "type": "text/plain"
-              }
-            ]
-          }
-        },
-        "accountId": "<account-id>"
-      },
-      "draft"
-    ],
-    [
-      "EmailSubmission/set",
-      {
-        "create": {
-          "submission": {
-            "emailId": "#draft"
-          }
-        },
-        "onSuccessDestroyEmail": ["#submission"],
-        "accountId": "<account-id>"
-      },
-      "EmailSubmission/set"
-    ]
-  ]
-}
-```
-
-:::
 
 ## Send an attachment
 
