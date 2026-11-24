@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: { index: "src/index.ts", "rfc-types": "src/rfc-types/index.ts" },
   publint: true,
   exports: true,
   attw: true,
