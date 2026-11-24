@@ -297,6 +297,26 @@ function chooseExample(id: string) {
 const stale = computed(() => view.value.code !== code.value);
 const status = computed<RunStatus>(() => (stale.value ? "ready" : view.value.status));
 
+// Whether a run is under way, even with the code edited since: compiling and
+// running, or awaiting a connected server. Mocked calls go unanswered, so a run
+// waiting on them is over.
+const busy = computed(
+  () =>
+    view.value.status === "running" ||
+    (view.value.status === "waiting" && connection.value !== undefined),
+);
+
+// The Run button spins only for runs that take a moment, so mocked runs,
+// which take a fraction of that, don't flash it
+const SPINNER_DELAY_MS = 200;
+const spinning = ref(false);
+let spinnerTimer: ReturnType<typeof setTimeout> | undefined;
+watch(busy, (now) => {
+  clearTimeout(spinnerTimer);
+  if (now) spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
+  else spinning.value = false;
+});
+
 // Where the method calls were made, while the code shown is the code that ran
 const lines = computed(() => {
   const { source, trace, requests } = view.value;
@@ -354,6 +374,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unmounted = true;
+  clearTimeout(spinnerTimer);
   removeEventListener("keydown", onRunShortcut, true);
   connection.value = undefined;
   runner?.stop();
@@ -379,14 +400,18 @@ onBeforeUnmount(() => {
           </option>
         </select>
       </label>
-      <!-- Icons from Lucide (ISC license): play, plug and unplug -->
+      <!-- Icons from Lucide (ISC license): play, loader-circle, plug and unplug -->
+      <!-- Running again replaces the current run, so the button stays enabled -->
       <button
         type="button"
         class="button run"
         aria-keyshortcuts="Meta+Enter Control+Enter"
         @click="run()"
       >
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <svg v-if="spinning" class="icon spinner" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+        <svg v-else class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 3l14 9-14 9Z" fill="currentColor" />
         </svg>
         Run <kbd aria-hidden="true">⌘↵</kbd>
@@ -613,6 +638,25 @@ onBeforeUnmount(() => {
   width: 12px;
   height: 12px;
   stroke-width: 0;
+}
+
+/* The same size as the play icon it replaces, so the button keeps its width */
+.run .spinner {
+  stroke-width: 3;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Slower, but still turning: it is the only sign on the button that a run is under way */
+@media (prefers-reduced-motion: reduce) {
+  .run .spinner {
+    animation-duration: 2.4s;
+  }
 }
 
 .run:hover {
