@@ -73,41 +73,11 @@ credentials, and capabilities:
 
 ::: code-group
 
-```ts [Bearer Auth]
-import { JsonMetaClient } from "json-meta-client";
+<<< @/snippets/auth-bearer.ts [Bearer Auth]
 
-const client = new JsonMetaClient({
-  capabilities: ["mail", "submission"],
-  sessionUrl: "<url>",
-  auth: "<bearerToken>",
-});
-```
+<<< @/snippets/auth-basic.ts [Basic Auth]
 
-```ts [Basic Auth]
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  capabilities: ["mail", "submission"],
-  sessionUrl: "<url>",
-  auth: {
-    username: "<username>",
-    password: "<password>",
-  },
-});
-```
-
-```ts [Custom Auth]
-import { JsonMetaClient } from "json-meta-client";
-
-const client = new JsonMetaClient({
-  capabilities: ["mail", "submission"],
-  sessionUrl: "<url>",
-  auth: async ({ request }) => {
-    const token = await getCustomToken();
-    request.headers.set("X-Custom", token);
-  },
-});
-```
+<<< @/snippets/auth-custom.ts [Custom Auth]
 
 :::
 
@@ -255,15 +225,15 @@ const emails = await client.api.Email.get({
   properties: ["id", "attachments"],
 });
 
-const email = emails.list.at(0);
+const email = emails.list[0]!;
 
-const { blobId, type, name } = email.attachments.at(0);
+const { blobId, type, name } = email.attachments[0]!;
 
 const request = await client.blob.download({
   accountId: "<accountId>",
-  blobId,
-  type,
-  name,
+  blobId: blobId!,
+  type: type!,
+  name: name!,
 });
 
 const data = await request.json();
