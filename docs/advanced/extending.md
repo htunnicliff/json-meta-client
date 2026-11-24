@@ -492,12 +492,62 @@ while `notes` keeps every other `Note` method through its `"*"`.
 
 ## Reusing RFC helper types
 
-The built-in capabilities build their contracts from generic helpers for
-the standard method shapes, such as `MethodGet` and `MethodSet`. The
-community `maskedEmail` capability uses them too, for its
-`MaskedEmail/get` and `MaskedEmail/set`.
+Most JMAP methods follow the standard shapes in
+[RFC 8620 section 5](https://www.rfc-editor.org/rfc/rfc8620.html#section-5):
+`/get`, `/changes`, `/set`, `/copy`, `/query`, and `/queryChanges`. Rather
+than writing those contracts by hand, import the generic helpers that the
+built-in capabilities use from `json-meta-client/rfc-types`:
 
-These helpers aren't exported from the package yet, so custom capabilities
-can't import them. Until they are, write contracts by hand as on this page,
-following the argument and response shapes in
-[RFC 8620 section 5](https://www.rfc-editor.org/rfc/rfc8620.html#section-5).
+```ts
+import type {
+  MethodGet,
+  MethodQuery,
+  MethodSet,
+} from "json-meta-client/rfc-types";
+
+interface Bookmark {
+  id: string;
+  url: string;
+  title: string;
+}
+
+const bookmarks = defineCapability({
+  urn: "urn:example:bookmarks",
+  entities: ["Bookmark"],
+}).withMethods<{
+  Bookmark: {
+    get: MethodGet.Contract<Bookmark>;
+    query: MethodQuery.Contract<Bookmark>;
+    set: {
+      input: MethodSet.Input<Bookmark>;
+      output: MethodSet.Output<Bookmark>;
+    };
+  };
+}>();
+
+const bookmarkClient = new JsonMetaClient({
+  auth: "<credentials>",
+  sessionUrl: "<server>/.well-known/jmap",
+  capabilities: [bookmarks],
+});
+
+const recentBookmarks = bookmarkClient.api.Bookmark.query({
+  limit: 20,
+});
+
+const { list: bookmarkList } =
+  await bookmarkClient.api.Bookmark.get({
+    ids: recentBookmarks.resultRef("/ids"),
+    properties: ["url", "title"],
+  });
+```
+
+Most helpers are namespaces with `Input` and `Output` types, and some, such
+as `MethodGet` and `MethodQuery`, also have a ready-made `Contract`.
+`MethodGet.Contract` narrows its `list` to the `properties` a call asks for,
+like the built-in `get` methods.
+
+The entry point exports types only, including the entity types of the
+built-in capabilities, such as `Mailbox` and `Identity`. The JSContact
+(RFC 9553) types are under the `JSContact` namespace, such as
+`JSContact.Card`.
