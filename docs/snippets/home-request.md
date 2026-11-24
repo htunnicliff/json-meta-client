@@ -1,6 +1,4 @@
-::: code-group
-
-```ts [TypeScript ~vscode-icons:file-type-typescript~]
+```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -23,5 +21,3 @@ for (const { subject, from } of emails.list) {
   console.log(subject, from);
 }
 ```
-
-:::
