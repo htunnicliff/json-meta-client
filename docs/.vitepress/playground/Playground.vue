@@ -248,11 +248,16 @@ function formatNow() {
   void editor?.format();
 }
 
+// Whether the user started the latest run, rather than the page on load or a
+// change of example
+const runByUser = ref(false);
+
 /**
  * Run the code, formatting it first when the user runs it and chose to
  */
 async function run({ byUser = true } = {}) {
   if (byUser && codeChoices.value.formatOnRun) await editor?.format();
+  runByUser.value = byUser;
   view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
 }
@@ -307,14 +312,15 @@ const busy = computed(
     (view.value.status === "waiting" && connection.value !== undefined),
 );
 
-// The Run button spins only for runs that take a moment, so mocked runs,
-// which take a fraction of that, don't flash it
+// The Run button spins only for runs the user started, as the first run on
+// load takes a while to start the TypeScript worker. It waits a moment, so
+// mocked runs, which take a fraction of that, don't flash it.
 const SPINNER_DELAY_MS = 200;
 const spinning = ref(false);
 let spinnerTimer: ReturnType<typeof setTimeout> | undefined;
-watch(busy, (now) => {
+watch([busy, runByUser], ([now, byUser]) => {
   clearTimeout(spinnerTimer);
-  if (now) spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
+  if (now && byUser) spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
   else spinning.value = false;
 });
 
