@@ -330,6 +330,17 @@ const ends = computed(() => {
   padding: 0 12px;
 }
 
+/* Like the editor's lines, highlights ease in and out as the pointer moves */
+.line {
+  transition: background-color 0.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    transition: none;
+  }
+}
+
 .numbered .line {
   grid-template-columns: 3ch minmax(0, 1fr);
 }

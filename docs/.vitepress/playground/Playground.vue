@@ -19,6 +19,7 @@ import type { Connection, Diagnostic, HookRun } from "./protocol.ts";
 import { createRunner } from "./runner.ts";
 import type { Runner, RunnerEvent } from "./runner.ts";
 import { labelsAt, sourceLines } from "./source-lines.ts";
+import Spinner from "./Spinner.vue";
 import { loadOptions, saveOptions } from "./stored-options.ts";
 import { timelineOptions } from "./timeline-options.ts";
 import { buildTimeline } from "./timeline.ts";
@@ -247,11 +248,16 @@ function formatNow() {
   void editor?.format();
 }
 
+// Whether the user started the latest run, rather than the page on load or a
+// change of example
+const runByUser = ref(false);
+
 /**
  * Run the code, formatting it first when the user runs it and chose to
  */
 async function run({ byUser = true } = {}) {
   if (byUser && codeChoices.value.formatOnRun) await editor?.format();
+  runByUser.value = byUser;
   view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
 }
@@ -296,6 +302,27 @@ function chooseExample(id: string) {
 // Whether the code was edited since the last run
 const stale = computed(() => view.value.code !== code.value);
 const status = computed<RunStatus>(() => (stale.value ? "ready" : view.value.status));
+
+// Whether a run is under way, even with the code edited since: compiling and
+// running, or awaiting a connected server. Mocked calls go unanswered, so a run
+// waiting on them is over.
+const busy = computed(
+  () =>
+    view.value.status === "running" ||
+    (view.value.status === "waiting" && connection.value !== undefined),
+);
+
+// The Run button spins only for runs the user started, as the first run on
+// load takes a while to start the TypeScript worker. It waits a moment, so
+// mocked runs, which take a fraction of that, don't flash it.
+const SPINNER_DELAY_MS = 200;
+const spinning = ref(false);
+let spinnerTimer: ReturnType<typeof setTimeout> | undefined;
+watch([busy, runByUser], ([now, byUser]) => {
+  clearTimeout(spinnerTimer);
+  if (now && byUser) spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
+  else spinning.value = false;
+});
 
 // Where the method calls were made, while the code shown is the code that ran
 const lines = computed(() => {
@@ -354,6 +381,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   unmounted = true;
+  clearTimeout(spinnerTimer);
   removeEventListener("keydown", onRunShortcut, true);
   connection.value = undefined;
   runner?.stop();
@@ -380,13 +408,15 @@ onBeforeUnmount(() => {
         </select>
       </label>
       <!-- Icons from Lucide (ISC license): play, plug and unplug -->
+      <!-- Running again replaces the current run, so the button stays enabled -->
       <button
         type="button"
         class="button run"
         aria-keyshortcuts="Meta+Enter Control+Enter"
         @click="run()"
       >
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <Spinner v-if="spinning" />
+        <svg v-else class="icon play" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 3l14 9-14 9Z" fill="currentColor" />
         </svg>
         Run <kbd aria-hidden="true">⌘↵</kbd>
@@ -609,7 +639,8 @@ onBeforeUnmount(() => {
   color: var(--vp-button-brand-text);
 }
 
-.run .icon {
+/* The spinner's size, so the button keeps its width when one replaces the other */
+.play {
   width: 12px;
   height: 12px;
   stroke-width: 0;
@@ -889,6 +920,19 @@ onBeforeUnmount(() => {
 
 .playground .cm-content {
   caret-color: var(--vp-c-text-1);
+}
+
+/* Highlights follow the pointer between the panes; easing them in and out keeps that calm */
+.playground .cm-line {
+  transition:
+    background-color 0.1s,
+    box-shadow 0.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playground .cm-line {
+    transition: none;
+  }
 }
 
 .playground .pg-hovered-line {
