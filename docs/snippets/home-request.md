@@ -1,6 +1,4 @@
-::: code-group
-
-```ts [TypeScript ~vscode-icons:file-type-typescript~]
+```ts
 import { JsonMetaClient } from "json-meta-client";
 
 const client = new JsonMetaClient({
@@ -23,40 +21,3 @@ for (const { subject, from } of emails.list) {
   console.log(subject, from);
 }
 ```
-
-```json [JMAP Request ~vscode-icons:file-type-light-json~] {jmap:generated}
-{
-  "using": [
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:mail"
-  ],
-  "methodCalls": [
-    [
-      "Email/query",
-      {
-        "filter": {
-          "notKeyword": "$seen"
-        },
-        "limit": 5,
-        "accountId": "<account-id>"
-      },
-      "unread"
-    ],
-    [
-      "Email/get",
-      {
-        "#ids": {
-          "name": "Email/query",
-          "resultOf": "unread",
-          "path": "/ids"
-        },
-        "properties": ["subject", "from"],
-        "accountId": "<account-id>"
-      },
-      "emails"
-    ]
-  ]
-}
-```
-
-:::
