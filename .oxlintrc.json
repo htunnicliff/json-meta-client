@@ -49,6 +49,12 @@
         ]
       },
       "jsPlugins": ["@tony.ganchev/eslint-plugin-header"]
+    },
+    {
+      "files": ["docs/snippets/**/*.ts"],
+      "rules": {
+        "no-unused-vars": "off"
+      }
     }
   ]
 }
