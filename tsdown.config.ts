@@ -6,6 +6,9 @@ export default defineConfig({
   exports: true,
   attw: true,
   target: ["es2023"],
+  // Keep the code readable but drop JSDoc from the JavaScript; the
+  // declaration files still carry it for editors.
+  outputOptions: { comments: { jsdoc: false } },
   banner: [
     "// ----------------------------------------------------------------------- //",
     "//                                                                         //",
