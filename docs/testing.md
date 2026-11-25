@@ -370,7 +370,7 @@ test("reports a rejected request", async () => {
   );
 
   const error = await createClient()
-    .api.Mailbox.get({})
+    .api.Mailbox.get()
     .catch((error: unknown) => error);
 
   assert(isHttpError(error));
@@ -503,7 +503,7 @@ test("Note/get takes IDs and returns notes", () => {
   }>();
 
   // @ts-expect-error `ids` is required
-  void notesClient.api.Note.get({});
+  void notesClient.api.Note.get();
 });
 ```
 

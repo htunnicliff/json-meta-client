@@ -19,6 +19,17 @@ configured with `"mail"` knows the arguments `Email/query` accepts and the
 shape of its response, while a client without it has no `client.api.Email`
 at all.
 
+When a method has no required arguments once the client fills in
+`accountId`, as with most `/get` and `/query` calls, you can leave the
+arguments out:
+
+```ts
+const identities = await client.api.Identity.get();
+```
+
+This is the same as passing `{}`. To pass `options` without arguments, give
+`undefined` as the arguments.
+
 At runtime, `client.api` is a proxy, so it doesn't hold a list of methods.
 It does check the entity: a call on an entity that no configured capability
 declares (or `core`, which is always on) rejects with
@@ -213,8 +224,7 @@ const draftsMailboxId = (
 ```
 
 ```ts
-const identity = (await client.api.Identity.get({}))
-  .list[0]!;
+const identity = (await client.api.Identity.get()).list[0]!;
 
 const draft = client.api.Email.set({
   create: {
@@ -294,7 +304,7 @@ change an array, send the whole new array. This adds an address to an
 identity's `bcc` list:
 
 ```ts
-const sender = (await client.api.Identity.get({})).list[0]!;
+const sender = (await client.api.Identity.get()).list[0]!;
 
 await client.api.Identity.set({
   update: {

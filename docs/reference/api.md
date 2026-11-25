@@ -225,7 +225,9 @@ Here are several examples of JMAP requests made using this API.
 | `Mailbox/get`           | `client.api.Mailbox.get(args)`           |
 | `Identity/queryChanges` | `client.api.Identity.queryChanges(args)` |
 
-The JMAP standard refers to these requests as method calls.
+The JMAP standard refers to these requests as method calls. A method with no
+required arguments, once the client fills in `accountId`, can be called
+without them, as in `client.api.Mailbox.get()`.
 
 The `.api` object is a layered [`Proxy`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
 that helps to capture the entity, method, and arguments used in each request.
