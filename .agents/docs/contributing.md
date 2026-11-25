@@ -30,8 +30,9 @@ unverified.
 
 Include a changeset for changes to the published package's behavior, public
 types, exports, dependencies, or distributed artifacts. Describe the effect
-on consumers and choose the version bump appropriate to the current release
-line; call out breaking changes explicitly.
+on consumers and choose the version bump with the versioning policy in
+`docs/reference/versioning.md`; call out breaking changes and type
+corrections explicitly.
 
 Documentation-only changes, tests, internal refactors with no consumer effect,
 and development tooling changes do not need a changeset unless they also
