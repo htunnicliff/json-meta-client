@@ -93,7 +93,7 @@
     "svgo": "4.1.0",
     "testcontainers": "12.2.2",
     "tsdown": "0.23.7",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "vitepress": "2.0.0-alpha.21",
     "vitepress-plugin-group-icons": "1.8.2",
     "vitest": "5.1.1",
