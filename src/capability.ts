@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { UnionToIntersection } from "type-fest";
+import type { UnionToIntersection } from "./internal/type-utils.ts";
 
 export interface MethodContract {
   input: unknown;

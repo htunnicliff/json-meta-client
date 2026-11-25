@@ -8,9 +8,8 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { IsUnknown } from "type-fest";
-
 import type { ResultReference } from "../rfc-types/core/index.ts";
+import type { IsUnknown } from "./type-utils.ts";
 import type { ExtractByPointer, PointerPaths } from "./types.ts";
 
 const refSymbol: unique symbol = Symbol("ref");
