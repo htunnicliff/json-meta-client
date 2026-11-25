@@ -5,7 +5,7 @@ export default defineConfig({
   publint: true,
   exports: true,
   attw: true,
-  target: ["esnext"],
+  target: ["es2023"],
   banner: [
     "// ----------------------------------------------------------------------- //",
     "//                                                                         //",

@@ -20,8 +20,10 @@ website is a great place to dive in.
 
 ## Requirements
 
-To use this library, you'll need an environment that supports [modern JavaScript
-features](https://web-platform-dx.github.io/baseline/).
+- **Node.js 22 or later**, or a current release of Deno, Bun, or a modern
+  browser. The package is published as ES2023 modules and relies on the
+  global `fetch`, `AbortController`, and `URL` APIs.
+- **TypeScript 5.4 or later**, if you use TypeScript.
 
 ## Installation
 
