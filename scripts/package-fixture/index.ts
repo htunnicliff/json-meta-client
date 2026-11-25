@@ -61,7 +61,9 @@ const session = {
 
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const request = new Request(input, init);
-  if (request.url === options.sessionUrl) return Response.json(session);
+  if (request.url === options.sessionUrl) {
+    return Response.json(session);
+  }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const body = (await request.json()) as { methodCalls: [string, object, string][] };
   return Response.json({ sessionState: "state", methodResponses: body.methodCalls });

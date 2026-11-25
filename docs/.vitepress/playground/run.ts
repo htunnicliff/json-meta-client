@@ -85,10 +85,14 @@ export function run(
   globalThis.fetch = (...args) => {
     const request = args[0] instanceof Request ? args[0] : undefined;
     const operation = request && operations.get(request);
-    if (operation) sentOperations.set(recorder.count, operation.id);
+    if (operation) {
+      sentOperations.set(recorder.count, operation.id);
+    }
     watch();
     const result = recorder.fetch(...args);
-    if (request) operations.delete(request);
+    if (request) {
+      operations.delete(request);
+    }
     return result;
   };
 
@@ -135,7 +139,9 @@ export function run(
   }
   function watch() {
     activity++;
-    if (watching) return;
+    if (watching) {
+      return;
+    }
     watching = true;
     void quiet();
   }
@@ -194,7 +200,9 @@ function forwardConsole(post: (event: RunEvent) => void) {
  * A readable description of a thrown value
  */
 export function describeError(error: unknown, connection?: Connection): string {
-  if (!(error instanceof Error)) return `Uncaught ${String(error)}`;
+  if (!(error instanceof Error)) {
+    return `Uncaught ${String(error)}`;
+  }
   const description = `${error.name}: ${error.message}`;
   // Browsers report a request that CORS blocks only as a failed fetch
   return connection && error.name === "NetworkError"

@@ -169,7 +169,9 @@ describe(Dispatcher, () => {
       const { dispatcher, requests } = setup({
         transport: async (request) => {
           requests.push(request);
-          if (request.methodCalls[0]![2] === "a") await release.promise;
+          if (request.methodCalls[0]![2] === "a") {
+            await release.promise;
+          }
           return echo(request);
         },
       });
@@ -606,7 +608,9 @@ describe(Dispatcher, () => {
         { status: "rejected", reason: expect.any(TypeError) },
         { status: "rejected", reason: expect.any(TypeError) },
       ]);
-      if (results[0].status !== "rejected" || results[1].status !== "rejected") return;
+      if (results[0].status !== "rejected" || results[1].status !== "rejected") {
+        return;
+      }
       expect(results[1].reason).toBe(results[0].reason);
     });
 
@@ -615,7 +619,9 @@ describe(Dispatcher, () => {
       const { dispatcher } = setup({
         transport: async (request) => {
           attempts++;
-          if (attempts === 1) throw failure;
+          if (attempts === 1) {
+            throw failure;
+          }
           return echo(request);
         },
       });

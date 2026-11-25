@@ -21,7 +21,9 @@ const expanded = ref(false);
 let observer: ResizeObserver | undefined;
 
 function measure() {
-  if (!content.value) return;
+  if (!content.value) {
+    return;
+  }
   const lineHeight = parseFloat(getComputedStyle(content.value).lineHeight) || 20;
   overflowing.value = content.value.scrollHeight > (props.lines + SLACK_LINES) * lineHeight;
 }
@@ -29,13 +31,17 @@ function measure() {
 function toggle() {
   expanded.value = !expanded.value;
   // Collapsing can leave the pointer far below the box; bring it back
-  if (!expanded.value) box.value?.scrollIntoView({ block: "nearest" });
+  if (!expanded.value) {
+    box.value?.scrollIntoView({ block: "nearest" });
+  }
 }
 
 onMounted(() => {
   measure();
   observer = new ResizeObserver(measure);
-  if (content.value) observer.observe(content.value);
+  if (content.value) {
+    observer.observe(content.value);
+  }
 });
 
 onBeforeUnmount(() => observer?.disconnect());

@@ -333,7 +333,9 @@ describe(JsonMetaClient, () => {
       const error = await client.session.catch((error: unknown) => error);
       expect(error).toBeInstanceOf(HttpError);
       expect(error).not.toBeInstanceOf(JmapError);
-      if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+      if (!(error instanceof HttpError)) {
+        throw new Error("Expected HttpError");
+      }
       expect(error.status).toBe(503);
       expect(error.responseData).toEqual(payload);
       expect(error.request.url).toBe(sessionUrl);
@@ -392,7 +394,9 @@ describe(JsonMetaClient, () => {
         responseData: undefined,
         cause: expect.any(SyntaxError),
       });
-      if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+      if (!(error instanceof HttpError)) {
+        throw new Error("Expected HttpError");
+      }
       await expect(error.response.text()).resolves.toBe("{invalid");
       expect(scope.isDone()).toBe(true);
     });
@@ -494,8 +498,9 @@ describe(JsonMetaClient, () => {
         },
       });
       expect(results[1]).toEqual(results[0]);
-      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected") {
         throw new Error("Expected rejected calls");
+      }
       expect(results[1].reason).toBe(results[0].reason);
       expect(results[0].reason).toBeInstanceOf(HttpError);
       expect(scope.isDone()).toBe(true);
@@ -522,8 +527,9 @@ describe(JsonMetaClient, () => {
         },
       });
       expect(results[1]).toEqual(results[0]);
-      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected")
+      if (results[0]?.status !== "rejected" || results[1]?.status !== "rejected") {
         throw new Error("Expected rejected calls");
+      }
       expect(results[1].reason).toBe(results[0].reason);
       expect(results[0].reason).toBeInstanceOf(NetworkError);
       expect(scope.isDone()).toBe(true);
@@ -1514,7 +1520,9 @@ describe(JsonMetaClient, () => {
         await expect(client.blob.upload(body, { accountId })).resolves.toEqual(responseData);
         expect(fetchMock).toHaveBeenCalledExactlyOnceWith(expect.any(Request));
         const request = fetchMock.mock.calls[0]![0];
-        if (!(request instanceof Request)) throw new Error("Expected Request");
+        if (!(request instanceof Request)) {
+          throw new Error("Expected Request");
+        }
         expect(request.method).toBe("POST");
         expect(request.url).toBe(`${host}/upload/${encodeURIComponent(accountId)}`);
         expect(request.headers.get("authorization")).toBe(`Bearer ${token}`);
@@ -1572,7 +1580,9 @@ describe(JsonMetaClient, () => {
           .download({ accountId, blobId: "blob", type: "text/plain", name: "file" })
           .catch((error: unknown) => error);
         expect(error).toBeInstanceOf(HttpError);
-        if (!(error instanceof HttpError)) throw new Error("Expected HttpError");
+        if (!(error instanceof HttpError)) {
+          throw new Error("Expected HttpError");
+        }
         expect(error.status).toBe(404);
         expect(error.message).toBe("HTTP request failed (404)");
         expect(error.responseData).toEqual(payload);

@@ -15,8 +15,12 @@ import { editorCompilerOptions } from "./editor-options.ts";
 const worker = {
   ...createWorker(() => {
     const files = new Map<string, string>();
-    for (const [name, text] of Object.entries(libFiles)) files.set(`/${name}`, text);
-    for (const [file, text] of Object.entries(typeFiles)) files.set(`/${file}`, text);
+    for (const [name, text] of Object.entries(libFiles)) {
+      files.set(`/${name}`, text);
+    }
+    for (const [file, text] of Object.entries(typeFiles)) {
+      files.set(`/${file}`, text);
+    }
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const options = { ...editorCompilerOptions } as unknown as ts.CompilerOptions;
     return createVirtualTypeScriptEnvironment(

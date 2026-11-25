@@ -36,14 +36,18 @@ export function sourceLines(
     const suffix = call.callId.split("::").pop() ?? "";
     const loc = trace.calls[suffix];
     const found = loc === undefined ? undefined : range(loc);
-    if (found) calls[call.label] = found;
+    if (found) {
+      calls[call.label] = found;
+    }
   }
 
   const waiting = Object.entries(trace.pending)
     .filter(([, count]) => count > 0)
     .flatMap(([loc, count]): WaitingAwait[] => {
       const found = range(Number(loc));
-      if (!found) return [];
+      if (!found) {
+        return [];
+      }
       const awaited = (trace.awaited[Number(loc)] ?? []).flatMap((id) => {
         const call = byId.get(id);
         return call ? [{ label: call.label, name: call.name }] : [];
@@ -65,7 +69,9 @@ function compare(a: SourceRange["start"], b: SourceRange["start"]): number {
  */
 export function labelsAt(lines: SourceLines, position: SourcePosition): string[] {
   const containing = Object.entries(lines.calls).filter(([, range]) => contains(range, position));
-  if (!containing.length) return [];
+  if (!containing.length) {
+    return [];
+  }
   const smallest = Math.min(...containing.map(([, range]) => size(range)));
   return containing.filter(([, range]) => size(range) === smallest).map(([label]) => label);
 }

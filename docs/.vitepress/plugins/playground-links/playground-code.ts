@@ -42,8 +42,11 @@ function parse(source: string): Parsed {
   const otherImports: string[] = [];
   const declared = new Set<string>();
   const collect = (name: ts.BindingName) => {
-    if (ts.isIdentifier(name)) declared.add(name.text);
-    else name.elements.forEach((element) => ts.isBindingElement(element) && collect(element.name));
+    if (ts.isIdentifier(name)) {
+      declared.add(name.text);
+    } else {
+      name.elements.forEach((element) => ts.isBindingElement(element) && collect(element.name));
+    }
   };
   const imports = file.statements.filter(ts.isImportDeclaration);
   for (const node of imports) {
@@ -57,8 +60,12 @@ function parse(source: string): Parsed {
       }
     } else {
       otherImports.push(node.getText(file));
-      if (clause?.name) declared.add(clause.name.text);
-      if (bindings && ts.isNamespaceImport(bindings)) declared.add(bindings.name.text);
+      if (clause?.name) {
+        declared.add(clause.name.text);
+      }
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        declared.add(bindings.name.text);
+      }
       if (bindings && ts.isNamedImports(bindings)) {
         bindings.elements.forEach(({ name }) => declared.add(name.text));
       }
@@ -80,7 +87,9 @@ function parse(source: string): Parsed {
   }
   const used = new Set<string>();
   const visit = (node: ts.Node) => {
-    if (ts.isIdentifier(node) && isReference(node)) used.add(node.text);
+    if (ts.isIdentifier(node) && isReference(node)) {
+      used.add(node.text);
+    }
     ts.forEachChild(node, visit);
   };
   file.statements.filter((statement) => !ts.isImportDeclaration(statement)).forEach(visit);
@@ -97,9 +106,15 @@ function parse(source: string): Parsed {
  */
 function isReference(node: ts.Identifier): boolean {
   const { parent } = node;
-  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
-  if (ts.isQualifiedName(parent) && parent.right === node) return false;
-  if (ts.isBindingElement(parent) && parent.propertyName === node) return false;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
+    return false;
+  }
+  if (ts.isQualifiedName(parent) && parent.right === node) {
+    return false;
+  }
+  if (ts.isBindingElement(parent) && parent.propertyName === node) {
+    return false;
+  }
   const declares =
     ts.isPropertyAssignment(parent) ||
     ts.isPropertySignature(parent) ||
@@ -171,20 +186,31 @@ export function hasPlaygroundCode(source: string): boolean {
 export function playgroundCode(examples: readonly Example[], index: number): string {
   const parsed = examples.map(({ source }) => parse(source));
   const target = parsed[index];
-  if (!target) throw new RangeError(`No example at ${index}`);
+  if (!target) {
+    throw new RangeError(`No example at ${index}`);
+  }
   const earlier = parsed.slice(0, index);
   const needsClient = target.used.has("client") && !target.declared.has("client");
 
   const named = [...target.named.values()];
-  if (needsClient) named.push({ module: LIBRARY, specifier: "JsonMetaClient" });
+  if (needsClient) {
+    named.push({ module: LIBRARY, specifier: "JsonMetaClient" });
+  }
   const placeholders: string[] = [];
   for (const name of target.used) {
-    if (name === "client" || target.declared.has(name)) continue;
+    if (name === "client" || target.declared.has(name)) {
+      continue;
+    }
     const from = earlier.findLast(({ declared }) => declared.has(name));
-    if (!from) continue;
+    if (!from) {
+      continue;
+    }
     const imported = from.named.get(name);
-    if (imported) named.push(imported);
-    else placeholders.push(`const ${name}: any = "<${name}>";`);
+    if (imported) {
+      named.push(imported);
+    } else {
+      placeholders.push(`const ${name}: any = "<${name}>";`);
+    }
   }
 
   const sections = [

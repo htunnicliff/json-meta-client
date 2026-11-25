@@ -66,7 +66,9 @@ export function instrument(): {
     const names = new Map<ts.Node, string>();
 
     function visit(node: ts.Node): ts.Node {
-      if (ts.isVariableDeclaration(node)) nameBoundCalls(node, names);
+      if (ts.isVariableDeclaration(node)) {
+        nameBoundCalls(node, names);
+      }
       if (ts.isAwaitExpression(node)) {
         const loc = locate(node);
         const expression = ts.visitNode(node.expression, visit, ts.isExpression);
@@ -124,9 +126,13 @@ function unwrap(node: ts.Expression): ts.Expression {
  */
 function nameBoundCalls(declaration: ts.VariableDeclaration, names: Map<ts.Node, string>): void {
   const { name, initializer } = declaration;
-  if (!initializer) return;
+  if (!initializer) {
+    return;
+  }
   const value = unwrap(initializer);
-  if (!ts.isCallExpression(value)) return;
+  if (!ts.isCallExpression(value)) {
+    return;
+  }
   if (ts.isIdentifier(name)) {
     names.set(value, name.text);
     return;

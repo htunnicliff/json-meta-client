@@ -5,7 +5,9 @@ import type { Connection } from "./protocol.ts";
  * sends it
  */
 export function authorization(auth: Connection["auth"]): string {
-  if (typeof auth === "string") return `Bearer ${auth}`;
+  if (typeof auth === "string") {
+    return `Bearer ${auth}`;
+  }
   const bytes = new TextEncoder().encode(`${auth.username}:${auth.password}`);
   return `Basic ${btoa(String.fromCharCode(...bytes))}`;
 }

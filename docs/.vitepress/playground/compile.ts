@@ -31,13 +31,17 @@ export function compile(source: string): CompileOutput {
     transformers: { before: [transformer], after: [rewriteImports(diagnostics)] },
   });
   diagnostics.unshift(...syntax.map(toDiagnostic));
-  if (diagnostics.length) return { diagnostics };
+  if (diagnostics.length) {
+    return { diagnostics };
+  }
   return { code: `${outputText}\n//# sourceURL=${FILE_NAME}\n`, source: info };
 }
 
 function toDiagnostic(diagnostic: ts.Diagnostic): Diagnostic {
   const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-  if (!diagnostic.file || diagnostic.start === undefined) return { message };
+  if (!diagnostic.file || diagnostic.start === undefined) {
+    return { message };
+  }
   return { message, ...position(diagnostic.file, diagnostic.start) };
 }
 

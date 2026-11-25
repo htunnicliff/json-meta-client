@@ -48,7 +48,9 @@ try {
   await Promise.all(
     markdown.map(async (file) => {
       const { fences, source } = pageModule(await readFile(file, "utf8"));
-      if (!fences) return;
+      if (!fences) {
+        return;
+      }
       count += fences;
       const page = path.relative(root, file);
       const module = path.join(output, `${page}.mts`);
@@ -88,12 +90,16 @@ try {
       `${location}TS${diagnostic.code}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`,
     );
   }
-  if (!count) throw new Error("No documented TypeScript examples found");
-  if (diagnostics.length) process.exitCode = 1;
-  else
+  if (!count) {
+    throw new Error("No documented TypeScript examples found");
+  }
+  if (diagnostics.length) {
+    process.exitCode = 1;
+  } else {
     console.log(
       `Checked ${count} TypeScript fences on ${pageByModule.size} pages and ${snippets.length} included snippets against public package exports.`,
     );
+  }
 } finally {
   await rm(output, { recursive: true, force: true });
 }

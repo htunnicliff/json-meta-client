@@ -29,7 +29,9 @@ export function loadOptions<Options extends { [Key in keyof Options]: boolean }>
   const options = { ...set.defaults };
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(set.storageKey) ?? "{}");
-    if (typeof stored !== "object" || stored === null) return options;
+    if (typeof stored !== "object" || stored === null) {
+      return options;
+    }
     const keys = new Set<string>(optionKeys(set));
     for (const [key, value] of Object.entries(stored)) {
       if (keys.has(key) && typeof value === "boolean") {

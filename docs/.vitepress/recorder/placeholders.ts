@@ -50,6 +50,8 @@ export function fillPlaceholders<Options extends ConnectionOptions>(
       ? server.sessionUrl
       : options.sessionUrl.replaceAll(SERVER_PLACEHOLDER, PLACEHOLDER_ORIGIN);
   }
-  if (server && options.auth === CREDENTIALS_PLACEHOLDER) filled.auth = server.auth;
+  if (server && options.auth === CREDENTIALS_PLACEHOLDER) {
+    filled.auth = server.auth;
+  }
   return filled;
 }

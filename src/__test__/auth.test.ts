@@ -181,7 +181,9 @@ describe("authentication", () => {
       sessionUrl,
       capabilities: [],
       auth: async ({ request }) => {
-        if (new URL(request.url).pathname !== "/events") return;
+        if (new URL(request.url).pathname !== "/events") {
+          return;
+        }
         const current = ++connection;
         await new Promise((resolve) => setTimeout(resolve, 1));
         request.headers.set("authorization", `Custom stream-${current}`);
@@ -204,7 +206,9 @@ describe("authentication", () => {
     const subscription = await client.onStateChange(
       (...args) => {
         handler(...args);
-        if (args[1]?.state === "second") controller.abort();
+        if (args[1]?.state === "second") {
+          controller.abort();
+        }
       },
       { signal: controller.signal },
     );

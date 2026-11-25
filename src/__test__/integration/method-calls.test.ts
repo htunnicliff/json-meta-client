@@ -20,7 +20,9 @@ describe("method calls", () => {
         hooks: {
           beforeFetch: [
             ({ httpRequest: request }) => {
-              if (request.method === "POST") posts.push(request.url);
+              if (request.method === "POST") {
+                posts.push(request.url);
+              }
               return request;
             },
           ],

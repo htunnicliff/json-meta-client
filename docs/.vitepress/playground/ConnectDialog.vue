@@ -29,8 +29,11 @@ async function connect(event: SubmitEvent) {
   error.value = "";
   try {
     const result = await checkConnection(connection);
-    if (result.ok) emit("connect", connection, remember.value);
-    else error.value = result.message;
+    if (result.ok) {
+      emit("connect", connection, remember.value);
+    } else {
+      error.value = result.message;
+    }
   } finally {
     checking.value = false;
   }

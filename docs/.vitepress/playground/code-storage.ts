@@ -9,8 +9,12 @@ const STORAGE_KEY = "json-meta-client:playground:source";
 type StoredCode = { example: string } | { code: string };
 
 function isStoredCode(value: unknown): value is StoredCode {
-  if (typeof value !== "object" || value === null) return false;
-  if ("example" in value) return typeof value.example === "string";
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  if ("example" in value) {
+    return typeof value.example === "string";
+  }
   return "code" in value && typeof value.code === "string";
 }
 
@@ -21,8 +25,12 @@ export function loadCode(): string {
   const fallback = defaultExample;
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
-    if (!isStoredCode(stored)) return fallback;
-    if ("code" in stored) return stored.code;
+    if (!isStoredCode(stored)) {
+      return fallback;
+    }
+    if ("code" in stored) {
+      return stored.code;
+    }
     return examples.find((example) => example.id === stored.example)?.code ?? fallback;
   } catch {
     // Storage can be unavailable, or hold something else; the first example stands

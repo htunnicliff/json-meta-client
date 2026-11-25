@@ -18,7 +18,9 @@ const run = (command, args, cwd) =>
 try {
   run("pnpm", ["pack", "--pack-destination", project], root);
   const tarball = (await readdir(project)).find((name) => name.endsWith(".tgz"));
-  if (!tarball) throw new Error("`pnpm pack` produced no tarball");
+  if (!tarball) {
+    throw new Error("`pnpm pack` produced no tarball");
+  }
 
   await cp(fixture, project, { recursive: true });
 

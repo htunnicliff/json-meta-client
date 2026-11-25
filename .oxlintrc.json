@@ -7,6 +7,7 @@
     "perf": "error"
   },
   "rules": {
+    "curly": "error",
     "no-shadow": "off",
     "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
     "typescript/consistent-type-definitions": ["error", "interface"],
