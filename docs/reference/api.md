@@ -593,6 +593,43 @@ The client validates every capability when it is constructed, and throws a
 for a malformed one, or when two capabilities claim the same method with
 different `defaultAccount` settings.
 
+## `patchMap()`
+
+Builds the patch paths for a map keyed by ID, such as an email's
+`mailboxIds`, with one path per key. Use it in a `/set` call's `update`,
+where a computed key would otherwise be typed as `string`. Refer to
+[Patch updates](../features/method-calls.md#patch-updates).
+
+| Parameter | Type                    | Description                                           |
+| --------- | ----------------------- | ----------------------------------------------------- |
+| `path`    | `string`                | The map's patch path, such as `"mailboxIds"`          |
+| `entries` | `Record<string, Value>` | The value to set for each key; `null` removes the key |
+
+**Returns** the patch entries, such as `{ "mailboxIds/<id>": true }`. Each
+key is escaped as a JSON Pointer segment, so `~` becomes `~0` and `/`
+becomes `~1`.
+
+The patch type comes from where the result is used, so `path` must name a
+map in that type, and each value must be one the map accepts. With no patch
+type to check against, such as in a variable with no type annotation, no
+path is accepted. Annotate the variable with
+[`PatchObject`](./types.md#jmap-types) in that case:
+
+```ts
+import { patchMap } from "json-meta-client";
+import type {
+  EmailUpdate,
+  PatchObject,
+} from "json-meta-client/rfc-types";
+
+const move: PatchObject<EmailUpdate> = patchMap(
+  "mailboxIds",
+  {
+    "<mailbox-id>": true,
+  },
+);
+```
+
 ## Authentication
 
 The `auth` option accepts a bearer token string, a username and password, or a

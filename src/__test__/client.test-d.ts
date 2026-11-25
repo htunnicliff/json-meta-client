@@ -10,8 +10,8 @@ import type { ApiShape } from "../internal/create-api.ts";
 import type { Ref, ResultRefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRef, AugmentMethod, MethodArguments } from "../internal/types.ts";
-import type { MethodGet } from "../rfc-types/core/index.ts";
-import type { ReadableEmail, EmailAddress, Mailbox } from "../rfc-types/mail/index.ts";
+import type { MethodGet, PatchObject } from "../rfc-types/core/index.ts";
+import type { ReadableEmail, EmailAddress, EmailUpdate, Mailbox } from "../rfc-types/mail/index.ts";
 import type { Config } from "../types.ts";
 
 const host = "https://example.test";
@@ -693,6 +693,15 @@ describe("undeclared argument properties", () => {
     );
     assertType(client.api.Email.get({ properties: ["header:X-Spam:asText"] }));
     assertType(client.api.Core.echo({ anything: { nested: [1, "two"] } }));
+  });
+
+  it("accepts declared properties whose values may be null", () => {
+    const patch: PatchObject<EmailUpdate> = { mailboxIds: { inbox: true } };
+    const mailboxIds: Record<string, true> | null = null as Record<string, true> | null;
+    assertType(client.api.Email.set({ update: { e1: patch } }));
+    assertType(client.api.Email.set({ update: { e1: { mailboxIds } } }));
+    // @ts-expect-error An email created without mailboxes is still rejected.
+    assertType(client.api.Email.set({ create: { draft: { mailboxIds } } }));
   });
 
   it("rejects properties /set entries don't declare", () => {

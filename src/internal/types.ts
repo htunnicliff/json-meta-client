@@ -278,11 +278,12 @@ type CheckUnknownProperties<Given, Accepted> = [Given] extends [ReadonlyArray<un
     ? [KeysOfUnion<NonNullable<Accepted>>] extends [never]
       ? unknown
       : {
+          // `null` passes here, and the accepted type decides whether it may
           [Key in KeysOfUnion<Given>]?: StoredKey<Key> extends KeysOfUnion<NonNullable<Accepted>>
             ? UnknownProperties<
                 NonNullable<PropertyOfUnion<Given, Key>>,
                 PropertyOfUnion<NonNullable<Accepted>, Key>
-              >
+              > | null
             : never;
         }
     : unknown;

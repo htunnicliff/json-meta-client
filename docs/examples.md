@@ -322,21 +322,22 @@ removes the email from a mailbox, and `true` adds it. Other mailboxes the
 email is in stay as they are.
 
 ```ts
-const membership: Record<
-  `mailboxIds/${string}`,
-  true | null
-> = {};
-membership[`mailboxIds/${inboxId}`] = null;
-membership[`mailboxIds/${archiveId}`] = true;
+import { patchMap } from "json-meta-client";
 
 await client.api.Email.set({
-  update: { [emailId]: membership },
+  update: {
+    [emailId]: patchMap("mailboxIds", {
+      [inboxId]: null,
+      [archiveId]: true,
+    }),
+  },
 });
 ```
 
-In an object literal, TypeScript types a computed key such as
-``[`mailboxIds/${inboxId}`]`` as `string`, which the patch types reject.
-Declaring the patch's type first, as above, keeps each path's type.
+[`patchMap()`](./reference/api.md#patchmap) turns the IDs into patch
+paths such as `mailboxIds/<id>`. The patch type checks the map name and
+each value, so a misspelled `mailboxIdz`, or `false` in place of `null`, is
+a type error.
 
 ## Mark an email as read
 

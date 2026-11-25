@@ -364,6 +364,25 @@ A `null` value removes a property. Keys that contain `~` or `/` are escaped
 as `~0` and `~1`, following JSON Pointer, and the types expect the escaped
 form.
 
+When the key comes from a variable, such as a mailbox ID, build the paths
+with `patchMap()`. A computed key such as ``[`mailboxIds/${id}`]`` is typed
+as `string`, which the patch types can't check, but `patchMap()` checks the
+map's name and each value against the patch, and escapes the keys. Spread
+it to combine it with other paths:
+
+```ts
+import { patchMap } from "json-meta-client";
+
+await client.api.Email.set({
+  update: {
+    [email.id]: {
+      ...patchMap("mailboxIds", { [archiveId]: true }),
+      "keywords/$seen": true,
+    },
+  },
+});
+```
+
 Arrays are always replaced whole, so a path can't point inside one. To
 change an array, send the whole new array. This adds an address to an
 identity's `bcc` list:
