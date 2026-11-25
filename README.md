@@ -78,6 +78,12 @@ request, passing the query's IDs to `Email/get` with a result reference.
 Follow the [getting started guide](https://json-meta-client.dev/getting-started)
 for runtime requirements and a complete walkthrough.
 
+## Versioning
+
+json-meta-client follows semantic versioning. Refer to the
+[versioning policy](https://json-meta-client.dev/reference/versioning) for
+how changes to its types map to version numbers.
+
 ## License
 
 The [MPL-2.0 License](./LICENSE).
