@@ -17,7 +17,7 @@ type IntegrationClient<T extends ReadonlyArray<CapabilityOption>> = JsonMetaClie
 export function createClient<const T extends ReadonlyArray<CapabilityOption>>(
   ...capabilities: T
 ): IntegrationClient<T> {
-  return createClientWith({}, ...capabilities);
+  return createClientWith<T>({}, ...capabilities);
 }
 
 /**
