@@ -81,6 +81,12 @@ for runtime requirements and a complete walkthrough.
 Upgrading from 0.14? Follow the
 [migration guide](https://json-meta-client.dev/migration).
 
+## Versioning
+
+json-meta-client follows semantic versioning. Refer to the
+[versioning policy](https://json-meta-client.dev/reference/versioning) for
+how changes to its types map to version numbers.
+
 ## License
 
 The [MPL-2.0 License](./LICENSE).
