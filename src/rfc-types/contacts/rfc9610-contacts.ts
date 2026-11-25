@@ -8,8 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { DistributedOmit } from "type-fest";
-
+import type { DistributedOmit } from "../../internal/type-utils.ts";
 import type {
   Comparator,
   MethodChanges,
