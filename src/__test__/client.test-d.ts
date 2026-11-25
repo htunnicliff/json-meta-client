@@ -16,6 +16,7 @@ import { contacts, core, mail } from "../capabilities/index.ts";
 import type { MethodContract } from "../capability.ts";
 import { defineCapability } from "../capability.ts";
 import { JsonMetaClient } from "../client.ts";
+import type { ApiShape } from "../internal/create-api.ts";
 import type { Ref, ResultRefFn } from "../internal/ref.ts";
 import type { AugmentedOptions } from "../internal/types.ts";
 import type { AllowRef, AugmentMethod, MethodArguments } from "../internal/types.ts";
@@ -92,6 +93,17 @@ describe(JsonMetaClient, () => {
   });
 
   describe("api", () => {
+    it("has the shape of the runtime API proxy", () => {
+      const everything = new JsonMetaClient({
+        auth: token,
+        sessionUrl,
+        capabilities: Object.values(BUILT_IN_CAPABILITIES),
+      });
+
+      expectTypeOf(client.api).toExtend<ApiShape>();
+      expectTypeOf(everything.api).toExtend<ApiShape>();
+    });
+
     it("infers the same methods from built-in names and objects", () => {
       const namedClient = new JsonMetaClient({
         auth: token,
@@ -328,6 +340,7 @@ describe(JsonMetaClient, () => {
       });
 
       it("exposes the custom capability's entities", () => {
+        expectTypeOf(client.api).toExtend<ApiShape>();
         expectTypeOf(client.api).toHaveProperty("Example");
         expectTypeOf<keyof typeof client.api>().toEqualTypeOf<"Example" | DefaultEntities>();
       });

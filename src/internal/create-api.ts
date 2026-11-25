@@ -26,10 +26,42 @@ interface ApiOptions {
 }
 
 /**
- * Create the API proxy: `api.Entity.method(args)` makes a method call for
- * any entity and method name
+ * What the proxy returns for every method: a function that makes the call
+ * and returns its pending result, augmented with the call's details and
+ * reference helpers. Every method of an `Augment<T>` API is assignable to it.
  */
-// TODO: Enforce strict linkage between this proxy type and Augment<T>
+interface ApiMethod {
+  (
+    args: never,
+    options?: AugmentedOptions,
+  ): Promise<unknown> & {
+    // Typed loosely: relating each method's generic `resultRef` to a
+    // signature here makes the compiler expand every pointer path
+    resultRef: unknown;
+    readonly $id: string;
+    readonly $args: unknown;
+    readonly $method: string;
+  };
+}
+
+/**
+ * The shape of an API the proxy can stand in for: entities whose properties
+ * are methods
+ */
+export type ApiShape = Readonly<Record<string, Readonly<Record<string, ApiMethod>>>>;
+
+/**
+ * Create the API proxy: `api.Entity.method(args)` makes a method call for
+ * any entity and method name.
+ *
+ * `T` names the entities and methods the caller may use, with the argument
+ * and result types of each. The proxy answers every name with an
+ * {@link ApiMethod}, so the cast to `T` is safe for any `T` that is an
+ * {@link ApiShape}. `T` can't be constrained to it here, because the client
+ * passes its API type while it is still generic; instead, type tests check
+ * that the client's API, built-in or custom, is an `ApiShape`. Which names
+ * exist, and their argument and result types, come from the capabilities.
+ */
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 export function createApi<T extends object>(options: ApiOptions): T {
   const entities = new Map<string, object>();
@@ -77,7 +109,7 @@ function createMethod(
   entity: string,
   method: string,
   { dispatcher, isKnownEntity, generateMethodCallId }: ApiOptions,
-) {
+): ApiMethod {
   const name = `${entity}/${method}`;
 
   return (args: JsonObject, options?: AugmentedOptions) => {
