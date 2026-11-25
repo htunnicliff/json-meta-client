@@ -169,7 +169,9 @@ describe("recordingFetch in pass-through mode", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
       const request = new Request(input);
       received.push(`${request.method} ${request.url} ${request.headers.get("authorization")}`);
-      if (request.url === sessionUrl) return Response.json(session);
+      if (request.url === sessionUrl) {
+        return Response.json(session);
+      }
       const body: unknown = await request.json();
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       const methodCalls = (body as { methodCalls: [string, object, string][] }).methodCalls;

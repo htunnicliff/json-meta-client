@@ -7,10 +7,16 @@ function isObject(value: unknown): value is object {
 }
 
 function isConnection(value: unknown): value is Connection {
-  if (!isObject(value) || !("sessionUrl" in value) || !("auth" in value)) return false;
+  if (!isObject(value) || !("sessionUrl" in value) || !("auth" in value)) {
+    return false;
+  }
   const { sessionUrl, auth } = value;
-  if (typeof sessionUrl !== "string") return false;
-  if (typeof auth === "string") return true;
+  if (typeof sessionUrl !== "string") {
+    return false;
+  }
+  if (typeof auth === "string") {
+    return true;
+  }
   return (
     isObject(auth) &&
     "username" in auth &&

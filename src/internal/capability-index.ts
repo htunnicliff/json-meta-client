@@ -54,12 +54,16 @@ export function mapMethodOwners(capabilities: Iterable<Capability>): FindMethodO
   };
 
   for (const capability of capabilities) {
-    if ("extends" in capability) continue;
+    if ("extends" in capability) {
+      continue;
+    }
 
     const { urn, entities, defaultAccount: setting = { "*": "primary" } } = capability;
     for (const [key, defaultAccount] of Object.entries(setting)) {
       // An explicit `undefined` reads as an omitted key
-      if (defaultAccount === undefined) continue;
+      if (defaultAccount === undefined) {
+        continue;
+      }
 
       const owner = { urn, defaultAccount };
       if (key === "*") {
@@ -73,7 +77,9 @@ export function mapMethodOwners(capabilities: Iterable<Capability>): FindMethodO
   }
 
   return (name) => {
-    if (listed.has(name)) return listed.get(name);
+    if (listed.has(name)) {
+      return listed.get(name);
+    }
     const entity = name.slice(0, name.indexOf("/"));
     return wildcards.get(entity);
   };
@@ -119,18 +125,26 @@ export function resolveDefaultAccount(
   owner: MethodOwner | undefined,
   session: Session,
 ): DefaultAccountResolution {
-  if (owner?.defaultAccount !== "primary") return { status: "none" };
+  if (owner?.defaultAccount !== "primary") {
+    return { status: "none" };
+  }
 
   const { urn } = owner;
   const primary = session.primaryAccounts[urn];
-  if (primary !== undefined) return { status: "resolved", accountId: primary };
+  if (primary !== undefined) {
+    return { status: "resolved", accountId: primary };
+  }
 
   // RFC 8620 §2: an account lists every capability whose methods it can use
   const [accountId, ...others] = Object.entries(session.accounts ?? {})
     .filter(([, account]) => Object.hasOwn(account.accountCapabilities ?? {}, urn))
     .map(([id]) => id);
-  if (accountId === undefined) return { status: "unavailable" };
-  if (others.length > 0) return { status: "ambiguous", urn };
+  if (accountId === undefined) {
+    return { status: "unavailable" };
+  }
+  if (others.length > 0) {
+    return { status: "ambiguous", urn };
+  }
   return { status: "resolved", accountId };
 }
 

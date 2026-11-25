@@ -71,6 +71,8 @@ export function markResultRefs(args: object): object {
  * Whether a result reference appears anywhere inside `value`
  */
 export function containsRef(value: unknown): boolean {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   return Object.values(value).some((item) => isRef(item) || containsRef(item));
 }

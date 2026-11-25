@@ -79,7 +79,9 @@ describe("client batching contract", () => {
   afterEach(() => {
     const pending = nock.pendingMocks();
     nock.cleanAll();
-    if (pending.length > 0) throw new Error(`Unsent requests: ${pending.join(", ")}`);
+    if (pending.length > 0) {
+      throw new Error(`Unsent requests: ${pending.join(", ")}`);
+    }
   });
 
   it("keeps multiple references to one pending call in the same request", async () => {

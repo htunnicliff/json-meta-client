@@ -110,7 +110,9 @@ function readTypes(): Map<
   const entrySymbol = checker.getSymbolAtLocation(program.getSourceFile(entry)!)!;
 
   const fields = (node: ts.TypeNode | undefined): DetailField[] => {
-    if (!node) return [];
+    if (!node) {
+      return [];
+    }
     const type = checker.getTypeFromTypeNode(node);
     return checker.getPropertiesOfType(type).map((property) => ({
       name: property.name,
@@ -137,9 +139,13 @@ function readTypes(): Map<
     const symbol =
       exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
     const declaration = symbol.valueDeclaration;
-    if (!declaration || !ts.isVariableDeclaration(declaration)) continue;
+    if (!declaration || !ts.isVariableDeclaration(declaration)) {
+      continue;
+    }
     const annotation = declaration.type;
-    if (!annotation || !ts.isTypeReferenceNode(annotation)) continue;
+    if (!annotation || !ts.isTypeReferenceNode(annotation)) {
+      continue;
+    }
 
     const [first, methodsNode, , accountNode, sessionNode] = annotation.typeArguments ?? [];
     const methods: Record<string, string[]> = {};
@@ -156,8 +162,13 @@ function readTypes(): Map<
     } else {
       if (methodsNode && ts.isTypeLiteralNode(methodsNode)) {
         for (const member of methodsNode.members) {
-          if (!ts.isPropertySignature(member) || !member.type || !ts.isTypeLiteralNode(member.type))
+          if (
+            !ts.isPropertySignature(member) ||
+            !member.type ||
+            !ts.isTypeLiteralNode(member.type)
+          ) {
             continue;
+          }
           methods[member.name.getText()] = member.type.members
             .map((method) => method.name?.getText() ?? "")
             .filter(Boolean);

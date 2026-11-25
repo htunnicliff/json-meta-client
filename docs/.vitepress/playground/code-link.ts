@@ -17,7 +17,9 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
  */
 export async function readCodeLink(hash: string): Promise<string | undefined> {
   const encoded = new URLSearchParams(hash.replace(/^#/, "")).get(PLAYGROUND_CODE_PARAM);
-  if (!encoded) return undefined;
+  if (!encoded) {
+    return undefined;
+  }
   try {
     const stream = new Blob([fromBase64Url(encoded)])
       .stream()

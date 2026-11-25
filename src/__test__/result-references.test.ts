@@ -55,9 +55,13 @@ function setup() {
         });
       }
       if (url === apiUrl) {
-        if (!(input instanceof Request)) throw new TypeError("Expected a Request");
+        if (!(input instanceof Request)) {
+          throw new TypeError("Expected a Request");
+        }
         const body: unknown = JSON.parse(await input.text());
-        if (!isJmapRequest(body)) throw new TypeError("Expected a JMAP request");
+        if (!isJmapRequest(body)) {
+          throw new TypeError("Expected a JMAP request");
+        }
         requests.push(body);
         return Response.json({
           methodResponses: body.methodCalls.map(([method, , id]) => [method, { method }, id]),

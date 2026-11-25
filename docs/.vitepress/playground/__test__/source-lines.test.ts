@@ -16,7 +16,9 @@ import type { Trace } from "../tracer.ts";
  */
 async function linesOf(code: string) {
   const output = compile(code);
-  if ("diagnostics" in output) throw new Error(JSON.stringify(output.diagnostics));
+  if ("diagnostics" in output) {
+    throw new Error(JSON.stringify(output.diagnostics));
+  }
   const worker = new Worker(new URL("node-run-worker.ts", import.meta.url), {
     workerData: { code: output.code },
   });
@@ -26,10 +28,18 @@ async function linesOf(code: string) {
       let last: Trace | undefined;
       worker.on("error", reject);
       worker.on("message", (event: RunEvent) => {
-        if (event.type === "request") requests[event.index] = event.request;
-        if (event.type === "trace") last = event.trace;
-        if (event.type === "idle") resolve(last!);
-        if (event.type === "error") reject(new Error(event.message));
+        if (event.type === "request") {
+          requests[event.index] = event.request;
+        }
+        if (event.type === "trace") {
+          last = event.trace;
+        }
+        if (event.type === "idle") {
+          resolve(last!);
+        }
+        if (event.type === "error") {
+          reject(new Error(event.message));
+        }
       });
     });
     const calls = buildTimeline(requests).flatMap((entry): TimelineCall[] =>

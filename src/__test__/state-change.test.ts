@@ -162,7 +162,9 @@ describe("onStateChange", () => {
     expect(() => emit(data)).not.toThrow();
     expect(handler).toHaveBeenCalledExactlyOnceWith(expect.any(StateChangeError), undefined);
     const error = handler.mock.calls[0]![0];
-    if (!(error instanceof StateChangeError)) throw new Error("Expected StateChangeError");
+    if (!(error instanceof StateChangeError)) {
+      throw new Error("Expected StateChangeError");
+    }
     expect(error.cause).toBeInstanceOf(causeType);
     expect(error.cause).toMatchObject({ message: error.message });
   });

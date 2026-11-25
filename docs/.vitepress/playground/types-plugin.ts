@@ -106,7 +106,9 @@ function emitLibraryDeclarations(): Record<string, string> {
     {},
     { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} },
   );
-  if (!config) throw new Error("Could not read tsconfig.json");
+  if (!config) {
+    throw new Error("Could not read tsconfig.json");
+  }
   const outDir = path.join(root, "src");
   const program = ts.createProgram([path.join(root, "src", "index.ts")], {
     ...config.options,
@@ -171,7 +173,9 @@ function typeFestFiles(declarations: readonly string[]): TypeFiles {
   const program = ts.createProgram([indexPath], options, host);
   const files: TypeFiles = {};
   for (const source of program.getSourceFiles()) {
-    if (!source.fileName.startsWith(typeFest)) continue;
+    if (!source.fileName.startsWith(typeFest)) {
+      continue;
+    }
     const relative = path.relative(root, source.fileName).split(path.sep).join("/");
     files[relative] = source.fileName === indexPath ? index : source.text;
   }

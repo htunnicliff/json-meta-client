@@ -27,16 +27,22 @@ function set(key: keyof Options, value: boolean) {
 }
 
 function close() {
-  if (menu.value) menu.value.open = false;
+  if (menu.value) {
+    menu.value.open = false;
+  }
 }
 
 // Close on a click elsewhere or Escape, as other menus do
 function onPointerDown(event: PointerEvent) {
-  if (menu.value?.open && !menu.value.contains(event.target as Node)) menu.value.open = false;
+  if (menu.value?.open && !menu.value.contains(event.target as Node)) {
+    menu.value.open = false;
+  }
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key !== "Escape" || !menu.value?.open) return;
+  if (event.key !== "Escape" || !menu.value?.open) {
+    return;
+  }
   menu.value.open = false;
   menu.value.querySelector("summary")?.focus();
 }

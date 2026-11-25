@@ -14,7 +14,9 @@ import { homeRequestBody } from "./home-request-body.ts";
 
 function compiled(source: string): string {
   const output = compile(source);
-  if ("diagnostics" in output) throw new Error(JSON.stringify(output.diagnostics));
+  if ("diagnostics" in output) {
+    throw new Error(JSON.stringify(output.diagnostics));
+  }
   return output.code;
 }
 
@@ -31,15 +33,23 @@ async function runUntilIdle(source: string) {
       worker.on("error", reject);
       worker.on("message", (message: RunEvent) => {
         messages.push(message);
-        if (message.type === "idle") resolve(message);
-        if (message.type === "error") reject(new Error(message.message));
+        if (message.type === "idle") {
+          resolve(message);
+        }
+        if (message.type === "error") {
+          reject(new Error(message.message));
+        }
       });
     });
     const requests: RecordedRequest[] = [];
     const logs: string[] = [];
     for (const message of messages) {
-      if (message.type === "request") requests[message.index] = message.request;
-      if (message.type === "console") logs.push(`${message.level}: ${message.text}`);
+      if (message.type === "request") {
+        requests[message.index] = message.request;
+      }
+      if (message.type === "console") {
+        logs.push(`${message.level}: ${message.text}`);
+      }
     }
     return { finished, requests, logs, messages };
   } finally {

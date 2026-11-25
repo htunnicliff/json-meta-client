@@ -28,7 +28,9 @@ export const placeholderFill = StateField.define<PlaceholderFill | undefined>({
   create: () => undefined,
   update(value, transaction) {
     for (const effect of transaction.effects) {
-      if (effect.is(setPlaceholderFill)) value = effect.value;
+      if (effect.is(setPlaceholderFill)) {
+        value = effect.value;
+      }
     }
     return value;
   },
@@ -67,7 +69,9 @@ function host(url: string): string {
 // The option a string is the value of, as in `sessionUrl: "…"`
 function propertyName(state: EditorState, string: SyntaxNode): string | undefined {
   const property = string.parent;
-  if (property?.name !== "Property") return undefined;
+  if (property?.name !== "Property") {
+    return undefined;
+  }
   const key = property.firstChild;
   return key?.name === "PropertyDefinition" ? state.sliceDoc(key.from, key.to) : undefined;
 }
@@ -77,14 +81,18 @@ function decorations(state: EditorState): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   syntaxTree(state).iterate({
     enter(node) {
-      if (node.name !== "String") return;
+      if (node.name !== "String") {
+        return;
+      }
       const value = state.sliceDoc(node.from + 1, node.to - 1);
       const name = propertyName(state, node.node);
       let title: string;
       let widget: FillWidget | undefined;
       if (name === "sessionUrl" && hasServerPlaceholder(value)) {
         title = server ? `Filled in with ${server.sessionUrl}` : `Mocked as ${PLACEHOLDER_ORIGIN}`;
-        if (server) widget = new FillWidget(host(server.sessionUrl), title);
+        if (server) {
+          widget = new FillWidget(host(server.sessionUrl), title);
+        }
       } else if (name === "auth" && value === CREDENTIALS_PLACEHOLDER) {
         if (server) {
           const basic = server.authMethod === "basic";

@@ -105,13 +105,21 @@ export function recordingFetch({
     const matches = (template: (session: Session) => string) =>
       sessions.some((session) => url.startsWith(templatePrefix(template(session))));
     if (method === "GET") {
-      if (matches((session) => session.downloadUrl)) return "download";
-      if (matches((session) => session.eventSourceUrl)) return "eventSource";
+      if (matches((session) => session.downloadUrl)) {
+        return "download";
+      }
+      if (matches((session) => session.eventSourceUrl)) {
+        return "eventSource";
+      }
       return "session";
     }
     if (method === "POST") {
-      if (sessions.some((session) => url === session.apiUrl)) return "request";
-      if (matches((session) => session.uploadUrl)) return "upload";
+      if (sessions.some((session) => url === session.apiUrl)) {
+        return "request";
+      }
+      if (matches((session) => session.uploadUrl)) {
+        return "upload";
+      }
     }
     return "unknown";
   }
@@ -120,7 +128,9 @@ export function recordingFetch({
     const entry: RecordedRequest = { kind, method: request.method, url: request.url };
     try {
       const text = await request.text();
-      if (text) entry.body = kind === "request" ? JSON.parse(text) : text;
+      if (text) {
+        entry.body = kind === "request" ? JSON.parse(text) : text;
+      }
     } catch {
       // A body that cannot be read or parsed is recorded without it
     }
@@ -130,7 +140,9 @@ export function recordingFetch({
   function push(entry: Promise<RecordedRequest>): number {
     const index = entries.length;
     entries.push(entry);
-    if (onRecord) void entry.then((request) => onRecord(request, index));
+    if (onRecord) {
+      void entry.then((request) => onRecord(request, index));
+    }
     return index;
   }
 
@@ -138,9 +150,13 @@ export function recordingFetch({
     const recorded: RecordedResponse = { status: response.status };
     if (kind !== "eventSource") {
       const text = await readCapped(response.clone(), MAX_RESPONSE_BYTES);
-      if (text) recorded.body = parseJson(text) ?? text;
+      if (text) {
+        recorded.body = parseJson(text) ?? text;
+      }
     }
-    if (kind === "session" && isSession(recorded.body)) sessions.push(recorded.body);
+    if (kind === "session" && isSession(recorded.body)) {
+      sessions.push(recorded.body);
+    }
     onResponse?.(recorded, index);
   }
 
@@ -150,7 +166,9 @@ export function recordingFetch({
       async (response) => {
         const recording = recordResponse(response, kind, index);
         // A Session must be known before the client's next request is classified
-        if (kind === "session") await recording;
+        if (kind === "session") {
+          await recording;
+        }
         return response;
       },
       (error: unknown) => {
@@ -175,9 +193,13 @@ export function recordingFetch({
       return new Promise(() => {});
     }
     const kind = kindFor?.(input) ?? classify(request.method, request.url);
-    if (passThrough) return send(request, kind, passThrough);
+    if (passThrough) {
+      return send(request, kind, passThrough);
+    }
     const index = push(record(request, kind));
-    if (kind !== "session") return new Promise(() => {});
+    if (kind !== "session") {
+      return new Promise(() => {});
+    }
     const session = placeholderSession(new URL(request.url).origin, extraUrns?.());
     sessions.push(session);
     if (onResponse) {
@@ -217,7 +239,9 @@ function isSession(value: unknown): value is Session {
  */
 async function readCapped(response: Response, limit: number): Promise<string> {
   const reader = response.body?.getReader();
-  if (!reader) return "";
+  if (!reader) {
+    return "";
+  }
   const decoder = new TextDecoder();
   let text = "";
   let total = 0;
@@ -225,7 +249,9 @@ async function readCapped(response: Response, limit: number): Promise<string> {
     for (;;) {
       // oxlint-disable-next-line no-await-in-loop
       const { done, value } = await reader.read();
-      if (done) return text + decoder.decode();
+      if (done) {
+        return text + decoder.decode();
+      }
       total += value.byteLength;
       text += decoder.decode(value, { stream: true });
       if (total > limit) {

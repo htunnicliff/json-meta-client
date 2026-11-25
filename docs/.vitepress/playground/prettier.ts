@@ -32,10 +32,14 @@ export function minimalChange(
   before: string,
   after: string,
 ): { from: number; to: number; insert: string } | undefined {
-  if (before === after) return undefined;
+  if (before === after) {
+    return undefined;
+  }
   let start = 0;
   const shorter = Math.min(before.length, after.length);
-  while (start < shorter && before[start] === after[start]) start++;
+  while (start < shorter && before[start] === after[start]) {
+    start++;
+  }
   let end = 0;
   while (
     end < shorter - start &&

@@ -22,10 +22,16 @@ export function firstAwaitEnd(state: EditorState): number | undefined {
   let end: number | undefined;
   syntaxTree(state).iterate({
     enter(node) {
-      if (end !== undefined || DEFERRED.has(node.name)) return false;
-      if (node.name !== "await") return undefined;
+      if (end !== undefined || DEFERRED.has(node.name)) {
+        return false;
+      }
+      if (node.name !== "await") {
+        return undefined;
+      }
       let statement = node.node;
-      while (statement.parent && statement.parent.name !== "Script") statement = statement.parent;
+      while (statement.parent && statement.parent.name !== "Script") {
+        statement = statement.parent;
+      }
       end = statement.to;
       return false;
     },
@@ -54,9 +60,13 @@ class AwaitNote extends WidgetType {
 const fadedLine = Decoration.line({ class: "pg-unreached-line" });
 
 function decorations(state: EditorState): DecorationSet {
-  if (state.field(placeholderFill)) return Decoration.none;
+  if (state.field(placeholderFill)) {
+    return Decoration.none;
+  }
   const end = firstAwaitEnd(state);
-  if (end === undefined) return Decoration.none;
+  if (end === undefined) {
+    return Decoration.none;
+  }
   const { doc } = state;
   const ranges: Range<Decoration>[] = [
     Decoration.widget({ widget: new AwaitNote(), side: 1 }).range(doc.lineAt(end).to),

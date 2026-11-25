@@ -35,14 +35,20 @@ export function createTracer() {
       const base = currentName ?? method;
       currentName = undefined;
       let id = base;
-      for (let count = 2; usedIds.has(id); count++) id = `${base}-${count}`;
+      for (let count = 2; usedIds.has(id); count++) {
+        id = `${base}-${count}`;
+      }
       usedIds.add(id);
-      if (current !== undefined) trace.calls[id] = current;
+      if (current !== undefined) {
+        trace.calls[id] = current;
+      }
       return id;
     },
     /** Record the call site of a call id suffix the library just drew */
     onCallId: (suffix: string) => {
-      if (current !== undefined) trace.calls[suffix] = current;
+      if (current !== undefined) {
+        trace.calls[suffix] = current;
+      }
     },
     runtime: {
       m(loc: number, args: unknown[], name?: string): unknown[] {
@@ -54,7 +60,9 @@ export function createTracer() {
         trace.pending[loc] = (trace.pending[loc] ?? 0) + 1;
         const id: unknown =
           value && typeof value === "object" ? Reflect.get(value, "$id") : undefined;
-        if (typeof id === "string") (trace.awaited[loc] ??= []).push(id);
+        if (typeof id === "string") {
+          (trace.awaited[loc] ??= []).push(id);
+        }
         const done = () => {
           trace.pending[loc] = (trace.pending[loc] ?? 1) - 1;
           if (typeof id === "string") {

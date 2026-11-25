@@ -195,7 +195,9 @@ describe("event-stream connection hooks", () => {
         ],
         afterFetch: [
           ({ httpRequest: request, httpResponse: response }) => {
-            if (new URL(request.url).pathname !== "/events") return response;
+            if (new URL(request.url).pathname !== "/events") {
+              return response;
+            }
             order.push("afterFetch");
             return new Response(response.body, {
               headers: {
@@ -220,8 +222,12 @@ describe("event-stream connection hooks", () => {
     const subscription = await client.onStateChange(
       (...args) => {
         handler(...args);
-        if (args[1]) order.push(args[1].state);
-        if (args[1]?.state === "second") controller.abort();
+        if (args[1]) {
+          order.push(args[1].state);
+        }
+        if (args[1]?.state === "second") {
+          controller.abort();
+        }
       },
       { signal: controller.signal },
     );
@@ -439,7 +445,9 @@ it("does not report a connection failure when the subscription is aborted", asyn
     .fn<typeof fetch>()
     .mockResolvedValueOnce(Response.json(makeSession()))
     .mockImplementationOnce(async (request) => {
-      if (!(request instanceof Request)) throw new Error("Expected Request");
+      if (!(request instanceof Request)) {
+        throw new Error("Expected Request");
+      }
       fetching.resolve();
       await new Promise((_, reject) =>
         request.signal.addEventListener("abort", () => reject(request.signal.reason), {

@@ -14,14 +14,19 @@ export function seedCallIds(seed: number): () => void {
     value: <T extends ArrayBufferView | null>(array: T): T => {
       if (array) {
         const bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
-        for (let index = 0; index < bytes.length; index++) bytes[index] = next() & 0xff;
+        for (let index = 0; index < bytes.length; index++) {
+          bytes[index] = next() & 0xff;
+        }
       }
       return array;
     },
   });
   return () => {
-    if (original) Object.defineProperty(crypto, "getRandomValues", original);
-    else delete (crypto as { getRandomValues?: unknown }).getRandomValues;
+    if (original) {
+      Object.defineProperty(crypto, "getRandomValues", original);
+    } else {
+      delete (crypto as { getRandomValues?: unknown }).getRandomValues;
+    }
   };
 }
 
