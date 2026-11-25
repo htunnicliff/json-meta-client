@@ -10,6 +10,13 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
   assertValidSessionUrl(options.sessionUrl);
   assertValidCapabilities(options.capabilities);
   assertValidTransport(options.transport);
+  assertValidOnWarning(options.onWarning);
+}
+
+function assertValidOnWarning(onWarning: unknown): void {
+  if (onWarning !== undefined && typeof onWarning !== "function") {
+    throw new ConfigurationError("`onWarning` must be a function", { cause: { onWarning } });
+  }
 }
 
 function assertValidTransport(transport: unknown): void {
