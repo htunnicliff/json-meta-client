@@ -66,6 +66,7 @@ export default defineConfig({
           { text: "Errors", link: "/reference/errors" },
           { text: "Types", link: "/reference/types" },
           { text: "RFCs", link: "/reference/rfcs" },
+          { text: "Versioning", link: "/reference/versioning" },
         ],
       },
       {
