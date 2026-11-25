@@ -15,6 +15,17 @@ when it is constructed, so two clients never share a connection.
 | `httpTransport()`      | HTTP `POST` to `apiUrl`         | The event stream                                                     |
 | `webSocketTransport()` | One shared WebSocket (RFC 8887) | WebSocket push if the server supports it, otherwise the event stream |
 
+::: tip Prefer the HTTP transport
+Use the default `httpTransport()` unless you have a specific reason not to.
+It is the simpler and more predictable choice. Each batch is an ordinary HTTP
+request that your `auth`, hooks and platform tooling all see. The WebSocket
+transport is a long-lived connection with more moving parts: request
+timeouts, heartbeats, reconnects with backoff, idle closing, and
+authentication that varies by `WebSocket` implementation. Choose it only
+when you need something only it provides, such as WebSocket push or one
+connection shared by every batch.
+:::
+
 `httpTransport()` is the default, so these two clients behave the same:
 
 ```ts
@@ -48,6 +59,9 @@ transport and the session doesn't advertise
 `ConfigurationError`.
 
 ## The WebSocket transport
+
+The HTTP transport is the recommended default; see
+[Choosing a transport](#choosing-a-transport).
 
 `webSocketTransport()` opens one socket per client, at the URL in the
 session's `urn:ietf:params:jmap:websocket` capability, with the `jmap`

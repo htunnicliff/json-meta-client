@@ -112,9 +112,10 @@ new JsonMetaClient({
 ### `transport` (optional)
 
 A transport factory that creates the client's transport, which carries JMAP
-Requests and optionally state changes. Defaults to `httpTransport()`. Use
-`webSocketTransport()` for the JMAP WebSocket subprotocol. To learn more,
-refer to the [transports guide](../advanced/transports.md).
+Requests and optionally state changes. Defaults to `httpTransport()`, which
+is the recommended choice. `webSocketTransport()` uses the JMAP WebSocket
+subprotocol instead, at the cost of a more complex connection to manage. To
+learn more, refer to the [transports guide](../advanced/transports.md#choosing-a-transport).
 
 ```ts {7}
 import { webSocketTransport } from "json-meta-client";
@@ -426,6 +427,12 @@ the session's `apiUrl`.
 ## `webSocketTransport()`
 
 A transport factory for the JMAP WebSocket subprotocol (RFC 8887).
+
+::: tip
+Prefer the default [`httpTransport()`](#httptransport) unless you need the
+WebSocket transport. See
+[Choosing a transport](../advanced/transports.md#choosing-a-transport).
+:::
 
 <<< ../../src/transports/websocket/types.ts#websocket-transport-options
 

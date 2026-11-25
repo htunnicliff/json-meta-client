@@ -66,6 +66,10 @@ State changes arrive on one of two push channels:
   that carries method calls. See [Transports](../advanced/transports.md#push).
 - **The event stream** otherwise, as described above.
 
+With the default HTTP transport, which is the recommended choice, state
+changes use the event stream. You don't need the WebSocket transport to
+receive them.
+
 Handlers share a channel. The client opens one WebSocket push subscription
 for all of them, or one event stream for each distinct `pingSeconds` value,
 and closes it when the last handler leaves. A handler that throws doesn't
