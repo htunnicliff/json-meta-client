@@ -17,6 +17,7 @@ import { createApi } from "./internal/create-api.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
 import { addDisposeFallback, disposable, dispose } from "./internal/disposable.ts";
+import type { DisposeFallback } from "./internal/disposable.ts";
 import { openEventStream } from "./internal/event-stream.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { HttpClient } from "./internal/http.ts";
@@ -159,7 +160,7 @@ export class JsonMetaClient<
   onStateChange = async (
     handler: OnStateChangeHandler,
     options: OnStateChangeOptions = {},
-  ): Promise<Disposable> => {
+  ): Promise<Disposable & DisposeFallback> => {
     const { pingSeconds = 30, signal } = options;
     if (this.#lifetime.signal.aborted) {
       throw new CancellationError("The client was disposed");
@@ -185,7 +186,7 @@ export class JsonMetaClient<
    * `onStateChange` subscription, and dispose the transport. Later method
    * calls, blob transfers, session refreshes and `onStateChange` calls reject
    * with `CancellationError`. On a runtime without `Symbol.dispose`, this
-   * method is named `disconnect`.
+   * method is named {@link JsonMetaClient.disconnect}.
    */
   [Symbol.dispose] = (): void => {
     if (this.#lifetime.signal.aborted) {
@@ -195,6 +196,12 @@ export class JsonMetaClient<
     this.#stateChanges.close();
     dispose(this.#transport);
   };
+
+  /**
+   * `[Symbol.dispose]()` on a runtime without `Symbol.dispose`, where it is
+   * the method that releases the client's connections. Absent elsewhere.
+   */
+  declare readonly disconnect?: () => void;
 
   /**
    * Clear pending JMAP requests

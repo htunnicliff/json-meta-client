@@ -9,6 +9,7 @@
 // ----------------------------------------------------------------------- //
 
 import type { StateChangeError } from "../errors/index.ts";
+import type { DisposableLike, DisposeFallback } from "../internal/disposable.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -48,7 +49,7 @@ export interface TransportContext {
 /**
  * Carries JMAP Requests to the server, and optionally state changes back
  */
-export interface Transport {
+export interface Transport extends DisposeFallback {
   /**
    * Send a JMAP Request and return its Response. Reject an aborted send with
    * `CancellationError`, and other failures with a `JsonMetaError`.
@@ -59,10 +60,10 @@ export interface Transport {
    * to use the event stream instead. Return a promise to make
    * `onStateChange` wait, for example until the channel is open.
    */
-  subscribe?(session: Session, events: PushEvents): Disposable | Promise<Disposable> | null;
+  subscribe?(session: Session, events: PushEvents): DisposableLike | Promise<DisposableLike> | null;
   /**
    * Release connections when the client is disposed. On a runtime without
-   * `Symbol.dispose`, the client calls a method named `disconnect` instead.
+   * `Symbol.dispose`, the client calls {@link Transport.disconnect} instead.
    */
   [Symbol.dispose]?(): void;
 }

@@ -15,6 +15,7 @@ import {
   StateChangeError,
 } from "../../errors/index.ts";
 import { addDisposeFallback, disposable } from "../../internal/disposable.ts";
+import type { DisposeFallback } from "../../internal/disposable.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -120,7 +121,10 @@ class WebSocketTransport implements Transport {
     return connection.request(request, signal);
   };
 
-  subscribe = (session: Session, events: PushEvents): Promise<Disposable> | null => {
+  subscribe = (
+    session: Session,
+    events: PushEvents,
+  ): Promise<Disposable & DisposeFallback> | null => {
     const capability = webSocketCapability(session);
     if (!capability?.supportsPush || this.#disposed) {
       return null;

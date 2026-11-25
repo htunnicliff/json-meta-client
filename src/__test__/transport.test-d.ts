@@ -13,6 +13,8 @@ import { WebSocket as WsWebSocket } from "ws";
 
 import { httpTransport, JsonMetaClient, webSocketTransport } from "../index.ts";
 import type {
+  DisposableLike,
+  DisposeFallback,
   JmapRequest,
   JmapResponse,
   PushEvents,
@@ -99,5 +101,36 @@ describe("transport types", () => {
   it("disposes the client", () => {
     const client = new JsonMetaClient({ sessionUrl, auth: "t", capabilities: [] });
     expectTypeOf(client).toExtend<Disposable>();
+  });
+
+  it("types the disconnect fallback for runtimes without Symbol.dispose", async () => {
+    const client = new JsonMetaClient({ sessionUrl, auth: "t", capabilities: [] });
+    expectTypeOf(client.disconnect).toEqualTypeOf<(() => void) | undefined>();
+    expectTypeOf(client).toExtend<DisposeFallback>();
+
+    const subscription = await client.onStateChange(() => {});
+    expectTypeOf(subscription).toExtend<Disposable>();
+    expectTypeOf(subscription.disconnect).toEqualTypeOf<(() => void) | undefined>();
+
+    expectTypeOf<Transport["disconnect"]>().toEqualTypeOf<(() => void) | undefined>();
+  });
+
+  it("accepts a transport that disposes with disconnect", () => {
+    assertType<Transport>({
+      send: async () => ({ methodResponses: [], sessionState: "" }),
+      subscribe: () => ({ disconnect: () => {} }),
+      disconnect: () => {},
+    });
+    assertType<Transport>({
+      send: async () => ({ methodResponses: [], sessionState: "" }),
+      subscribe: async () => ({ [Symbol.dispose]: () => {} }),
+    });
+    expectTypeOf<{ disconnect: () => void }>().toExtend<DisposableLike>();
+  });
+
+  it("rejects a subscription with neither dispose method", () => {
+    expectTypeOf<object>().not.toExtend<DisposableLike>();
+    expectTypeOf<{ disconnect?: () => void }>().not.toExtend<DisposableLike>();
+    expectTypeOf<{ disconnect: string }>().not.toExtend<DisposableLike>();
   });
 });

@@ -13,6 +13,7 @@ import type { Session, StateChange } from "../rfc-types/core/index.ts";
 import type { PushEvents, Transport } from "../transports/types.ts";
 import type { OnStateChangeHandler, StateChangePayload } from "../types.ts";
 import { disposable, dispose } from "./disposable.ts";
+import type { DisposableLike, DisposeFallback } from "./disposable.ts";
 import { readStateChanges } from "./read-state-changes.ts";
 
 export interface StateChangeHubOptions {
@@ -24,7 +25,7 @@ export interface StateChangeHubOptions {
     session: Session,
     events: PushEvents,
     pingSeconds: number,
-  ) => Promise<Disposable>;
+  ) => Promise<DisposableLike>;
   isPrimaryAccount: (session: Session, entity: string, accountId: string) => boolean;
 }
 
@@ -43,7 +44,7 @@ interface Entry {
 interface Subscription {
   handlers: Set<Entry>;
   /** Settles with the channel once it is open */
-  channel: Promise<Disposable>;
+  channel: Promise<DisposableLike>;
   /** Forget this subscription so the next handler opens a new channel */
   forget: () => void;
 }
@@ -78,7 +79,7 @@ export class StateChangeHub {
     session: Session,
     handler: OnStateChangeHandler,
     pingSeconds: number,
-  ): Promise<Disposable> => {
+  ): Promise<Disposable & DisposeFallback> => {
     if (this.#closed) {
       throw new CancellationError("The client was disposed");
     }

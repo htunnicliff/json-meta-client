@@ -194,7 +194,9 @@ Some rules a transport should follow:
   for the `Disposable` to make `onStateChange` wait until the channel is
   ready.
 - On a runtime without `Symbol.dispose`, the client looks for a `disconnect`
-  method instead of `[Symbol.dispose]`.
+  method instead of `[Symbol.dispose]`, on the transport and on what
+  `subscribe` returns. The types allow either: `Transport` has an optional
+  `disconnect`, and `subscribe` may return a `DisposableLike`.
 
 This transport sends each batch as an HTTP `POST` with its own logging, and
 leaves state changes to the event stream:

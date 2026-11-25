@@ -8,6 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
+export type { DisposableLike, DisposeFallback } from "../internal/disposable.ts";
 export { httpTransport } from "./http.ts";
 export type {
   PushEvents,

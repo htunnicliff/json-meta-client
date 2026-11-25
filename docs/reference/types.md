@@ -47,9 +47,18 @@ its `Authorization` header. The client awaits it before running any
 ## Transport types
 
 See [Transports](../advanced/transports.md#writing-a-transport) for
-`TransportFactory`, `TransportContext`, `Transport` and `PushEvents`, and
-[the API reference](./api.md#websockettransport) for `WebSocketLike` and
+`TransportFactory`, `TransportContext`, `Transport`, `PushEvents` and
+`DisposableLike`, and [the API reference](./api.md#websockettransport) for `WebSocketLike` and
 `WebSocketTransportOptions`.
+
+## Dispose fallback types
+
+On a runtime without `Symbol.dispose`, the method that disposes an object is
+named `disconnect`. `DisposeFallback` types it as an optional
+`disconnect(): void`. The client, the `Transport` interface and the
+subscriptions `onStateChange()` resolves to all include it.
+`DisposableLike` is what a transport's `subscribe` may return: a
+`Disposable`, or an object with a `disconnect` method.
 
 ## Hook types
 

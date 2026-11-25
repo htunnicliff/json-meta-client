@@ -9,6 +9,20 @@
 // ----------------------------------------------------------------------- //
 
 /**
+ * The method that stands in for `[Symbol.dispose]` on a runtime without
+ * `Symbol.dispose`
+ */
+export interface DisposeFallback {
+  disconnect?: () => void;
+}
+
+/**
+ * Something the client can dispose: a `Disposable`, or on a runtime without
+ * `Symbol.dispose`, an object with a `disconnect` method
+ */
+export type DisposableLike = Disposable | Required<DisposeFallback>;
+
+/**
  * The key of a dispose method: `Symbol.dispose`, or `"disconnect"` on a
  * runtime without it
  */
@@ -28,14 +42,14 @@ export function disposeKeyFor(symbol: symbol | undefined): symbol | "disconnect"
  * A `Disposable` that runs the given function, keyed by `Symbol.dispose`
  * where the runtime provides it
  */
-export function disposable(dispose: () => void): Disposable {
+export function disposable(dispose: () => void): Disposable & DisposeFallback {
   return { [Symbol.dispose ?? "disconnect"]: dispose };
 }
 
 /**
  * Dispose of a `Disposable` created by this package or by a caller
  */
-export function dispose(target: object): void {
+export function dispose(target: DisposableLike | DisposeFallback): void {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   (target as Record<PropertyKey, (() => void) | undefined>)[disposeKey()]?.();
 }
@@ -45,11 +59,11 @@ export function dispose(target: object): void {
  * on a runtime without `Symbol.dispose`, where that field's key is the
  * string `"undefined"`
  */
-export function addDisposeFallback(
-  target: object,
+export function addDisposeFallback<T extends object>(
+  target: T,
   dispose: () => void,
   key: symbol | "disconnect" = disposeKey(),
-): void {
+): asserts target is T & DisposeFallback {
   if (typeof key === "string") {
     Object.defineProperty(target, key, { value: dispose });
   }

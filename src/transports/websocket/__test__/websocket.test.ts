@@ -23,6 +23,7 @@ import {
   NetworkError,
   StateChangeError,
 } from "../../../errors/index.ts";
+import { dispose } from "../../../internal/disposable.ts";
 import type {
   Request as JmapRequest,
   Session,
@@ -446,7 +447,7 @@ describe("webSocketTransport push", () => {
     const subscription = await transport.subscribe?.(sessionWith(server.url(), true), events());
     await server.received(1);
 
-    subscription?.[Symbol.dispose]();
+    dispose(subscription!);
 
     const messages = await server.received(2);
     expect(messages[1]).toEqual({ "@type": "WebSocketPushDisable" });

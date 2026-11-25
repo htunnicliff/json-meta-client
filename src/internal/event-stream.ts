@@ -12,6 +12,7 @@ import { StateChangeError } from "../errors/index.ts";
 import type { Session } from "../rfc-types/core/index.ts";
 import type { PushEvents } from "../transports/types.ts";
 import { disposable } from "./disposable.ts";
+import type { DisposeFallback } from "./disposable.ts";
 import { expandURITemplate } from "./expand-uri-template.ts";
 import type { HttpClient } from "./http.ts";
 import { isStateChange } from "./read-state-changes.ts";
@@ -25,7 +26,7 @@ export async function openEventStream(
   session: Session,
   events: PushEvents,
   pingSeconds: number,
-): Promise<Disposable> {
+): Promise<Disposable & DisposeFallback> {
   const url = expandURITemplate(session.eventSourceUrl, {
     types: "*",
     // spellchecker:disable-next-line
