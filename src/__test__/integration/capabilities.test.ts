@@ -3,9 +3,9 @@
 
 // cspell:words fileinto
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
-import { createClient, uniqueName } from "./client.ts";
+import { createClient, createOtherClient, uniqueName } from "./client.ts";
 
 describe("contacts", () => {
   it("creates a contact card in an address book, then queries and gets it", async () => {
@@ -41,6 +41,44 @@ describe("contacts", () => {
       name: expect.objectContaining({ full: name }),
       emails: { work: expect.objectContaining({ address: "ada@example.test" }) },
     });
+  });
+
+  it("copies a contact card from another account", async () => {
+    const { accountId, other } = inject("stalwart");
+    const name = uniqueName("Grace");
+    const source = await createOtherClient("contacts").api.ContactCard.set({
+      create: {
+        card: {
+          "@type": "Card",
+          version: "1.0",
+          uid: `urn:uuid:${crypto.randomUUID()}`,
+          addressBookIds: { [other.sharedAddressBookId]: true },
+          name: { full: name },
+        },
+      },
+    });
+    const sourceId = source.created!.card!.id;
+
+    const client = createClient("contacts");
+    const books = await client.api.AddressBook.get({ accountId });
+    const addressBookId = books.list[0]!.id;
+    const copied = await client.api.ContactCard.copy({
+      fromAccountId: other.accountId,
+      accountId,
+      create: { copy: { id: sourceId, addressBookIds: { [addressBookId]: true } } },
+    });
+    expect(copied.notCreated).toBeFalsy();
+
+    const cards = await client.api.ContactCard.get({
+      ids: [copied.created!.copy!.id],
+      properties: ["name", "addressBookIds"],
+    });
+    expect(cards.list).toEqual([
+      expect.objectContaining({
+        name: expect.objectContaining({ full: name }),
+        addressBookIds: { [addressBookId]: true },
+      }),
+    ]);
   });
 });
 
@@ -118,5 +156,23 @@ describe("sharing", () => {
 
     expect(principals.list).toContainEqual(expect.objectContaining({ type: "individual" }));
     expect(shares.list).toEqual(expect.any(Array));
+  });
+
+  it("queries principals and gets them by reference", async () => {
+    const { accountId, other } = inject("stalwart");
+    const client = createClient("sharing");
+
+    const query = client.api.Principal.query({});
+    const principals = await client.api.Principal.get({
+      ids: query.resultRef("/ids"),
+      properties: ["name", "type"],
+    });
+
+    expect((await query).ids).toEqual(expect.arrayContaining([accountId, other.accountId]));
+    expect(principals.list).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: other.accountId, type: "individual" }),
+      ]),
+    );
   });
 });

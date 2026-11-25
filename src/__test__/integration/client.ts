@@ -38,6 +38,20 @@ export function createClientWith<const T extends ReadonlyArray<CapabilityOption>
 }
 
 /**
+ * Create a client for the second provisioned Stalwart user, who shares a
+ * mailbox and an address book with the main user
+ */
+export function createOtherClient<const T extends ReadonlyArray<CapabilityOption>>(
+  ...capabilities: T
+): IntegrationClient<T> {
+  const { other } = inject("stalwart");
+  return createClientWith(
+    { auth: { username: other.username, password: other.password } },
+    ...capabilities,
+  );
+}
+
+/**
  * A name no other test uses, since every test shares one account
  */
 export function uniqueName(prefix: string): string {

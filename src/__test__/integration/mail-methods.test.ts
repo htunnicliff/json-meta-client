@@ -1,9 +1,9 @@
 // Mail and submission methods beyond the basic get, set, and query round
 // trips.
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, inject, it, vi } from "vitest";
 
-import { createClient, uniqueName } from "./client.ts";
+import { createClient, createOtherClient, uniqueName } from "./client.ts";
 
 const rfc822 = (subject: string) =>
   [
@@ -222,5 +222,39 @@ describe("mail methods", () => {
       identityId: identity.id,
       undoStatus: expect.any(String),
     });
+  });
+
+  it("copies an email from another account", async () => {
+    const { accountId, other } = inject("stalwart");
+    const subject = uniqueName("Shared report");
+    const source = await createOtherClient("mail").api.Email.set({
+      create: {
+        email: {
+          mailboxIds: { [other.sharedMailboxId]: true },
+          from: [{ name: null, email: other.username }],
+          subject,
+          bodyValues: { body: { value: "Copied across accounts." } },
+          textBody: [{ partId: "body", type: "text/plain" }],
+        },
+      },
+    });
+    const sourceId = source.created!.email!.id;
+
+    const client = createClient("mail");
+    const mailboxId = await createMailbox(client, "Copied");
+    const copied = await client.api.Email.copy({
+      fromAccountId: other.accountId,
+      accountId,
+      create: { copy: { id: sourceId, mailboxIds: { [mailboxId]: true } } },
+    });
+    expect(copied.notCreated).toBeFalsy();
+
+    const emails = await client.api.Email.get({
+      ids: [copied.created!.copy!.id],
+      properties: ["subject", "mailboxIds"],
+    });
+    expect(emails.list).toEqual([
+      expect.objectContaining({ subject, mailboxIds: { [mailboxId]: true } }),
+    ]);
   });
 });
