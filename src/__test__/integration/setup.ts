@@ -154,8 +154,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
         },
       },
     });
-    // Principal/query is disabled until directory queries are allowed and
-    // the settings are reloaded
+    // Allow directory queries for the Principal/query tests. Stalwart applies
+    // the setting once the settings are reloaded.
     const sharing = client.api["x:Sharing"].set({
       update: { singleton: { allowDirectoryQueries: true } },
     });
