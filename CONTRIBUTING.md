@@ -23,35 +23,6 @@ pnpm install
 The integration tests run against [Stalwart](https://stalw.art/) in a
 container, so they also need Docker or another Docker-compatible runtime.
 
-## Checks
-
-CI runs these on every pull request
-([`.github/workflows/ci.yaml`](./.github/workflows/ci.yaml)):
-
-| Command                 | What it checks                                         |
-| ----------------------- | ------------------------------------------------------ |
-| `pnpm lint`             | oxlint, with fixes applied                             |
-| `pnpm spelling:check`   | spelling, with cspell                                  |
-| `pnpm fmt:check`        | formatting, with oxfmt (`pnpm fmt` fixes it)           |
-| `pnpm test`             | unit tests and type tests                              |
-| `pnpm build`            | the package build, with attw and publint               |
-| `pnpm package:check`    | that the packed package installs and type-checks       |
-| `pnpm docs:check`       | that code examples in the docs type-check              |
-| `pnpm docs:build`       | the documentation site                                 |
-| `pnpm test:integration` | method calls against a real server (needs a container) |
-
-Git hooks run lint, spelling, and formatting before each commit, and the
-build and unit tests before each push.
-
-Which checks matter depends on the change:
-
-- **Library code and types:** run the unit tests and the build. For changes
-  to types, add type tests (`*.test-d.ts`) for both accepted and rejected
-  usages.
-- **Server interactions:** also run the integration tests.
-- **Documentation:** run `pnpm docs:check` and `pnpm docs:build`. Code
-  examples follow the conventions in [`AGENTS.md`](./AGENTS.md#documentation-examples).
-
 ## Changesets
 
 Releases are managed with [Changesets](https://github.com/changesets/changesets).
@@ -70,4 +41,4 @@ internal refactors, and tooling changes don't need a changeset.
 
 - Keep each pull request to one change.
 - Explain what changed and why, and link the issue it resolves.
-- Make sure the checks above pass.
+- Make sure CI passes.
