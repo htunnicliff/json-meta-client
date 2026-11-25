@@ -18,6 +18,8 @@ export interface WebSocketLike {
   readonly readyState: number;
   /** The subprotocol the server selected */
   readonly protocol: string;
+  /** Set to `"arraybuffer"` where it exists, so binary messages can be read in order */
+  binaryType?: string;
   send(data: string): void;
   close(code?: number, reason?: string): void;
   addEventListener(
@@ -51,5 +53,20 @@ export interface WebSocketTransportOptions {
    * `Infinity` to keep the socket open until the client is disposed.
    */
   idleSeconds?: number;
+  /**
+   * Seconds a JMAP Request may wait for its Response. When one waits longer,
+   * the transport treats the socket as dead: it closes it, rejects every
+   * request waiting on it with `NetworkError`, and reconnects on the next
+   * request. Defaults to `60`; pass `Infinity` to wait forever.
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * Seconds between heartbeats on the push socket. RFC 8887 has no ping, so
+   * while push is enabled the transport sends a `Core/echo` Request this
+   * often. If one is still unanswered when the next is due, the socket is
+   * treated as dead and push reconnects. Heartbeats don't run the JMAP hooks.
+   * Defaults to `30`; pass `Infinity` to turn them off.
+   */
+  heartbeatSeconds?: number;
 }
 //#endregion websocket-transport-options

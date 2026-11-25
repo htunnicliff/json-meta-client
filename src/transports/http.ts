@@ -19,29 +19,40 @@ import type { TransportFactory } from "./types.ts";
 export function httpTransport(): TransportFactory {
   return (context) => ({
     send: async (request, { session, signal }) => {
-      if (signal.aborted) throw new CancellationError("The client was disposed");
+      if (signal.aborted) throw new CancellationError("The request was cancelled");
+      const init: RequestInit = {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(request),
+        signal,
+      };
+      // For errors: the request as built here, before auth and hooks
+      const httpRequest = new Request(session.apiUrl, init);
       let response: Response;
       try {
-        response = await context.fetch(session.apiUrl, {
-          method: "POST",
-          headers: { "content-type": "application/json", accept: "application/json" },
-          body: JSON.stringify(request),
-          signal,
-        });
+        response = await context.fetch(session.apiUrl, init);
       } catch (error) {
-        if (signal.aborted)
-          throw new CancellationError("The client was disposed", { cause: error });
+        if (signal.aborted) {
+          throw new CancellationError("The request was cancelled", { cause: error });
+        }
         throw error;
       }
       let text: string;
       try {
         text = await response.text();
       } catch (cause) {
-        if (signal.aborted) throw new CancellationError("The client was disposed", { cause });
-        throw new NetworkError("Failed to read", { cause, request: undefined });
+        if (signal.aborted) throw new CancellationError("The request was cancelled", { cause });
+        throw new NetworkError("Failed to read", { cause, request: httpRequest });
       }
-      const payload: JmapResponse = JSON.parse(text);
-      return payload;
+      try {
+        const payload: JmapResponse = JSON.parse(text);
+        return payload;
+      } catch (cause) {
+        throw new NetworkError("The server's JMAP Response is not valid JSON", {
+          cause,
+          request: httpRequest,
+        });
+      }
     },
   });
 }

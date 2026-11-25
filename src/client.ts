@@ -16,7 +16,7 @@ import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
-import { dispose } from "./internal/disposable.ts";
+import { addDisposeFallback, disposable, dispose } from "./internal/disposable.ts";
 import { openEventStream } from "./internal/event-stream.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { HttpClient } from "./internal/http.ts";
@@ -73,6 +73,7 @@ export class JsonMetaClient<
     const dispatcher = new Dispatcher(this.#dispatcherOptions);
     this.api = this.#setupApi(dispatcher);
     this.cancelBatch = dispatcher.cancel;
+    addDisposeFallback(this, this[Symbol.dispose]);
 
     // Lock it down
     Object.freeze(this);
@@ -99,15 +100,20 @@ export class JsonMetaClient<
    * result in a logged warning.
    */
   refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
-    this.#session = this.#http
-      .fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl)
-      .then((session) => {
-        if (!this.#sessionLoaded) {
-          this.#sessionLoaded = true;
-          this.#validateSessionCapabilities(session);
-        }
-        return session;
-      });
+    if (this.#lifetime.signal.aborted) {
+      return Promise.reject(new CancellationError("The client was disposed"));
+    }
+    this.#session = this.#whileAlive(() =>
+      this.#http.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, {
+        signal: this.#lifetime.signal,
+      }),
+    ).then((session) => {
+      if (!this.#sessionLoaded) {
+        this.#sessionLoaded = true;
+        this.#validateSessionCapabilities(session);
+      }
+      return session;
+    });
 
     return this.#session;
   };
@@ -121,20 +127,29 @@ export class JsonMetaClient<
     /**
      * Upload a blob to the given account
      */
-    upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
-      const session = await this.session;
-      const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
-      return this.#http.fetchJson<FileUpload.Result>(url, { method: "POST", body });
-    },
+    upload: (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> =>
+      this.#whileAlive(async () => {
+        const session = await this.session;
+        const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
+        return this.#http.fetchJson<FileUpload.Result>(url, {
+          method: "POST",
+          body,
+          signal: this.#lifetime.signal,
+        });
+      }),
     /**
      * Download a blob from the given account
      */
-    download: async (params: FileDownload.Params): Promise<Response> => {
-      const session = await this.session;
-      const url = expandURITemplate(session.downloadUrl, { ...params });
-      const { response } = await this.#http.fetch(url, { method: "GET" });
-      return response;
-    },
+    download: (params: FileDownload.Params): Promise<Response> =>
+      this.#whileAlive(async () => {
+        const session = await this.session;
+        const url = expandURITemplate(session.downloadUrl, { ...params });
+        const { response } = await this.#http.fetch(url, {
+          method: "GET",
+          signal: this.#lifetime.signal,
+        });
+        return response;
+      }),
   };
 
   /**
@@ -148,22 +163,31 @@ export class JsonMetaClient<
     const { pingSeconds = 30, signal } = options;
     if (this.#lifetime.signal.aborted) throw new CancellationError("The client was disposed");
     const session = await this.session;
-    if (signal?.aborted) return { [Symbol.dispose ?? "disconnect"]: () => {} };
+    if (signal?.aborted) return disposable(() => {});
     const subscription = await this.#stateChanges.add(session, handler, pingSeconds);
+    // The signal may have aborted while the channel opened, when a listener
+    // would never fire
+    if (signal?.aborted) {
+      dispose(subscription);
+      return subscription;
+    }
     signal?.addEventListener("abort", () => dispose(subscription), { once: true });
     return subscription;
   };
 
   /**
-   * Release the client's connections: reject JMAP Requests in flight with
-   * `CancellationError`, end every `onStateChange` subscription, and dispose
-   * the transport. Later method calls reject with `CancellationError`.
+   * Release the client's connections: reject JMAP Requests, blob transfers
+   * and session requests in flight with `CancellationError`, end every
+   * `onStateChange` subscription, and dispose the transport. Later method
+   * calls, blob transfers, session refreshes and `onStateChange` calls reject
+   * with `CancellationError`. On a runtime without `Symbol.dispose`, this
+   * method is named `disconnect`.
    */
   [Symbol.dispose] = (): void => {
     if (this.#lifetime.signal.aborted) return;
     this.#lifetime.abort();
     this.#stateChanges.close();
-    this.#transport[Symbol.dispose]?.();
+    dispose(this.#transport);
   };
 
   /**
@@ -180,6 +204,23 @@ export class JsonMetaClient<
   };
 
   // ------------------- Internals -------------------
+
+  /**
+   * Run an HTTP call that the client's disposal cancels: it rejects with
+   * `CancellationError` once the client is disposed, whatever it failed with
+   */
+  async #whileAlive<T>(run: () => Promise<T>): Promise<T> {
+    const { signal } = this.#lifetime;
+    if (signal.aborted) throw new CancellationError("The client was disposed");
+    try {
+      return await run();
+    } catch (error) {
+      if (signal.aborted && !(error instanceof CancellationError)) {
+        throw new CancellationError("The client was disposed", { cause: error });
+      }
+      throw error;
+    }
+  }
 
   /**
    * The URI for getting a JMAP session

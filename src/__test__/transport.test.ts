@@ -281,3 +281,144 @@ describe("client[Symbol.dispose]", () => {
     expect(disposes[0]!).toHaveBeenCalledOnce();
   });
 });
+
+function sendOverHttp(response: Response) {
+  const context: TransportContext = {
+    authenticate: async (request) => request,
+    fetch: async () => response,
+  };
+  return httpTransport()(context).send(
+    { using: [], methodCalls: [] },
+    {
+      session: makeSession(),
+      signal: new AbortController().signal,
+    },
+  );
+}
+function setupClient() {
+  const fetchMock = stubSession();
+  const { factory } = fakeTransport();
+  const client = new JsonMetaClient({
+    sessionUrl,
+    auth: "t",
+    capabilities: [],
+    transport: factory,
+  });
+  return { client, fetchMock };
+}
+function pushClient() {
+  stubSession();
+  const opened = Promise.withResolvers<void>();
+  const closeChannel = vi.fn<() => void>();
+  const subscribe = vi.fn<NonNullable<Transport["subscribe"]>>(async () => {
+    await opened.promise;
+    return { [Symbol.dispose]: closeChannel };
+  });
+  const client = new JsonMetaClient({
+    sessionUrl,
+    auth: "t",
+    capabilities: [],
+    transport: () => ({ send: async (request) => echo(request), subscribe }),
+  });
+  return { client, opened, closeChannel, subscribe };
+}
+describe(httpTransport, () => {
+  it("keeps the request on the NetworkError when the body can't be read", async () => {
+    const cause = new TypeError("Body stream disconnected");
+    const body = new ReadableStream({ start: (controller) => controller.error(cause) });
+
+    const error = await sendOverHttp(new Response(body)).catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(NetworkError);
+    expect(error).toMatchObject({
+      message: "Failed to read",
+      cause,
+      request: expect.objectContaining({ method: "POST", url: apiUrl }),
+    });
+  });
+
+  it("rejects a body that isn't JSON with a NetworkError that says so", async () => {
+    const error = await sendOverHttp(new Response("{invalid")).catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(NetworkError);
+    expect(error).toMatchObject({
+      message: "The server's JMAP Response is not valid JSON",
+      cause: expect.any(SyntaxError),
+      request: expect.objectContaining({ method: "POST", url: apiUrl }),
+    });
+  });
+});
+
+describe("client disposal beyond method calls", () => {
+  it("rejects blob transfers and session refreshes after dispose", async () => {
+    const { client, fetchMock } = setupClient();
+    await client.session;
+    const calls = fetchMock.mock.calls.length;
+
+    client[Symbol.dispose]();
+
+    await expect(client.refreshSession()).rejects.toBeInstanceOf(CancellationError);
+    await expect(client.blob.upload("data", { accountId: "account" })).rejects.toBeInstanceOf(
+      CancellationError,
+    );
+    await expect(
+      client.blob.download({ accountId: "account", blobId: "b", name: "n", type: "text/plain" }),
+    ).rejects.toBeInstanceOf(CancellationError);
+    expect(fetchMock).toHaveBeenCalledTimes(calls);
+  });
+
+  it("rejects a blob upload in flight with CancellationError", async () => {
+    const { client, fetchMock } = setupClient();
+    await client.session;
+    const fetching = Promise.withResolvers<void>();
+    fetchMock.mockImplementationOnce(async (input) => {
+      if (!(input instanceof Request)) throw new Error("Expected a Request");
+      fetching.resolve();
+      return new Promise((_, reject) =>
+        input.signal.addEventListener("abort", () => reject(input.signal.reason)),
+      );
+    });
+
+    const upload = client.blob.upload("data", { accountId: "account" });
+    await fetching.promise;
+    client[Symbol.dispose]();
+
+    await expect(upload).rejects.toBeInstanceOf(CancellationError);
+  });
+});
+
+describe("onStateChange with a transport's push channel", () => {
+  it("waits for the transport's subscribe promise", async () => {
+    const { client, opened, subscribe } = pushClient();
+    let settled = false;
+
+    const subscription = client
+      .onStateChange(() => {})
+      .then((value) => {
+        settled = true;
+        return value;
+      });
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    opened.resolve();
+    await subscription;
+    expect(settled).toBe(true);
+    client[Symbol.dispose]();
+  });
+
+  it("ends the subscription when its signal aborts while the channel opens", async () => {
+    const { client, opened, closeChannel, subscribe } = pushClient();
+    const controller = new AbortController();
+
+    const subscription = client.onStateChange(() => {}, { signal: controller.signal });
+    await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+    controller.abort();
+    opened.resolve();
+    await subscription;
+
+    await vi.waitFor(() => expect(closeChannel).toHaveBeenCalledOnce());
+    client[Symbol.dispose]();
+  });
+});

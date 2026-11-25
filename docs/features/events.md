@@ -53,7 +53,9 @@ them, the event stream couldn't carry the `Authorization` header that
 - **`signal`**: an `AbortSignal` that closes the connection when aborted. See
   [Unsubscribing](#unsubscribing).
 - **`pingSeconds`**: how often, in seconds, the server should send a ping to
-  keep the event stream alive. Defaults to `30`. WebSocket push ignores it.
+  keep the event stream alive. Defaults to `30`. WebSocket push ignores it
+  and sends its own heartbeat instead; see
+  [Transports](../advanced/transports.md#push).
 
 ## Push channels
 

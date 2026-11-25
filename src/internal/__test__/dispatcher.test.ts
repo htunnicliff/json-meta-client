@@ -19,6 +19,7 @@ import {
   JsonMetaError,
   MethodCallError,
   NetworkError,
+  UnknownError,
 } from "../../errors/index.ts";
 import type {
   Request as JmapRequest,
@@ -613,8 +614,8 @@ describe(Dispatcher, () => {
       ]);
 
       expect(results).toEqual([
-        { status: "rejected", reason: expect.any(TypeError) },
-        { status: "rejected", reason: expect.any(TypeError) },
+        { status: "rejected", reason: expect.any(UnknownError) },
+        { status: "rejected", reason: expect.any(UnknownError) },
       ]);
       if (results[0].status !== "rejected" || results[1].status !== "rejected") return;
       expect(results[1].reason).toBe(results[0].reason);
@@ -650,6 +651,39 @@ describe(Dispatcher, () => {
 
       expect(error).toBeInstanceOf(NetworkError);
       expect(error).toMatchObject({ message: "socket hang up", cause });
+    });
+
+    it("maps a transport error after the signal aborts to CancellationError", async () => {
+      const controller = new AbortController();
+      const { dispatcher } = setup({
+        signal: controller.signal,
+        transport: {
+          send: (_request, { signal }) =>
+            new Promise((_resolve, reject) => {
+              // As fetch does: reject with a DOMException AbortError
+              signal.addEventListener("abort", () => reject(signal.reason));
+            }),
+        },
+      });
+
+      const result = dispatcher.send(call("Core/echo", "a"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      controller.abort();
+
+      const error = await result.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(CancellationError);
+      expect(error).toMatchObject({ cause: expect.objectContaining({ name: "AbortError" }) });
+    });
+
+    it("rejects with UnknownError when the transport resolves with something that isn't a JMAP Response", async () => {
+      const { dispatcher } = setup({
+        transport: {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          send: async () => undefined as never,
+        },
+      });
+
+      await expect(dispatcher.send(call("Core/echo", "a"))).rejects.toBeInstanceOf(UnknownError);
     });
 
     it("leaves a hook's own error unwrapped", async () => {

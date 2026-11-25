@@ -29,10 +29,19 @@ export interface StateChangeHubOptions {
 }
 
 /**
+ * A handler added to a channel. It receives events once `ready`, which is
+ * when its caller holds the subscription.
+ */
+interface Entry {
+  handler: OnStateChangeHandler;
+  ready: boolean;
+}
+
+/**
  * One open push channel and the handlers that share it
  */
 interface Subscription {
-  handlers: Set<OnStateChangeHandler>;
+  handlers: Set<Entry>;
   /** Settles with the channel once it is open */
   channel: Promise<Disposable>;
   /** Forget this subscription so the next handler opens a new channel */
@@ -73,18 +82,21 @@ export class StateChangeHub {
     if (this.#closed) throw new CancellationError("The client was disposed");
     const subscription =
       this.#push ?? this.#eventStreams.get(pingSeconds) ?? this.#open(session, pingSeconds);
-    subscription.handlers.add(handler);
+    // Joining now keeps the channel open for this handler while it opens
+    const entry: Entry = { handler, ready: false };
+    subscription.handlers.add(entry);
     try {
       await subscription.channel;
     } catch (error) {
-      subscription.handlers.delete(handler);
+      subscription.handlers.delete(entry);
       throw error;
     }
+    entry.ready = true;
     let removed = false;
     return disposable(() => {
       if (removed) return;
       removed = true;
-      this.#remove(subscription, handler);
+      this.#remove(subscription, entry);
     });
   };
 
@@ -102,7 +114,7 @@ export class StateChangeHub {
   };
 
   #open(session: Session, pingSeconds: number): Subscription {
-    const handlers = new Set<OnStateChangeHandler>();
+    const handlers = new Set<Entry>();
     const events = this.#fanOut(session, handlers);
     const pushChannel = this.#options.transport.subscribe?.(session, events) ?? null;
     if (pushChannel) {
@@ -114,6 +126,7 @@ export class StateChangeHub {
         },
       };
       this.#push = subscription;
+      subscription.channel.catch(() => subscription.forget());
       return subscription;
     }
     const subscription: Subscription = {
@@ -130,8 +143,8 @@ export class StateChangeHub {
     return subscription;
   }
 
-  #remove(subscription: Subscription, handler: OnStateChangeHandler): void {
-    subscription.handlers.delete(handler);
+  #remove(subscription: Subscription, entry: Entry): void {
+    subscription.handlers.delete(entry);
     if (subscription.handlers.size === 0) this.#closeChannel(subscription);
   }
 
@@ -144,9 +157,10 @@ export class StateChangeHub {
    * Push events that turn each state change into payloads and send them to
    * every handler
    */
-  #fanOut(session: Session, handlers: ReadonlySet<OnStateChangeHandler>): PushEvents {
+  #fanOut(session: Session, handlers: ReadonlySet<Entry>): PushEvents {
     const deliver = (...args: Parameters<OnStateChangeHandler>): void => {
-      for (const handler of handlers) {
+      for (const { handler, ready } of handlers) {
+        if (!ready) continue;
         try {
           handler(...args);
         } catch (error) {

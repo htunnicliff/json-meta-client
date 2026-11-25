@@ -58,6 +58,9 @@ class TestServer {
   /** The subprotocol to select, or `null` to select none */
   protocol: string | null = "jmap";
 
+  /** Called with each socket as it connects */
+  onConnection: ((socket: ServerSocket) => void) | undefined;
+
   readonly sockets: ServerSocket[] = [];
   readonly headers: Record<string, string | string[] | undefined>[] = [];
   readonly messages: Record<string, unknown>[] = [];
@@ -76,6 +79,7 @@ class TestServer {
         this.messages.push(JSON.parse(new TextDecoder().decode(bytes)));
         for (const wake of this.#waiters.splice(0)) wake();
       });
+      this.onConnection?.(socket);
     });
   }
 
@@ -364,6 +368,22 @@ function stateChange(state: string, pushState?: string): StateChange & { pushSta
     ...(pushState ? { pushState } : {}),
   };
 }
+/**
+ * Run push reconnects at once, recording the delay each was given
+ */
+function recordReconnects() {
+  const realSetTimeout = globalThis.setTimeout;
+  const delays: number[] = [];
+  vi.spyOn(globalThis, "setTimeout").mockImplementation((callback, ms, ...args) => {
+    if (ms !== undefined && ms >= 500 && ms < 30_000) {
+      delays.push(ms);
+      return realSetTimeout(callback, 0, ...args);
+    }
+    return realSetTimeout(callback, ms, ...args);
+  });
+  return { delays, realSetTimeout };
+}
+
 describe("webSocketTransport push", () => {
   it("returns null when the session doesn't support push", () => {
     const { transport } = setup();
@@ -390,7 +410,7 @@ describe("webSocketTransport push", () => {
 
   it("sends requests on the push socket", async () => {
     const { transport, send } = setup();
-    transport.subscribe?.(sessionWith(server.url(), true), events());
+    void transport.subscribe?.(sessionWith(server.url(), true), events());
     await server.received(1);
 
     const a = send(request("a"), sessionWith(server.url(), true));
@@ -404,7 +424,7 @@ describe("webSocketTransport push", () => {
 
   it("keeps the socket open past idleSeconds while subscribed", async () => {
     const { transport } = setup({ idleSeconds: 0.02 });
-    transport.subscribe?.(sessionWith(server.url(), true), events());
+    void transport.subscribe?.(sessionWith(server.url(), true), events());
     await server.received(1);
 
     await new Promise((resolve) => setTimeout(resolve, 80));
@@ -415,7 +435,7 @@ describe("webSocketTransport push", () => {
 
   it("disables push when the subscription is disposed, then closes when idle", async () => {
     const { transport } = setup({ idleSeconds: 0.02 });
-    const subscription = transport.subscribe?.(sessionWith(server.url(), true), events());
+    const subscription = await transport.subscribe?.(sessionWith(server.url(), true), events());
     await server.received(1);
 
     subscription?.[Symbol.dispose]();
@@ -429,7 +449,7 @@ describe("webSocketTransport push", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const { transport } = setup();
     const push = events();
-    transport.subscribe?.(sessionWith(server.url(), true), push);
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
     await server.received(1);
     server.sockets[0]!.send(JSON.stringify(stateChange("s1", "p1")));
     await vi.waitFor(() => expect(push.onStateChange).toHaveBeenCalledOnce());
@@ -448,18 +468,274 @@ describe("webSocketTransport push", () => {
     transport[Symbol.dispose]?.();
   });
 
-  it("reports an unreadable message without dropping the socket", async () => {
+  it("treats an unreadable push message as a dead socket: reports it and reconnects", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
     const { transport } = setup();
     const push = events();
-    transport.subscribe?.(sessionWith(server.url(), true), push);
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
     await server.received(1);
 
     server.sockets[0]!.send("{invalid");
-    server.sockets[0]!.send(JSON.stringify(stateChange("s2")));
 
-    await vi.waitFor(() => expect(push.onStateChange).toHaveBeenCalledOnce());
-    expect(push.onError).toHaveBeenCalledExactlyOnceWith(expect.any(StateChangeError));
+    await vi.waitFor(() => expect(push.onError).toHaveBeenCalledOnce());
+    expect(push.onError.mock.calls[0]![0].cause).toMatchObject({
+      message: "Received an unreadable WebSocket message",
+    });
+    await server.received(2);
+    expect(server.sockets).toHaveLength(2);
+    vi.mocked(Math.random).mockRestore();
     transport[Symbol.dispose]?.();
+  });
+
+  it("resolves the subscription once the socket is open", async () => {
+    const { transport } = setup();
+
+    const subscription = await transport.subscribe?.(sessionWith(server.url(), true), events());
+
+    expect(subscription).toBeDefined();
+    expect(server.sockets).toHaveLength(1);
+    transport[Symbol.dispose]?.();
+  });
+
+  it("backs off further each time a server accepts the socket and closes it", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    const { delays, realSetTimeout } = recordReconnects();
+    server.onConnection = (socket) => {
+      realSetTimeout(() => socket.close(1008, "Policy"), 5);
+    };
+    const { transport } = setup();
+    const push = events();
+
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
+
+    await vi.waitFor(() => expect(delays.length).toBeGreaterThanOrEqual(4));
+    transport[Symbol.dispose]?.();
+    expect(delays.slice(0, 4)).toEqual([1000, 2000, 4000, 8000]);
+    vi.mocked(globalThis.setTimeout).mockRestore();
+    vi.mocked(Math.random).mockRestore();
+  });
+
+  it("resets the backoff once a push socket receives a message", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    const { delays } = recordReconnects();
+    const { transport } = setup();
+    const push = events();
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
+    await server.received(1);
+
+    server.sockets[0]!.terminate();
+    await server.received(2);
+    server.sockets[1]!.send(JSON.stringify(stateChange("s1")));
+    await vi.waitFor(() => expect(push.onStateChange).toHaveBeenCalledOnce());
+    server.sockets[1]!.terminate();
+    await server.received(3);
+
+    expect(delays).toEqual([1000, 1000]);
+    vi.mocked(globalThis.setTimeout).mockRestore();
+    vi.mocked(Math.random).mockRestore();
+    transport[Symbol.dispose]?.();
+  });
+
+  it("sends a heartbeat on the push socket and stays open while it is answered", async () => {
+    const { transport } = setup({ heartbeatSeconds: 0.03 });
+    const push = events();
+    server.onConnection = (socket) => {
+      socket.on("message", () => {
+        const message = server.messages.at(-1);
+        const last = server.requests().at(-1);
+        if (message?.["@type"] === "Request" && last) server.respond(last, socket);
+      });
+    };
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
+
+    await vi.waitFor(() => expect(server.requests().length).toBeGreaterThanOrEqual(3));
+    expect(server.requests()[0]).toMatchObject({
+      using: ["urn:ietf:params:jmap:core"],
+      methodCalls: [["Core/echo", {}, "heartbeat"]],
+    });
+    expect(server.sockets).toHaveLength(1);
+    expect(push.onError).not.toHaveBeenCalled();
+    transport[Symbol.dispose]?.();
+  });
+
+  it("reconnects push when a heartbeat goes unanswered", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { transport } = setup({ heartbeatSeconds: 0.03 });
+    const push = events();
+    void transport.subscribe?.(sessionWith(server.url(), true), push);
+
+    await vi.waitFor(() => expect(push.onError).toHaveBeenCalledOnce(), { timeout: 2000 });
+    expect(push.onError.mock.calls[0]![0].cause).toMatchObject({
+      message: expect.stringContaining("No heartbeat response"),
+    });
+    await vi.waitFor(() => expect(server.sockets).toHaveLength(2), { timeout: 2000 });
+    vi.mocked(Math.random).mockRestore();
+    transport[Symbol.dispose]?.();
+  });
+
+  it("moves push to the new socket when the URL changes, without reporting an error", async () => {
+    const { transport, send } = setup();
+    const push = events();
+    await transport.subscribe?.(sessionWith(server.url("/one"), true), push);
+    await server.received(1);
+
+    const b = send(request("b"), sessionWith(server.url("/two"), true));
+    await vi.waitFor(() => expect(server.requests()).toHaveLength(1));
+    server.respond(server.requests()[0]!, server.sockets[1]);
+    await b;
+
+    await vi.waitFor(() => expect(server.sockets[0]!.readyState).toBe(WebSocket.CLOSED));
+    const enables = server.messages.filter((m) => m["@type"] === "WebSocketPushEnable");
+    expect(enables).toHaveLength(2);
+    expect(server.messages).toContainEqual({ "@type": "WebSocketPushDisable" });
+    expect(push.onError).not.toHaveBeenCalled();
+    transport[Symbol.dispose]?.();
+  });
+
+  it("disables push on a retired socket and delivers changes only from the new one", async () => {
+    const { transport, send } = setup();
+    const push = events();
+    const session = (path: string) => sessionWith(server.url(path), true);
+    await transport.subscribe?.(session("/one"), push);
+    // A request keeps the first socket open after it is retired
+    const a = send(request("a"), session("/one"));
+    await vi.waitFor(() => expect(server.requests()).toHaveLength(1));
+
+    const b = send(request("b"), session("/two"));
+    await vi.waitFor(() => expect(server.requests()).toHaveLength(2));
+    await vi.waitFor(() =>
+      expect(server.messages).toContainEqual({ "@type": "WebSocketPushDisable" }),
+    );
+    server.sockets[0]!.send(JSON.stringify(stateChange("old")));
+    server.sockets[1]!.send(JSON.stringify(stateChange("new")));
+
+    await vi.waitFor(() => expect(push.onStateChange).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(push.onStateChange).toHaveBeenCalledExactlyOnceWith(stateChange("new"));
+    server.respond(server.requests()[0]!, server.sockets[0]);
+    server.respond(server.requests()[1]!, server.sockets[1]);
+    await Promise.all([a, b]);
+    expect(push.onError).not.toHaveBeenCalled();
+    transport[Symbol.dispose]?.();
+  });
+});
+
+describe("webSocketTransport reliability", () => {
+  it("fails a request, and the socket, when its Response can't be read", async () => {
+    const { transport, send } = setup();
+
+    const a = send(request("a"));
+    await server.received(1);
+    server.sockets[0]!.send("{not json");
+
+    const error = await a.catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect(error).toMatchObject({ message: "Received an unreadable WebSocket message" });
+    await vi.waitFor(() => expect(server.sockets[0]!.readyState).toBe(WebSocket.CLOSED));
+    transport[Symbol.dispose]?.();
+  });
+
+  it("rejects a request with NetworkError after requestTimeoutSeconds and closes the socket", async () => {
+    const { transport, send } = setup({ requestTimeoutSeconds: 0.05 });
+
+    const a = send(request("a"));
+    await server.received(1);
+
+    const error = await a.catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect(error).toMatchObject({ message: expect.stringContaining("No response") });
+    await vi.waitFor(() => expect(server.sockets[0]!.readyState).toBe(WebSocket.CLOSED));
+
+    // The next request reconnects
+    const b = send(request("b"));
+    await server.received(2);
+    server.respond(server.requests()[1]!);
+    await expect(b).resolves.toMatchObject({ sessionState: "state" });
+    transport[Symbol.dispose]?.();
+  });
+
+  it("asks for binary messages as ArrayBuffers, which can be read in order", async () => {
+    const sockets: WebSocket[] = [];
+    const { transport, send } = setup({
+      createWebSocket: (url, protocols, headers) => {
+        const socket = new WebSocket(url, protocols, { headers });
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    const a = send(request("a"));
+    await server.received(1);
+    expect(sockets[0]!.binaryType).toBe("arraybuffer");
+    const message = server.requests()[0]!;
+    server.sockets[0]!.send(
+      Buffer.from(
+        JSON.stringify({
+          "@type": "Response",
+          requestId: message.id,
+          methodResponses: [],
+          sessionState: "binary",
+        }),
+      ),
+    );
+
+    await expect(a).resolves.toMatchObject({ sessionState: "binary" });
+    transport[Symbol.dispose]?.();
+  });
+
+  it("cancels only the request whose signal aborts", async () => {
+    const { transport } = setup();
+    const session = sessionWith(server.url());
+    const first = new AbortController();
+    const second = new AbortController();
+
+    const a = transport.send(request("a"), { session, signal: first.signal });
+    const b = transport.send(request("b"), { session, signal: second.signal });
+    await server.received(2);
+    first.abort();
+
+    await expect(a).rejects.toBeInstanceOf(CancellationError);
+    server.respond(server.requests()[1]!);
+    await expect(b).resolves.toMatchObject({ sessionState: "state" });
+    expect(server.sockets[0]!.readyState).toBe(WebSocket.OPEN);
+    transport[Symbol.dispose]?.();
+  });
+
+  it("opens one socket however requests interleave with opening, and dispose closes it", async () => {
+    for (let ticks = 0; ticks < 8; ticks++) {
+      const before = server.sockets.length;
+      const auth = Promise.withResolvers<void>();
+      const transport = webSocketTransport({ createWebSocket })({
+        ...context,
+        authenticate: async (request) => {
+          await auth.promise;
+          return request;
+        },
+      });
+      const signal = new AbortController().signal;
+      const session = sessionWith(server.url());
+
+      const a = transport.send(request("a"), { session, signal });
+      auth.resolve();
+      for (let tick = 0; tick < ticks; tick++) {
+        // oxlint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      const b = transport.send(request("b"), { session, signal });
+      // oxlint-disable-next-line no-await-in-loop
+      await server.received(server.messages.length + 2);
+
+      expect(server.sockets.length - before).toBe(1);
+      transport[Symbol.dispose]?.();
+      // oxlint-disable-next-line no-await-in-loop
+      await expect(Promise.allSettled([a, b])).resolves.toEqual([
+        { status: "rejected", reason: expect.any(CancellationError) },
+        { status: "rejected", reason: expect.any(CancellationError) },
+      ]);
+      const socket = server.sockets.at(-1)!;
+      // oxlint-disable-next-line no-await-in-loop
+      await vi.waitFor(() => expect(socket.readyState).toBe(WebSocket.CLOSED));
+    }
   });
 });
 

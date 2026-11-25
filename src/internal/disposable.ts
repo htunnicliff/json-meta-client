@@ -9,6 +9,22 @@
 // ----------------------------------------------------------------------- //
 
 /**
+ * The key of a dispose method: `Symbol.dispose`, or `"disconnect"` on a
+ * runtime without it
+ */
+export function disposeKey(): symbol | "disconnect" {
+  return disposeKeyFor(Symbol.dispose);
+}
+
+/**
+ * The key of a dispose method on a runtime whose `Symbol.dispose` is the
+ * given value
+ */
+export function disposeKeyFor(symbol: symbol | undefined): symbol | "disconnect" {
+  return symbol ?? "disconnect";
+}
+
+/**
  * A `Disposable` that runs the given function, keyed by `Symbol.dispose`
  * where the runtime provides it
  */
@@ -19,8 +35,20 @@ export function disposable(dispose: () => void): Disposable {
 /**
  * Dispose of a `Disposable` created by this package or by a caller
  */
-export function dispose(target: Disposable): void {
-  const key = Symbol.dispose ?? "disconnect";
+export function dispose(target: object): void {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  (target as unknown as Record<PropertyKey, () => void>)[key]?.();
+  (target as Record<PropertyKey, (() => void) | undefined>)[disposeKey()]?.();
+}
+
+/**
+ * Give an object with a `[Symbol.dispose]` field a `disconnect` method too,
+ * on a runtime without `Symbol.dispose`, where that field's key is the
+ * string `"undefined"`
+ */
+export function addDisposeFallback(
+  target: object,
+  dispose: () => void,
+  key: symbol | "disconnect" = disposeKey(),
+): void {
+  if (typeof key === "string") Object.defineProperty(target, key, { value: dispose });
 }

@@ -11,3 +11,10 @@ and a closed socket rejects requests in flight with `NetworkError`. Pass
 package; the default global `WebSocket` sends none. Batches reject with
 `ConfigurationError` when the session doesn't advertise
 `urn:ietf:params:jmap:websocket`.
+
+A request with no response within `requestTimeoutSeconds` (default 60), or a
+message that can't be parsed, closes the socket and rejects what was waiting
+on it with `NetworkError`. While push is enabled, a `Core/echo` heartbeat
+every `heartbeatSeconds` (default 30) detects a dead socket and reconnects.
+Push reconnects back off from one second to 30 seconds, and the backoff
+resets only once a new socket receives a message.

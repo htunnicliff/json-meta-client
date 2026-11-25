@@ -236,7 +236,8 @@ export interface OnStateChangeOptions {
   signal?: AbortSignal;
   /**
    * An interval in seconds to request that the server send pings. Applies
-   * only to the event stream; a WebSocket push channel ignores it.
+   * only to the event stream; a WebSocket push channel sends its own
+   * heartbeat, set with `heartbeatSeconds` on `webSocketTransport()`.
    */
   pingSeconds?: number;
 }

@@ -14,7 +14,7 @@ import {
   NetworkError,
   StateChangeError,
 } from "../../errors/index.ts";
-import { disposable } from "../../internal/disposable.ts";
+import { addDisposeFallback, disposable } from "../../internal/disposable.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
@@ -66,7 +66,7 @@ interface Push {
   events: PushEvents;
   /** The latest `pushState` the server sent, to resume from after reconnecting */
   pushState: string | undefined;
-  /** Failed connection attempts since the last success */
+  /** Connection attempts since a push connection last proved healthy */
   attempts: number;
   retryTimer: ReturnType<typeof setTimeout> | undefined;
 }
@@ -76,35 +76,35 @@ class WebSocketTransport implements Transport {
     this.#context = context;
     this.#createWebSocket = options.createWebSocket ?? createGlobalWebSocket;
     this.#idleSeconds = options.idleSeconds ?? 60;
+    this.#requestTimeoutSeconds = options.requestTimeoutSeconds ?? 60;
+    this.#heartbeatSeconds = options.heartbeatSeconds ?? 30;
+    addDisposeFallback(this, this[Symbol.dispose]);
   }
 
   readonly #context: TransportContext;
   readonly #createWebSocket: NonNullable<WebSocketTransportOptions["createWebSocket"]>;
   readonly #idleSeconds: number;
+  readonly #requestTimeoutSeconds: number;
+  readonly #heartbeatSeconds: number;
 
   /** The connection new requests go to */
   #connection: Connection | undefined;
   /** The connection push is enabled on */
   #pushConnection: Connection | undefined;
-  /** Connections still settling requests after the socket URL changed */
-  readonly #retired = new Set<Connection>();
+  /** Every connection that hasn't closed, including retired ones */
+  readonly #connections = new Set<Connection>();
   /** The socket URL from the most recent session */
   #url: string | undefined;
   #push: Push | undefined;
   #disposed = false;
-  readonly #signals = new WeakSet<AbortSignal>();
+  #opening: { url: string; connection: Promise<Connection> } | undefined;
 
   send = async (
     request: JmapRequest,
     { session, signal }: TransportSendOptions,
   ): Promise<JmapResponse> => {
-    if (signal.aborted || this.#disposed) {
-      throw new CancellationError("The client was disposed");
-    }
-    if (!this.#signals.has(signal)) {
-      this.#signals.add(signal);
-      signal.addEventListener("abort", () => this[Symbol.dispose](), { once: true });
-    }
+    if (this.#disposed) throw new CancellationError("The client was disposed");
+    if (signal.aborted) throw new CancellationError("The request was cancelled");
     const { url } = webSocketCapability(session) ?? {};
     if (!url) {
       throw new ConfigurationError(
@@ -113,17 +113,16 @@ class WebSocketTransport implements Transport {
     }
     this.#url = url;
     const connection = await this.#connect(url);
-    return connection.request(request);
+    return connection.request(request, signal);
   };
 
-  subscribe = (session: Session, events: PushEvents): Disposable | null => {
+  subscribe = (session: Session, events: PushEvents): Promise<Disposable> | null => {
     const capability = webSocketCapability(session);
     if (!capability?.supportsPush || this.#disposed) return null;
     this.#url = capability.url;
     const push: Push = { events, pushState: undefined, attempts: 0, retryTimer: undefined };
     this.#push = push;
-    void this.#enablePush(push);
-    return disposable(() => {
+    const subscription = disposable(() => {
       if (this.#push !== push) return;
       this.#push = undefined;
       clearTimeout(push.retryTimer);
@@ -131,6 +130,9 @@ class WebSocketTransport implements Transport {
       this.#pushConnection = undefined;
       if (connection && !connection.closed) connection.setPush(false);
     });
+    // Settle once the first attempt has enabled push or failed; a failure is
+    // reported through `events` and retried
+    return this.#enablePush(push).then(() => subscription);
   };
 
   [Symbol.dispose] = (): void => {
@@ -139,10 +141,10 @@ class WebSocketTransport implements Transport {
     if (this.#push) clearTimeout(this.#push.retryTimer);
     this.#push = undefined;
     this.#pushConnection = undefined;
-    const error = new CancellationError("The client was disposed");
-    for (const connection of [this.#connection, ...this.#retired]) connection?.close(error);
     this.#connection = undefined;
-    this.#retired.clear();
+    const error = new CancellationError("The client was disposed");
+    for (const connection of this.#connections) connection.close(error);
+    this.#connections.clear();
   };
 
   /**
@@ -153,19 +155,28 @@ class WebSocketTransport implements Transport {
   async #connect(url: string): Promise<Connection> {
     const current = this.#connection;
     if (current && !current.closed && current.url === url) return current;
-    if (current && !current.closed) {
-      current.retire();
-      if (!current.closed) this.#retired.add(current);
-    }
+    if (current && !current.closed) this.#retire(current);
     const connection = await this.#open(url);
-    this.#connection = connection;
-    if (this.#push && this.#pushConnection !== connection) this.#attachPush(this.#push, connection);
+    if (this.#push && this.#connection === connection && this.#pushConnection !== connection) {
+      this.#attachPush(this.#push, connection);
+    }
     return connection;
   }
 
   /**
+   * Stop sending to a connection. Push moves off it first, so its closing
+   * isn't reported as a push failure.
+   */
+  #retire(connection: Connection): void {
+    if (this.#connection === connection) this.#connection = undefined;
+    if (this.#pushConnection === connection) this.#pushConnection = undefined;
+    connection.retire();
+  }
+
+  /**
    * Create a connection, authenticating the socket request. Concurrent
-   * callers share the same connection.
+   * callers share the same connection, which becomes the current one as
+   * soon as it exists.
    */
   #open(url: string): Promise<Connection> {
     if (this.#opening?.url === url) return this.#opening.connection;
@@ -180,21 +191,34 @@ class WebSocketTransport implements Transport {
         if (cause instanceof ConfigurationError) throw cause;
         throw new NetworkError("Failed to open the WebSocket", { cause, request: undefined });
       }
-      return new Connection(url, socket, {
+      const created = new Connection(url, socket, {
         idleSeconds: this.#idleSeconds,
+        requestTimeoutSeconds: this.#requestTimeoutSeconds,
+        heartbeatSeconds: this.#heartbeatSeconds,
         onClose: this.#onClose,
-        onStateChange: (change) => {
+        onHealthy: (healthy) => {
+          if (this.#push && healthy === this.#pushConnection) this.#push.attempts = 0;
+        },
+        onStateChange: (from, change) => {
           const push = this.#push;
-          if (!push || this.#pushConnection === undefined) return;
+          // A connection push has moved off may still deliver a change or two
+          if (!push || from !== this.#pushConnection) return;
           if (change.pushState) push.pushState = change.pushState;
           push.events.onStateChange(change);
         },
-        onUnreadableMessage: (cause) => {
-          this.#push?.events.onError(
-            new StateChangeError("Received an unreadable WebSocket message", { cause }),
-          );
-        },
       });
+      // Track it before any caller resumes, so every caller (and dispose)
+      // sees the same connection
+      this.#connections.add(created);
+      if (this.#url === url) {
+        const previous = this.#connection;
+        if (previous && previous !== created && !previous.closed) this.#retire(previous);
+        this.#connection = created;
+      } else {
+        // The socket URL changed while this one opened
+        created.retire();
+      }
+      return created;
     })();
     const opening = { url, connection };
     this.#opening = opening;
@@ -205,10 +229,8 @@ class WebSocketTransport implements Transport {
     return connection;
   }
 
-  #opening: { url: string; connection: Promise<Connection> } | undefined;
-
   readonly #onClose = (connection: Connection, error: Error): void => {
-    this.#retired.delete(connection);
+    this.#connections.delete(connection);
     if (this.#connection === connection) this.#connection = undefined;
     if (this.#pushConnection !== connection) return;
     this.#pushConnection = undefined;
@@ -219,7 +241,8 @@ class WebSocketTransport implements Transport {
   };
 
   /**
-   * Connect and enable push, retrying with backoff on failure
+   * Connect and enable push, retrying with backoff on failure. Settles once
+   * the socket has opened or the attempt has failed.
    */
   async #enablePush(push: Push): Promise<void> {
     const url = this.#url;
@@ -227,9 +250,10 @@ class WebSocketTransport implements Transport {
     try {
       const connection = await this.#connect(url);
       if (this.#push !== push) return;
-      if (this.#pushConnection !== connection) this.#attachPush(push, connection);
+      if (this.#pushConnection !== connection && this.#connection === connection) {
+        this.#attachPush(push, connection);
+      }
       await connection.opened;
-      push.attempts = 0;
     } catch (cause) {
       if (this.#push !== push || this.#disposed) return;
       // A connection that closed has already reported it and scheduled a retry
@@ -250,6 +274,12 @@ class WebSocketTransport implements Transport {
     connection.setPush(true, push.pushState);
   }
 
+  /**
+   * Retry after a delay that doubles with each attempt, up to a cap. The
+   * attempt count resets only when a push connection receives a message, so
+   * a server that accepts sockets and closes them at once is retried less
+   * and less often.
+   */
   #scheduleReconnect(push: Push): void {
     clearTimeout(push.retryTimer);
     const delay = Math.min(MAX_RECONNECT_DELAY_MS, 1000 * 2 ** push.attempts);

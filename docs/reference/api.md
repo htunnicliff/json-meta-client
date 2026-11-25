@@ -411,10 +411,12 @@ isolated `api` cannot reference one made on `client.api`. Refer to
 
 ## `[Symbol.dispose]()`
 
-Release the client's connections. JMAP Requests in flight reject with
-`CancellationError`, every `onStateChange` subscription ends, and the
-transport is disposed. Later method calls and subscriptions reject with
-`CancellationError`.
+Release the client's connections. JMAP Requests, blob transfers and session
+requests in flight reject with `CancellationError`, every `onStateChange`
+subscription ends, and the transport is disposed. Later method calls, blob
+transfers, session refreshes and subscriptions reject with
+`CancellationError`. On a runtime without `Symbol.dispose`, this method is
+named `disconnect`.
 
 ## `httpTransport()`
 

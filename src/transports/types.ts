@@ -56,10 +56,14 @@ export interface Transport {
   send(request: JmapRequest, options: TransportSendOptions): Promise<JmapResponse>;
   /**
    * Deliver state changes for a session. Return `null`, or leave this out,
-   * to use the event stream instead.
+   * to use the event stream instead. Return a promise to make
+   * `onStateChange` wait, for example until the channel is open.
    */
-  subscribe?(session: Session, events: PushEvents): Disposable | null;
-  /** Release connections when the client is disposed */
+  subscribe?(session: Session, events: PushEvents): Disposable | Promise<Disposable> | null;
+  /**
+   * Release connections when the client is disposed. On a runtime without
+   * `Symbol.dispose`, the client calls a method named `disconnect` instead.
+   */
   [Symbol.dispose]?(): void;
 }
 //#endregion transport
@@ -70,7 +74,12 @@ export interface Transport {
 export interface TransportSendOptions {
   /** The current session */
   session: Session;
-  /** Aborted when the client is disposed */
+  /**
+   * Aborted when this send should stop, which today is when the client is
+   * disposed. Reject the send with `CancellationError` when it aborts. It
+   * says nothing about other sends: the client disposes the transport
+   * separately.
+   */
   signal: AbortSignal;
 }
 

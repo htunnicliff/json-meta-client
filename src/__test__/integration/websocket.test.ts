@@ -57,9 +57,9 @@ describe("WebSocket transport", () => {
     const accountId = session.primaryAccounts["urn:ietf:params:jmap:mail"]!;
     const handler = vi.fn<OnStateChangeHandler>();
 
+    // Resolves once the socket is open and push is enabled on it, so the
+    // change below, sent on the same socket, comes after it
     using _ = await client.onStateChange(handler);
-    // Give the server time to enable push before the change
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const { newState } = await client.api.Mailbox.set({
       create: { box: { name: uniqueName("WebSocket state change") } },

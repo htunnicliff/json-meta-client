@@ -80,6 +80,10 @@ The socket's lifecycle:
   flight rejects with a `NetworkError`. The client doesn't resend them,
   because a `/set` call may already have been applied. The next batch
   reconnects.
+- **Dead sockets.** A request that gets no response within
+  `requestTimeoutSeconds` (default `60`), or a message from the server that
+  can't be parsed, means the socket can't be trusted: the transport closes
+  it, and every request on it rejects with a `NetworkError`.
 - **Idle timeout.** The socket closes after `idleSeconds` (default `60`) with
   no requests in flight and no push subscription. Pass `Infinity` to keep it
   open until the client is disposed.
@@ -106,10 +110,22 @@ resulting headers to `createWebSocket`. What happens next depends on the
 When the session's WebSocket capability sets `supportsPush`,
 [`onStateChange`](../features/events.md) uses the same socket: the transport
 sends `WebSocketPushEnable` for every data type and delivers each
-`StateChange` to your handlers. While anyone is subscribed, the socket stays
-open past the idle timeout. If it drops, handlers receive a
-`StateChangeError`, and the transport reconnects with backoff and resumes
-from the last `pushState` the server sent.
+`StateChange` to your handlers. `onStateChange` resolves once the socket is
+open and push is enabled on it. RFC 8887 has no acknowledgment for
+`WebSocketPushEnable`, so a change another client makes right after
+`onStateChange` resolves can still be missed. A change sent over the same
+client's socket afterward is not.
+
+While anyone is subscribed, the socket stays open past the idle timeout. RFC
+8887 has no ping, so the transport sends a `Core/echo` heartbeat every
+`heartbeatSeconds` (default `30`) to notice a socket that has silently died,
+as after a laptop sleeps. Heartbeats don't run the JMAP hooks. When the socket
+drops or misses a heartbeat, handlers receive a `StateChangeError`, and the
+transport reconnects and resumes from the last `pushState` the server sent.
+The wait between attempts doubles from one second up to 30 seconds, and
+resets only once a new socket receives a message, so a server that accepts
+sockets and then closes them is retried less and less often. `pingSeconds`
+applies only to the event stream.
 
 When the server doesn't support push, state changes come from the event
 stream, as with HTTP.
@@ -123,10 +139,11 @@ the session request, blob transfers and the event stream go over HTTP.
 ## Closing the client
 
 `client[Symbol.dispose]()` releases the client's connections. Requests in
-flight reject with `CancellationError`, every `onStateChange` subscription
-ends, and the transport closes its sockets. Later method calls also reject
-with `CancellationError`. A client declared with `using` is disposed when it
-goes out of scope:
+flight, including blob transfers and session requests, reject with
+`CancellationError`, every `onStateChange` subscription ends, and the
+transport closes its sockets. Later calls also reject with
+`CancellationError`. A client declared with `using` is disposed when it goes
+out of scope:
 
 ```ts
 {
@@ -163,13 +180,21 @@ Some rules a transport should follow:
   transport needs on the wire are its own business.
 - `send` receives the current session on every call, so the transport can
   follow a refreshed session.
-- Reject an aborted `send` with `CancellationError`. The signal aborts when
-  the client is disposed.
-- Reject other failures with a `JsonMetaError` subclass. The client wraps any
-  other error in a `NetworkError`, with the original as its `cause`.
+- Reject an aborted `send` with `CancellationError`. The signal belongs to
+  that send: it aborts when the client is disposed today, but don't treat it
+  as the end of the transport. The client disposes the transport separately.
+- Reject other failures with a `JsonMetaError` subclass. The client turns any
+  other error into a `CancellationError` once the signal has aborted, or a
+  `NetworkError` otherwise, with the original as its `cause`. A `send` that
+  resolves with something other than a JMAP Response rejects with
+  `UnknownError`.
 - The client calls `subscribe` at most once for all of its `onStateChange`
   handlers, and disposes what it returns when the last one leaves. Return
-  `null`, or leave `subscribe` out, to use the event stream.
+  `null`, or leave `subscribe` out, to use the event stream. Return a promise
+  for the `Disposable` to make `onStateChange` wait until the channel is
+  ready.
+- On a runtime without `Symbol.dispose`, the client looks for a `disconnect`
+  method instead of `[Symbol.dispose]`.
 
 This transport sends each batch as an HTTP `POST` with its own logging, and
 leaves state changes to the event stream:

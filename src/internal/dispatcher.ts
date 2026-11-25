@@ -17,6 +17,7 @@ import {
   MethodCallError,
   NetworkError,
   ResultReferenceError,
+  UnknownError,
 } from "../errors/index.ts";
 import type { ResultReferenceErrorReason } from "../errors/index.ts";
 import type {
@@ -205,22 +206,45 @@ export class Dispatcher {
 
   /**
    * Send a JMAP Request through the transport. A failure that isn't a
-   * `JsonMetaError` becomes a `NetworkError`, so callers can always catch
+   * `JsonMetaError` becomes a `CancellationError` once the client is
+   * disposed, and a `NetworkError` otherwise, so callers can always catch
    * `JsonMetaError`.
    */
   async #send(request: JmapRequest, session: Session): Promise<JmapResponse> {
     const { transport, signal } = this.#options;
     if (signal.aborted) throw new CancellationError("The client was disposed");
+    let response: unknown;
     try {
-      return await transport.send(request, { session, signal });
+      response = await transport.send(request, { session, signal });
     } catch (error) {
       if (error instanceof JsonMetaError) throw error;
+      if (signal.aborted) {
+        throw new CancellationError("The client was disposed", { cause: error });
+      }
       throw new NetworkError(error instanceof Error ? error.message : "Transport failed", {
         cause: error,
         request: undefined,
       });
     }
+    if (!isJmapResponse(response)) {
+      throw new UnknownError("The transport returned something that isn't a JMAP Response", {
+        cause: response,
+      });
+    }
+    return response;
   }
+}
+
+/**
+ * Whether a value has the shape of a JMAP Response, enough to settle method
+ * calls from
+ */
+function isJmapResponse(value: unknown): value is JmapResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Array.isArray((value as { methodResponses?: unknown }).methodResponses)
+  );
 }
 
 /**

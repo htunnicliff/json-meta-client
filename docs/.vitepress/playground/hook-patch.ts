@@ -45,16 +45,18 @@ import { hookObservers } from "../docs/.vitepress/playground/hook-trace.ts";`,
       ],
       [`hooks: options.hooks,`, `hooks: options.hooks, observeHooks,`],
       [
-        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl)`,
-        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, "session")`,
+        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, {`,
+        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, "session", {`,
       ],
       [
-        `this.#http.fetchJson<FileUpload.Result>(url, { method: "POST", body })`,
-        `this.#http.fetchJson<FileUpload.Result>(url, "upload", { method: "POST", body })`,
+        `this.#http.fetchJson<FileUpload.Result>(url, {`,
+        `this.#http.fetchJson<FileUpload.Result>(url, "upload", {`,
       ],
       [
-        `this.#http.fetch(url, { method: "GET" })`,
-        `this.#http.fetch(url, "download", { method: "GET" })`,
+        `this.#http.fetch(url, {
+          method: "GET",`,
+        `this.#http.fetch(url, "download", {
+          method: "GET",`,
       ],
     ],
   ],
@@ -69,12 +71,7 @@ import { hookObservers } from "../docs/.vitepress/playground/hook-trace.ts";`,
         `send: async (request, { session, signal }) => {`,
         `send: async (request, { session, signal, trace }) => {`,
       ],
-      [
-        `signal,
-        });`,
-        `signal,
-        }, trace);`,
-      ],
+      [`context.fetch(session.apiUrl, init);`, `context.fetch(session.apiUrl, init, trace);`],
     ],
   ],
   [
@@ -91,8 +88,8 @@ import type { HookTrace, ObserveHooks } from "../../docs/.vitepress/playground/h
         `async #send(request: JmapRequest, session: Session, trace?: HookTrace): Promise<JmapResponse> {`,
       ],
       [
-        `return await transport.send(request, { session, signal });`,
-        `return await transport.send(request, { session, signal, trace });`,
+        `response = await transport.send(request, { session, signal });`,
+        `response = await transport.send(request, { session, signal, trace });`,
       ],
       [
         `export interface DispatcherOptions {`,
