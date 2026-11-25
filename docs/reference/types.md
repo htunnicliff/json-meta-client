@@ -337,6 +337,18 @@ const summaries = await client.api.Email.get({
 type EmailSummary = (typeof summaries)["list"][number];
 ```
 
+For a `header:` property of `Email`, `EmailHeaderValue` gives the type of
+the value from the property's name. Refer to
+[Header properties](../features/method-calls.md#header-properties).
+
+```ts
+import type { EmailHeaderValue } from "json-meta-client/rfc-types";
+
+// string[] | null
+type Unsubscribe =
+  EmailHeaderValue<"header:List-Unsubscribe:asURLs">;
+```
+
 ### Envelope types
 
 The [JMAP hooks](#hook-types) receive these envelopes, also exported from
