@@ -36,7 +36,9 @@ export function createApi<T extends object>(options: ApiOptions): T {
 
   return new Proxy<T>(Object.create(null), {
     get(_, entity) {
-      if (!isApiProperty(entity)) return undefined;
+      if (!isApiProperty(entity)) {
+        return undefined;
+      }
 
       let entityProxy = entities.get(entity);
       if (!entityProxy) {

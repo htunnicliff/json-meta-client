@@ -68,14 +68,20 @@ interface ConnectorGroup {
 // Group references by the call they refer to, then give each group a lane and
 // a color that no group overlapping it has
 const groups = computed((): ConnectorGroup[] => {
-  if (!props.links) return [];
+  if (!props.links) {
+    return [];
+  }
   const idLines = new Map<string, number>();
   lines.value.forEach(({ call, callId }, index) => {
-    if (call && callId) idLines.set(call, index);
+    if (call && callId) {
+      idLines.set(call, index);
+    }
   });
   const byFrom = new Map<string, ConnectorGroup>();
   lines.value.forEach(({ link }, to) => {
-    if (!link) return;
+    if (!link) {
+      return;
+    }
     const from = idLines.get(link.from.label) ?? -1;
     const key = `${from}:${link.from.label}`;
     const group = byFrom.get(key) ?? { from, connectors: [], end: to, lane: 0, color: 0 };
@@ -87,7 +93,9 @@ const groups = computed((): ConnectorGroup[] => {
   const laneEnds: number[] = [];
   sorted.forEach((group, index) => {
     let lane = laneEnds.findIndex((end) => end < group.from);
-    if (lane === -1) lane = laneEnds.push(0) - 1;
+    if (lane === -1) {
+      lane = laneEnds.push(0) - 1;
+    }
     laneEnds[lane] = group.end;
     group.lane = lane;
     const taken = new Set(
@@ -119,7 +127,9 @@ const charWidth = ref(0);
 async function measure() {
   await nextTick();
   const element = root.value;
-  if (!element || !groups.value.length) return;
+  if (!element || !groups.value.length) {
+    return;
+  }
   const rows = [...element.querySelectorAll<HTMLElement>(":scope > .line")];
   middles.value = rows.map((row) => row.offsetTop + row.offsetHeight / 2);
   const texts = rows.flatMap((row) => row.querySelector<HTMLElement>(".text") ?? []);
@@ -130,7 +140,9 @@ async function measure() {
   );
   // The width of the characters themselves, not of the column they sit in
   const length = widest?.textContent.length ?? 0;
-  if (!widest || !length) return;
+  if (!widest || !length) {
+    return;
+  }
   const range = document.createRange();
   range.selectNodeContents(widest);
   charWidth.value = range.getBoundingClientRect().width / length;
@@ -151,7 +163,9 @@ function codeStart(index: number): number {
 function pathOf({ from, lane }: ConnectorGroup, { to }: Connector): string {
   const y1 = from === -1 ? 0 : middles.value[from];
   const y2 = middles.value[to];
-  if (y1 === undefined || y2 === undefined) return "";
+  if (y1 === undefined || y2 === undefined) {
+    return "";
+  }
   const x = gutter.value - 9 - lane * LANE;
   const r = 4;
   const start =
@@ -166,7 +180,9 @@ const hovered = ref<{ index: number; group: ConnectorGroup; x: number; y: number
 
 function hover(index: number, group: ConnectorGroup, event: MouseEvent) {
   const box = root.value?.getBoundingClientRect();
-  if (!box || !root.value) return;
+  if (!box || !root.value) {
+    return;
+  }
   hovered.value = {
     index,
     group,

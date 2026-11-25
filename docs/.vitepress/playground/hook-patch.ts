@@ -202,7 +202,9 @@ type Hooks = NonNullable`,
 
 /** Only explicitly requested copies of these modules are instrumented. */
 export function hookPatchFile(id: string): string | undefined {
-  if (!id.endsWith(query)) return undefined;
+  if (!id.endsWith(query)) {
+    return undefined;
+  }
   const path = id.slice(0, -query.length);
   const file = (path.startsWith("file:") ? fileURLToPath(path) : path).replaceAll("\\", "/");
   return edits.has(file) ? file : undefined;
@@ -211,7 +213,9 @@ export function hookPatchFile(id: string): string | undefined {
 /** Reject a stale patch when the expected source is missing or ambiguous. */
 export function applyHookPatch(file: string, code: string): string {
   const patch = edits.get(file);
-  if (!patch) throw new Error(`No playground hook patch for ${file}`);
+  if (!patch) {
+    throw new Error(`No playground hook patch for ${file}`);
+  }
   for (const [before, after] of patch) {
     const first = code.indexOf(before);
     if (first === -1 || first !== code.lastIndexOf(before)) {

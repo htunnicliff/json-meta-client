@@ -77,7 +77,9 @@ class TestServer {
             ? new Uint8Array(data)
             : data;
         this.messages.push(JSON.parse(new TextDecoder().decode(bytes)));
-        for (const wake of this.#waiters.splice(0)) wake();
+        for (const wake of this.#waiters.splice(0)) {
+          wake();
+        }
       });
       this.onConnection?.(socket);
     });
@@ -85,7 +87,9 @@ class TestServer {
 
   url(path = "/jmap"): string {
     const address: string | AddressInfo | null = this.wss.address();
-    if (typeof address !== "object" || !address) throw new Error("Expected a port");
+    if (typeof address !== "object" || !address) {
+      throw new Error("Expected a port");
+    }
     const { port } = address;
     return `ws://127.0.0.1:${port}${path}`;
   }
@@ -118,7 +122,9 @@ class TestServer {
   }
 
   async close(): Promise<void> {
-    for (const socket of this.wss.clients) socket.terminate();
+    for (const socket of this.wss.clients) {
+      socket.terminate();
+    }
     await new Promise<void>((resolve) => this.wss.close(() => resolve()));
   }
 }
@@ -209,7 +215,9 @@ describe(webSocketTransport, () => {
 
     const responses = [send(request("a")), send(request("b")), send(request("c"))];
     await server.received(3);
-    for (const message of server.requests()) server.respond(message);
+    for (const message of server.requests()) {
+      server.respond(message);
+    }
 
     await expect(Promise.all(responses)).resolves.toHaveLength(3);
     expect(server.sockets).toHaveLength(1);
@@ -543,7 +551,9 @@ describe("webSocketTransport push", () => {
       socket.on("message", () => {
         const message = server.messages.at(-1);
         const last = server.requests().at(-1);
-        if (message?.["@type"] === "Request" && last) server.respond(last, socket);
+        if (message?.["@type"] === "Request" && last) {
+          server.respond(last, socket);
+        }
       });
     };
     void transport.subscribe?.(sessionWith(server.url(), true), push);
@@ -801,7 +811,9 @@ describe("JsonMetaClient with webSocketTransport", () => {
     const a = jmap.api.Core.echo({}, { id: "a" });
     const b = jmap.isolated((api) => api.Core.echo({}, { id: "b" }));
     await server.received(2);
-    for (const message of server.requests()) server.respond(message);
+    for (const message of server.requests()) {
+      server.respond(message);
+    }
 
     await Promise.all([a, b]);
     expect(server.sockets).toHaveLength(1);

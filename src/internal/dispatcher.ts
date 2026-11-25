@@ -95,7 +95,9 @@ export class Dispatcher {
     if (this.#batch.length === 0) {
       queueMicrotask(() => {
         const batch = this.#batch.splice(0);
-        if (batch.length > 0) void this.#dispatch(batch);
+        if (batch.length > 0) {
+          void this.#dispatch(batch);
+        }
       });
     }
     this.#batch.push({ methodCall, handle });
@@ -123,14 +125,20 @@ export class Dispatcher {
     let unsettled = batch.filter(({ methodCall, handle }) => {
       const reason = brokenResultRefRule(methodCall, earlierIds);
       earlierIds.add(methodCall.id);
-      if (reason) handle.reject(new ResultReferenceError(reason, methodCall));
+      if (reason) {
+        handle.reject(new ResultReferenceError(reason, methodCall));
+      }
       return !reason;
     });
     try {
-      if (this.#options.signal.aborted) throw new CancellationError("The client was disposed");
+      if (this.#options.signal.aborted) {
+        throw new CancellationError("The client was disposed");
+      }
       const session = await this.#options.session();
       unsettled = unsettled.filter((pending) => this.#addDefaultAccount(pending, session));
-      if (unsettled.length === 0) return;
+      if (unsettled.length === 0) {
+        return;
+      }
 
       const response = await this.#sendBatch(
         unsettled.map(({ methodCall }) => methodCall),
@@ -157,7 +165,9 @@ export class Dispatcher {
   #addDefaultAccount({ methodCall, handle }: PendingMethodCall, session: Session): boolean {
     const { method, args } = methodCall;
     // `#accountId` is a result reference that the caller passed as `accountId`
-    if (Object.hasOwn(args, "accountId") || Object.hasOwn(args, "#accountId")) return true;
+    if (Object.hasOwn(args, "accountId") || Object.hasOwn(args, "#accountId")) {
+      return true;
+    }
 
     const account = resolveDefaultAccount(this.#options.findMethodOwner(method), session);
     if (account.status === "ambiguous") {
@@ -212,12 +222,16 @@ export class Dispatcher {
    */
   async #send(request: JmapRequest, session: Session): Promise<JmapResponse> {
     const { transport, signal } = this.#options;
-    if (signal.aborted) throw new CancellationError("The client was disposed");
+    if (signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
     let response: unknown;
     try {
       response = await transport.send(request, { session, signal });
     } catch (error) {
-      if (error instanceof JsonMetaError) throw error;
+      if (error instanceof JsonMetaError) {
+        throw error;
+      }
       if (signal.aborted) {
         throw new CancellationError("The client was disposed", { cause: error });
       }
@@ -256,14 +270,20 @@ function brokenResultRefRule(
   { id, args }: MethodCall<object>,
   earlierIds: ReadonlySet<string>,
 ): ResultReferenceErrorReason | undefined {
-  if (earlierIds.has(id)) return "duplicate-id";
+  if (earlierIds.has(id)) {
+    return "duplicate-id";
+  }
   for (const [key, value] of Object.entries(args)) {
     if (isRef(value)) {
-      if (!earlierIds.has(value.resultOf)) return "cross-batch";
+      if (!earlierIds.has(value.resultOf)) {
+        return "cross-batch";
+      }
     } else if (containsRef(value)) {
       return "nested";
     }
-    if (key.startsWith("#") && Object.hasOwn(args, key.slice(1))) return "duplicate-argument";
+    if (key.startsWith("#") && Object.hasOwn(args, key.slice(1))) {
+      return "duplicate-argument";
+    }
   }
   return undefined;
 }

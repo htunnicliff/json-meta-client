@@ -81,7 +81,9 @@ export function buildTimelineSteps(
   const steps = buildTimeline(requests).map((request): TimelineStep => {
     const operation = requestOperations[request.index];
     const hooks = operation === undefined ? undefined : pending.get(operation);
-    if (operation !== undefined) pending.delete(operation);
+    if (operation !== undefined) {
+      pending.delete(operation);
+    }
     const { before, after } = partitionHooks(hooks?.calls ?? []);
     return {
       key: operation === undefined ? request.key : `operation-${operation}`,
@@ -130,7 +132,9 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 // The call id a result reference argument refers to
 function resultOf(value: unknown): string | undefined {
-  if (!isObject(value)) return undefined;
+  if (!isObject(value)) {
+    return undefined;
+  }
   const { name, path, resultOf } = value;
   return typeof name === "string" && typeof path === "string" && typeof resultOf === "string"
     ? resultOf
@@ -163,9 +167,13 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
   let batches = 0;
   let others = 0;
   return requests.flatMap((request, index): TimelineEntry | [] => {
-    if (!request) return [];
+    if (!request) {
+      return [];
+    }
     const base = { index, method: request.method, url: request.url };
-    if (request.kind === "session") return { ...base, kind: "session", key: `session-${index}` };
+    if (request.kind === "session") {
+      return { ...base, kind: "session", key: `session-${index}` };
+    }
     if (request.kind !== "request") {
       return {
         ...base,
@@ -187,7 +195,9 @@ export function buildTimeline(requests: readonly (RecordedRequest | undefined)[]
       const references: Record<string, string> = {};
       for (const [key, value] of Object.entries(args)) {
         const target = key.startsWith("#") ? resultOf(value) : undefined;
-        if (target === undefined) continue;
+        if (target === undefined) {
+          continue;
+        }
         references[key] = labels.get(target) ?? target;
         const referred = calls.get(target);
         if (referred) {
@@ -245,8 +255,12 @@ interface WrittenLine extends JsonLine {
 }
 
 function scalarKind(value: unknown): TokenKind {
-  if (typeof value === "string") return "string";
-  if (typeof value === "number") return "number";
+  if (typeof value === "string") {
+    return "string";
+  }
+  if (typeof value === "number") {
+    return "number";
+  }
   return "literal";
 }
 
@@ -259,7 +273,9 @@ function writeJson(value: unknown): WrittenLine[] {
   function write(item: unknown, path: (string | number)[], depth: number, last: boolean) {
     const key = path.at(-1);
     const head: Token[] = [];
-    if (depth) head.push({ text: "  ".repeat(depth) });
+    if (depth) {
+      head.push({ text: "  ".repeat(depth) });
+    }
     if (typeof key === "string") {
       head.push({ text: JSON.stringify(key), kind: "key" }, { text: ":", kind: "punctuation" });
       head.push({ text: " " });
@@ -341,7 +357,9 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
 
   function invocationAt(path: readonly (string | number)[]): Invocation | undefined {
     const [top, index] = path;
-    if (top !== "methodCalls" || typeof index !== "number") return undefined;
+    if (top !== "methodCalls" || typeof index !== "number") {
+      return undefined;
+    }
     const invocation = methodCalls[index];
     return isInvocation(invocation) ? invocation : undefined;
   }
@@ -350,10 +368,14 @@ export function annotateRequest(batch: BatchEntry): AnnotatedLine[] {
     const line: AnnotatedLine = { text, tokens };
     const invocation = invocationAt(path);
     const call = invocation && byId.get(invocation[2]);
-    if (!invocation || !call) return line;
+    if (!invocation || !call) {
+      return line;
+    }
     line.call = call.label;
     const [, , part, key] = path;
-    if (part === 2 && path.length === 3) line.callId = true;
+    if (part === 2 && path.length === 3) {
+      line.callId = true;
+    }
     const from = typeof key === "string" ? call.references[key] : undefined;
     if (part === 1 && path.length === 4 && typeof key === "string" && from && !closing) {
       const reference = invocation[1][key];

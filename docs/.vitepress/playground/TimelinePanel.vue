@@ -69,7 +69,9 @@ function shortUrl(url: string): string {
 const runningHook = computed(() => {
   for (const { calls } of props.hookRuns.values()) {
     const running = calls.find((call) => call.status === "running");
-    if (running) return running;
+    if (running) {
+      return running;
+    }
   }
 });
 
@@ -110,7 +112,9 @@ const waitingStep = computed(
 // Without a server, awaited responses never arrive, so code after the first
 // such await, its console output included, never runs
 const waitingHint = computed(() => {
-  if (props.status !== "waiting" || props.connected || runningHook.value) return undefined;
+  if (props.status !== "waiting" || props.connected || runningHook.value) {
+    return undefined;
+  }
   const line = props.lines?.waiting[0]?.range.start.line;
   const after = line === undefined ? "Code after this await" : `Code after line ${line}`;
   return `${after} runs only when a server responds. Connect a server to proceed.`;

@@ -30,7 +30,9 @@ describe(checkConnection, () => {
 
   it("tells a server without CORS from one that can't be reached", async () => {
     const blocked = vi.fn<typeof globalThis.fetch>(async (_url, init) => {
-      if (init?.mode === "no-cors") return new Response(null);
+      if (init?.mode === "no-cors") {
+        return new Response(null);
+      }
       throw new TypeError("Failed to fetch");
     });
     const down = vi.fn<typeof globalThis.fetch>(async () => {

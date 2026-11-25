@@ -35,19 +35,32 @@ function format(value: unknown, depth: number, seen: Set<object>): string {
     case "boolean":
       return String(value);
   }
-  if (value === null || typeof value !== "object") return String(value);
+  if (value === null || typeof value !== "object") {
+    return String(value);
+  }
   const object = value;
-  if (object instanceof Error) return `${object.name}: ${object.message}`;
-  if (object instanceof Date)
+  if (object instanceof Error) {
+    return `${object.name}: ${object.message}`;
+  }
+  if (object instanceof Date) {
     return Number.isNaN(object.getTime()) ? "Invalid Date" : object.toISOString();
-  if (object instanceof RegExp) return String(object);
-  if (seen.has(object)) return "[Circular]";
+  }
+  if (object instanceof RegExp) {
+    return String(object);
+  }
+  if (seen.has(object)) {
+    return "[Circular]";
+  }
   const name = constructorName(object);
-  if (depth >= MAX_DEPTH) return `[${name}]`;
+  if (depth >= MAX_DEPTH) {
+    return `[${name}]`;
+  }
   seen.add(object);
   try {
     const nested = (item: unknown) => format(item, depth + 1, seen);
-    if (Array.isArray(object)) return wrap("[", "]", limit(object.map(nested)), depth, "");
+    if (Array.isArray(object)) {
+      return wrap("[", "]", limit(object.map(nested)), depth, "");
+    }
     if (object instanceof Map) {
       const entries = [...object].map(([key, item]) => `${nested(key)} => ${nested(item)}`);
       return wrap("{", "}", limit(entries), depth, `Map(${object.size}) `);
@@ -73,7 +86,9 @@ function constructorName(object: object): string {
 }
 
 function limit(items: string[]): string[] {
-  if (items.length <= MAX_ITEMS) return items;
+  if (items.length <= MAX_ITEMS) {
+    return items;
+  }
   return [...items.slice(0, MAX_ITEMS), `... ${items.length - MAX_ITEMS} more`];
 }
 
@@ -81,10 +96,14 @@ function limit(items: string[]): string[] {
  * Items on one line when they fit, otherwise one per line
  */
 function wrap(open: string, close: string, items: string[], depth: number, prefix: string): string {
-  if (!items.length) return `${prefix}${open}${close}`;
+  if (!items.length) {
+    return `${prefix}${open}${close}`;
+  }
   const line = `${prefix}${open} ${items.join(", ")} ${close}`;
   const fits = line.length + depth * 2 <= MAX_LINE && !line.includes("\n");
-  if (fits) return open === "[" ? `${prefix}[${items.join(", ")}]` : line;
+  if (fits) {
+    return open === "[" ? `${prefix}[${items.join(", ")}]` : line;
+  }
   const indent = "  ".repeat(depth + 1);
   const body = items.map((item) => `${indent}${item}`).join(",\n");
   return `${prefix}${open}\n${body},\n${"  ".repeat(depth)}${close}`;

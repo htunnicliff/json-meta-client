@@ -109,13 +109,17 @@ const resizing = ref(false);
 
 // Drag the handle between the code and the console to share the column
 function startResize(event: PointerEvent) {
-  if (event.button !== 0 || !codePane.value || !consolePane.value) return;
+  if (event.button !== 0 || !codePane.value || !consolePane.value) {
+    return;
+  }
   event.preventDefault();
   const handle = event.currentTarget as HTMLElement;
   const top = codePane.value.getBoundingClientRect().top;
   const bottom = consolePane.value.getBoundingClientRect().bottom;
   const room = bottom - top - handle.offsetHeight;
-  if (room <= 0) return;
+  if (room <= 0) {
+    return;
+  }
   handle.setPointerCapture(event.pointerId);
   resizing.value = true;
   const move = (moved: PointerEvent) => {
@@ -141,7 +145,9 @@ function resizeByKey(event: KeyboardEvent) {
     Home: MAX_CONSOLE_SHARE,
     End: MIN_CONSOLE_SHARE,
   };
-  if (!(event.key in next)) return;
+  if (!(event.key in next)) {
+    return;
+  }
   event.preventDefault();
   consoleShare.value = clampShare(next[event.key]!);
 }
@@ -256,7 +262,9 @@ const runByUser = ref(false);
  * Run the code, formatting it first when the user runs it and chose to
  */
 async function run({ byUser = true } = {}) {
-  if (byUser && codeChoices.value.formatOnRun) await editor?.format();
+  if (byUser && codeChoices.value.formatOnRun) {
+    await editor?.format();
+  }
   runByUser.value = byUser;
   view.value = emptyView(code.value, "running");
   runner?.run(code.value, connection.value);
@@ -266,8 +274,11 @@ function connect(chosen: Connection, remember: boolean) {
   connecting.value = false;
   connection.value = chosen;
   remembered.value = remember;
-  if (remember) saveConnection(chosen);
-  else forgetConnection();
+  if (remember) {
+    saveConnection(chosen);
+  } else {
+    forgetConnection();
+  }
   runner?.stop();
   // Results of a request-only run don't apply to the server
   view.value = emptyView(code.value, "ready");
@@ -284,7 +295,9 @@ function disconnect() {
 }
 
 function onRunShortcut(event: KeyboardEvent) {
-  if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+  if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) {
+    return;
+  }
   event.preventDefault();
   event.stopPropagation();
   void run();
@@ -294,9 +307,13 @@ const example = computed(() => findExample(code.value));
 
 function chooseExample(id: string) {
   const chosen = examples.find((candidate) => candidate.id === id);
-  if (!chosen || !editor) return;
+  if (!chosen || !editor) {
+    return;
+  }
   editor.setCode(chosen.code);
-  if (!connection.value) void run({ byUser: false });
+  if (!connection.value) {
+    void run({ byUser: false });
+  }
 }
 
 // Whether the code was edited since the last run
@@ -320,14 +337,19 @@ const spinning = ref(false);
 let spinnerTimer: ReturnType<typeof setTimeout> | undefined;
 watch([busy, runByUser], ([now, byUser]) => {
   clearTimeout(spinnerTimer);
-  if (now && byUser) spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
-  else spinning.value = false;
+  if (now && byUser) {
+    spinnerTimer = setTimeout(() => (spinning.value = true), SPINNER_DELAY_MS);
+  } else {
+    spinning.value = false;
+  }
 });
 
 // Where the method calls were made, while the code shown is the code that ran
 const lines = computed(() => {
   const { source, trace, requests } = view.value;
-  if (!source || !trace || stale.value) return undefined;
+  if (!source || !trace || stale.value) {
+    return undefined;
+  }
   const calls = buildTimeline(requests).flatMap((entry) =>
     entry.kind === "batch" ? entry.calls : [],
   );
@@ -356,7 +378,9 @@ onMounted(async () => {
     import("./ts-worker.ts"),
     readCodeLink(location.hash),
   ]);
-  if (unmounted || !editorHost.value) return;
+  if (unmounted || !editorHost.value) {
+    return;
+  }
   // Code opened from a docs example replaces the stored code, and the link
   // leaves the address bar, so a reload keeps any edits made since
   if (linked !== undefined) {
@@ -376,7 +400,9 @@ onMounted(async () => {
   });
   showPlaceholderFill();
   // Code runs against a real server only when the user asks
-  if (!connection.value) void run({ byUser: false });
+  if (!connection.value) {
+    void run({ byUser: false });
+  }
 });
 
 onBeforeUnmount(() => {

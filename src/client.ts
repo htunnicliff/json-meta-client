@@ -161,9 +161,13 @@ export class JsonMetaClient<
     options: OnStateChangeOptions = {},
   ): Promise<Disposable> => {
     const { pingSeconds = 30, signal } = options;
-    if (this.#lifetime.signal.aborted) throw new CancellationError("The client was disposed");
+    if (this.#lifetime.signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
     const session = await this.session;
-    if (signal?.aborted) return disposable(() => {});
+    if (signal?.aborted) {
+      return disposable(() => {});
+    }
     const subscription = await this.#stateChanges.add(session, handler, pingSeconds);
     // The signal may have aborted while the channel opened, when a listener
     // would never fire
@@ -184,7 +188,9 @@ export class JsonMetaClient<
    * method is named `disconnect`.
    */
   [Symbol.dispose] = (): void => {
-    if (this.#lifetime.signal.aborted) return;
+    if (this.#lifetime.signal.aborted) {
+      return;
+    }
     this.#lifetime.abort();
     this.#stateChanges.close();
     dispose(this.#transport);
@@ -211,7 +217,9 @@ export class JsonMetaClient<
    */
   async #whileAlive<T>(run: () => Promise<T>): Promise<T> {
     const { signal } = this.#lifetime;
-    if (signal.aborted) throw new CancellationError("The client was disposed");
+    if (signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
     try {
       return await run();
     } catch (error) {

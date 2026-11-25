@@ -32,7 +32,9 @@ export function playgroundLinks(md: MarkdownRenderer): void {
     const fences = state.tokens.filter((token) => token.type === "fence" && isExample(token.info));
     const examples = fences.map(({ content }) => ({ source: content }));
     fences.forEach((token, index) => {
-      if (!hasPlaygroundCode(token.content)) return;
+      if (!hasPlaygroundCode(token.content)) {
+        return;
+      }
       token.meta = {
         ...token.meta,
         playgroundHref: playgroundHref(playgroundCode(examples, index)),
@@ -48,7 +50,9 @@ export function playgroundLinks(md: MarkdownRenderer): void {
       meta && typeof meta === "object" && "playgroundHref" in meta
         ? meta.playgroundHref
         : undefined;
-    if (typeof href !== "string") return html;
+    if (typeof href !== "string") {
+      return html;
+    }
     const link = `<a class="playground-link" href="${md.utils.escapeHtml(href)}" target="_blank" title="Open in playground" aria-label="Open in playground">${icon}</a>`;
     return html.replace("<pre", `${link}<pre`);
   };

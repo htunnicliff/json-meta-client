@@ -48,7 +48,9 @@ export function createRunner(
       stop();
       onEvent({ type: "start" });
       const result = await compile(source);
-      if (id !== latest) return;
+      if (id !== latest) {
+        return;
+      }
       if ("diagnostics" in result) {
         onEvent({ type: "diagnostics", diagnostics: result.diagnostics });
         return;
@@ -57,10 +59,14 @@ export function createRunner(
       const worker = new Worker(new URL("./run.worker.ts", import.meta.url), { type: "module" });
       current = worker;
       worker.addEventListener("message", ({ data }: MessageEvent<RunEvent>) => {
-        if (id === latest) onEvent(data);
+        if (id === latest) {
+          onEvent(data);
+        }
       });
       worker.addEventListener("error", (event) => {
-        if (id === latest) onEvent({ type: "error", message: event.message || "The run failed" });
+        if (id === latest) {
+          onEvent({ type: "error", message: event.message || "The run failed" });
+        }
       });
       worker.postMessage({ code: result.code, connection } satisfies RunRequest);
     },

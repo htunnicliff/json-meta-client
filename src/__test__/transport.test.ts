@@ -85,14 +85,18 @@ describe("transport option", () => {
     const fetchMock = stubSession();
     fetchMock.mockImplementationOnce(async () => Response.json(makeSession()));
     fetchMock.mockImplementationOnce(async (input) => {
-      if (!(input instanceof Request)) throw new Error("Expected a Request");
+      if (!(input instanceof Request)) {
+        throw new Error("Expected a Request");
+      }
       return Response.json(echo(await input.json()));
     });
     const client = new JsonMetaClient({ sessionUrl, auth: "token", capabilities: [] });
 
     await expect(client.api.Core.echo({}, { id: "a" })).resolves.toEqual({ id: "a" });
     const request = fetchMock.mock.calls[1]![0];
-    if (!(request instanceof Request)) throw new Error("Expected a Request");
+    if (!(request instanceof Request)) {
+      throw new Error("Expected a Request");
+    }
     expect(request.url).toBe(apiUrl);
     expect(request.method).toBe("POST");
     expect(request.headers.get("content-type")).toBe("application/json");
@@ -130,7 +134,9 @@ describe("transport context", () => {
 
     await expect(contexts[0]!.fetch(apiUrl, { method: "POST" })).rejects.toBeInstanceOf(HttpError);
     const request = fetchMock.mock.calls[0]![0];
-    if (!(request instanceof Request)) throw new Error("Expected a Request");
+    if (!(request instanceof Request)) {
+      throw new Error("Expected a Request");
+    }
     expect(request.headers.get("authorization")).toBe("Bearer token");
     expect(beforeFetch).toHaveBeenCalledOnce();
     expect(afterFetch).toHaveBeenCalledOnce();
@@ -216,7 +222,9 @@ describe("client[Symbol.dispose]", () => {
         .fn<typeof fetch>()
         .mockResolvedValueOnce(Response.json(makeSession()))
         .mockImplementationOnce(async (input) => {
-          if (!(input instanceof Request)) throw new Error("Expected a Request");
+          if (!(input instanceof Request)) {
+            throw new Error("Expected a Request");
+          }
           fetching.resolve();
           return new Promise((_, reject) =>
             input.signal.addEventListener("abort", () => reject(input.signal.reason)),
@@ -372,7 +380,9 @@ describe("client disposal beyond method calls", () => {
     await client.session;
     const fetching = Promise.withResolvers<void>();
     fetchMock.mockImplementationOnce(async (input) => {
-      if (!(input instanceof Request)) throw new Error("Expected a Request");
+      if (!(input instanceof Request)) {
+        throw new Error("Expected a Request");
+      }
       fetching.resolve();
       return new Promise((_, reject) =>
         input.signal.addEventListener("abort", () => reject(input.signal.reason)),

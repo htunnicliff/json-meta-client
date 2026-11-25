@@ -62,7 +62,9 @@ export async function openEventStream(
         );
         return;
       }
-      if (isStateChange(message)) events.onStateChange(message);
+      if (isStateChange(message)) {
+        events.onStateChange(message);
+      }
     },
   });
   return disposable(() => eventSource.close());

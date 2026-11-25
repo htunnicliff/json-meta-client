@@ -19,7 +19,9 @@ import type { TransportFactory } from "./types.ts";
 export function httpTransport(): TransportFactory {
   return (context) => ({
     send: async (request, { session, signal }) => {
-      if (signal.aborted) throw new CancellationError("The request was cancelled");
+      if (signal.aborted) {
+        throw new CancellationError("The request was cancelled");
+      }
       const init: RequestInit = {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
@@ -41,7 +43,9 @@ export function httpTransport(): TransportFactory {
       try {
         text = await response.text();
       } catch (cause) {
-        if (signal.aborted) throw new CancellationError("The request was cancelled", { cause });
+        if (signal.aborted) {
+          throw new CancellationError("The request was cancelled", { cause });
+        }
         throw new NetworkError("Failed to read", { cause, request: httpRequest });
       }
       try {

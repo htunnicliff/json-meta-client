@@ -81,7 +81,9 @@ const highlighted = StateField.define<DecorationSet>({
   update(decorations, transaction) {
     let next = decorations.map(transaction.changes);
     for (const effect of transaction.effects) {
-      if (!effect.is(setHighlight)) continue;
+      if (!effect.is(setHighlight)) {
+        continue;
+      }
       const { doc } = transaction.state;
       const lines: Range<Decoration>[] = [];
       for (const { from, to } of effect.value) {
@@ -138,7 +140,9 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
       return false;
     }
     // The user typed while Prettier ran; their edit wins
-    if (view.state.doc.toString() !== before) return true;
+    if (view.state.doc.toString() !== before) {
+      return true;
+    }
     const change = minimalChange(before, formatted.code);
     if (change) {
       view.dispatch({
@@ -187,7 +191,9 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): CodeE
             field.setAttribute("data-1p-ignore", "");
           }
         }
-        if (update.docChanged) options.onChange(update.state.doc.toString());
+        if (update.docChanged) {
+          options.onChange(update.state.doc.toString());
+        }
         // Keyboard users get the cursor's highlights, as pointer users get the hover's
         if ((update.selectionSet || update.focusChanged) && update.view.hasFocus) {
           const offset = update.state.selection.main.head;

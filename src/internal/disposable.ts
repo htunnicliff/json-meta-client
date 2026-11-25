@@ -50,5 +50,7 @@ export function addDisposeFallback(
   dispose: () => void,
   key: symbol | "disconnect" = disposeKey(),
 ): void {
-  if (typeof key === "string") Object.defineProperty(target, key, { value: dispose });
+  if (typeof key === "string") {
+    Object.defineProperty(target, key, { value: dispose });
+  }
 }

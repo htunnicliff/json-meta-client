@@ -79,7 +79,9 @@ export class StateChangeHub {
     handler: OnStateChangeHandler,
     pingSeconds: number,
   ): Promise<Disposable> => {
-    if (this.#closed) throw new CancellationError("The client was disposed");
+    if (this.#closed) {
+      throw new CancellationError("The client was disposed");
+    }
     const subscription =
       this.#push ?? this.#eventStreams.get(pingSeconds) ?? this.#open(session, pingSeconds);
     // Joining now keeps the channel open for this handler while it opens
@@ -94,7 +96,9 @@ export class StateChangeHub {
     entry.ready = true;
     let removed = false;
     return disposable(() => {
-      if (removed) return;
+      if (removed) {
+        return;
+      }
       removed = true;
       this.#remove(subscription, entry);
     });
@@ -107,7 +111,9 @@ export class StateChangeHub {
     this.#closed = true;
     const subscriptions = [this.#push, ...this.#eventStreams.values()];
     for (const subscription of subscriptions) {
-      if (!subscription) continue;
+      if (!subscription) {
+        continue;
+      }
       subscription.handlers.clear();
       this.#closeChannel(subscription);
     }
@@ -122,7 +128,9 @@ export class StateChangeHub {
         handlers,
         channel: Promise.resolve(pushChannel),
         forget: () => {
-          if (this.#push === subscription) this.#push = undefined;
+          if (this.#push === subscription) {
+            this.#push = undefined;
+          }
         },
       };
       this.#push = subscription;
@@ -145,7 +153,9 @@ export class StateChangeHub {
 
   #remove(subscription: Subscription, entry: Entry): void {
     subscription.handlers.delete(entry);
-    if (subscription.handlers.size === 0) this.#closeChannel(subscription);
+    if (subscription.handlers.size === 0) {
+      this.#closeChannel(subscription);
+    }
   }
 
   #closeChannel(subscription: Subscription): void {
@@ -160,7 +170,9 @@ export class StateChangeHub {
   #fanOut(session: Session, handlers: ReadonlySet<Entry>): PushEvents {
     const deliver = (...args: Parameters<OnStateChangeHandler>): void => {
       for (const { handler, ready } of handlers) {
-        if (!ready) continue;
+        if (!ready) {
+          continue;
+        }
         try {
           handler(...args);
         } catch (error) {
@@ -191,7 +203,9 @@ export class StateChangeHub {
           deliver(new StateChangeError(message, { cause: error }), undefined);
           return;
         }
-        for (const payload of payloads) deliver(null, payload);
+        for (const payload of payloads) {
+          deliver(null, payload);
+        }
       },
       onError: (error) => deliver(error, undefined),
     };

@@ -103,8 +103,12 @@ class WebSocketTransport implements Transport {
     request: JmapRequest,
     { session, signal }: TransportSendOptions,
   ): Promise<JmapResponse> => {
-    if (this.#disposed) throw new CancellationError("The client was disposed");
-    if (signal.aborted) throw new CancellationError("The request was cancelled");
+    if (this.#disposed) {
+      throw new CancellationError("The client was disposed");
+    }
+    if (signal.aborted) {
+      throw new CancellationError("The request was cancelled");
+    }
     const { url } = webSocketCapability(session) ?? {};
     if (!url) {
       throw new ConfigurationError(
@@ -118,17 +122,23 @@ class WebSocketTransport implements Transport {
 
   subscribe = (session: Session, events: PushEvents): Promise<Disposable> | null => {
     const capability = webSocketCapability(session);
-    if (!capability?.supportsPush || this.#disposed) return null;
+    if (!capability?.supportsPush || this.#disposed) {
+      return null;
+    }
     this.#url = capability.url;
     const push: Push = { events, pushState: undefined, attempts: 0, retryTimer: undefined };
     this.#push = push;
     const subscription = disposable(() => {
-      if (this.#push !== push) return;
+      if (this.#push !== push) {
+        return;
+      }
       this.#push = undefined;
       clearTimeout(push.retryTimer);
       const connection = this.#pushConnection;
       this.#pushConnection = undefined;
-      if (connection && !connection.closed) connection.setPush(false);
+      if (connection && !connection.closed) {
+        connection.setPush(false);
+      }
     });
     // Settle once the first attempt has enabled push or failed; a failure is
     // reported through `events` and retried
@@ -136,14 +146,20 @@ class WebSocketTransport implements Transport {
   };
 
   [Symbol.dispose] = (): void => {
-    if (this.#disposed) return;
+    if (this.#disposed) {
+      return;
+    }
     this.#disposed = true;
-    if (this.#push) clearTimeout(this.#push.retryTimer);
+    if (this.#push) {
+      clearTimeout(this.#push.retryTimer);
+    }
     this.#push = undefined;
     this.#pushConnection = undefined;
     this.#connection = undefined;
     const error = new CancellationError("The client was disposed");
-    for (const connection of this.#connections) connection.close(error);
+    for (const connection of this.#connections) {
+      connection.close(error);
+    }
     this.#connections.clear();
   };
 
@@ -154,8 +170,12 @@ class WebSocketTransport implements Transport {
    */
   async #connect(url: string): Promise<Connection> {
     const current = this.#connection;
-    if (current && !current.closed && current.url === url) return current;
-    if (current && !current.closed) this.#retire(current);
+    if (current && !current.closed && current.url === url) {
+      return current;
+    }
+    if (current && !current.closed) {
+      this.#retire(current);
+    }
     const connection = await this.#open(url);
     if (this.#push && this.#connection === connection && this.#pushConnection !== connection) {
       this.#attachPush(this.#push, connection);
@@ -168,8 +188,12 @@ class WebSocketTransport implements Transport {
    * isn't reported as a push failure.
    */
   #retire(connection: Connection): void {
-    if (this.#connection === connection) this.#connection = undefined;
-    if (this.#pushConnection === connection) this.#pushConnection = undefined;
+    if (this.#connection === connection) {
+      this.#connection = undefined;
+    }
+    if (this.#pushConnection === connection) {
+      this.#pushConnection = undefined;
+    }
     connection.retire();
   }
 
@@ -179,16 +203,22 @@ class WebSocketTransport implements Transport {
    * soon as it exists.
    */
   #open(url: string): Promise<Connection> {
-    if (this.#opening?.url === url) return this.#opening.connection;
+    if (this.#opening?.url === url) {
+      return this.#opening.connection;
+    }
     const connection = (async () => {
       const request = await this.#context.authenticate(new Request(url));
       const headers = Object.fromEntries(request.headers);
-      if (this.#disposed) throw new CancellationError("The client was disposed");
+      if (this.#disposed) {
+        throw new CancellationError("The client was disposed");
+      }
       let socket: WebSocketLike;
       try {
         socket = this.#createWebSocket(url, ["jmap"], headers);
       } catch (cause) {
-        if (cause instanceof ConfigurationError) throw cause;
+        if (cause instanceof ConfigurationError) {
+          throw cause;
+        }
         throw new NetworkError("Failed to open the WebSocket", { cause, request: undefined });
       }
       const created = new Connection(url, socket, {
@@ -197,13 +227,19 @@ class WebSocketTransport implements Transport {
         heartbeatSeconds: this.#heartbeatSeconds,
         onClose: this.#onClose,
         onHealthy: (healthy) => {
-          if (this.#push && healthy === this.#pushConnection) this.#push.attempts = 0;
+          if (this.#push && healthy === this.#pushConnection) {
+            this.#push.attempts = 0;
+          }
         },
         onStateChange: (from, change) => {
           const push = this.#push;
           // A connection push has moved off may still deliver a change or two
-          if (!push || from !== this.#pushConnection) return;
-          if (change.pushState) push.pushState = change.pushState;
+          if (!push || from !== this.#pushConnection) {
+            return;
+          }
+          if (change.pushState) {
+            push.pushState = change.pushState;
+          }
           push.events.onStateChange(change);
         },
       });
@@ -212,7 +248,9 @@ class WebSocketTransport implements Transport {
       this.#connections.add(created);
       if (this.#url === url) {
         const previous = this.#connection;
-        if (previous && previous !== created && !previous.closed) this.#retire(previous);
+        if (previous && previous !== created && !previous.closed) {
+          this.#retire(previous);
+        }
         this.#connection = created;
       } else {
         // The socket URL changed while this one opened
@@ -223,7 +261,9 @@ class WebSocketTransport implements Transport {
     const opening = { url, connection };
     this.#opening = opening;
     const clear = () => {
-      if (this.#opening === opening) this.#opening = undefined;
+      if (this.#opening === opening) {
+        this.#opening = undefined;
+      }
     };
     connection.then(clear, clear);
     return connection;
@@ -231,11 +271,17 @@ class WebSocketTransport implements Transport {
 
   readonly #onClose = (connection: Connection, error: Error): void => {
     this.#connections.delete(connection);
-    if (this.#connection === connection) this.#connection = undefined;
-    if (this.#pushConnection !== connection) return;
+    if (this.#connection === connection) {
+      this.#connection = undefined;
+    }
+    if (this.#pushConnection !== connection) {
+      return;
+    }
     this.#pushConnection = undefined;
     const push = this.#push;
-    if (!push || this.#disposed) return;
+    if (!push || this.#disposed) {
+      return;
+    }
     push.events.onError(new StateChangeError("WebSocket push connection closed", { cause: error }));
     this.#scheduleReconnect(push);
   };
@@ -246,18 +292,26 @@ class WebSocketTransport implements Transport {
    */
   async #enablePush(push: Push): Promise<void> {
     const url = this.#url;
-    if (this.#push !== push || !url) return;
+    if (this.#push !== push || !url) {
+      return;
+    }
     try {
       const connection = await this.#connect(url);
-      if (this.#push !== push) return;
+      if (this.#push !== push) {
+        return;
+      }
       if (this.#pushConnection !== connection && this.#connection === connection) {
         this.#attachPush(push, connection);
       }
       await connection.opened;
     } catch (cause) {
-      if (this.#push !== push || this.#disposed) return;
+      if (this.#push !== push || this.#disposed) {
+        return;
+      }
       // A connection that closed has already reported it and scheduled a retry
-      if (this.#pushConnection || push.retryTimer !== undefined) return;
+      if (this.#pushConnection || push.retryTimer !== undefined) {
+        return;
+      }
       push.events.onError(new StateChangeError("WebSocket push connection failed", { cause }));
       this.#scheduleReconnect(push);
     }
@@ -269,7 +323,9 @@ class WebSocketTransport implements Transport {
    */
   #attachPush(push: Push, connection: Connection): void {
     const previous = this.#pushConnection;
-    if (previous && previous !== connection && !previous.closed) previous.setPush(false);
+    if (previous && previous !== connection && !previous.closed) {
+      previous.setPush(false);
+    }
     this.#pushConnection = connection;
     connection.setPush(true, push.pushState);
   }

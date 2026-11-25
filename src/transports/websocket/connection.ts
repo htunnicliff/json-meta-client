@@ -66,7 +66,9 @@ export class Connection {
     this.#options = options;
     // A browser delivers binary messages as a `Blob` by default, which can
     // only be read asynchronously, out of order with the messages after it
-    if ("binaryType" in socket) socket.binaryType = "arraybuffer";
+    if ("binaryType" in socket) {
+      socket.binaryType = "arraybuffer";
+    }
     const opened = Promise.withResolvers<void>();
     this.opened = opened.promise;
     // Nothing may await `opened`, as with a connection used only for push
@@ -84,7 +86,9 @@ export class Connection {
       }
       this.#open = true;
       opened.resolve();
-      if (this.#push) this.#sendPush();
+      if (this.#push) {
+        this.#sendPush();
+      }
       this.#update();
     });
     socket.addEventListener("message", (event: { data: unknown }) => this.#route(event.data));
@@ -147,7 +151,9 @@ export class Connection {
     } finally {
       this.#connecting--;
     }
-    if (signal?.aborted) throw new CancellationError("The request was cancelled");
+    if (signal?.aborted) {
+      throw new CancellationError("The request was cancelled");
+    }
     if (this.#closed) {
       throw new NetworkError("WebSocket closed", { cause: undefined, request: undefined });
     }
@@ -176,7 +182,9 @@ export class Connection {
   ): Promise<JmapResponse> {
     const handle = Promise.withResolvers<JmapResponse>();
     const onAbort = () => {
-      if (!this.#pending.has(id)) return;
+      if (!this.#pending.has(id)) {
+        return;
+      }
       this.#pending.delete(id);
       cleanup();
       handle.reject(new CancellationError("The request was cancelled"));
@@ -217,12 +225,16 @@ export class Connection {
     this.#push = enabled;
     this.#pushState = pushState;
     // Before the socket opens, the open handler enables push
-    if (this.#open && (enabled || wasEnabled)) this.#sendPush();
+    if (this.#open && (enabled || wasEnabled)) {
+      this.#sendPush();
+    }
     this.#update();
   };
 
   #sendPush(): void {
-    if (this.#closed || this.#socket.readyState !== OPEN) return;
+    if (this.#closed || this.#socket.readyState !== OPEN) {
+      return;
+    }
     const pushState = this.#pushState;
     const message: WebSocketPushEnable | WebSocketPushDisable = this.#push
       ? { "@type": "WebSocketPushEnable", dataTypes: null, ...(pushState ? { pushState } : {}) }
@@ -242,15 +254,20 @@ export class Connection {
    */
   retire = (): void => {
     this.#retired = true;
-    if (this.#push) this.setPush(false);
-    else this.#update();
+    if (this.#push) {
+      this.setPush(false);
+    } else {
+      this.#update();
+    }
   };
 
   /**
    * Close the socket, rejecting pending requests with the given error
    */
   close = (error: Error = new CancellationError("The WebSocket was closed")): void => {
-    if (this.#closed) return;
+    if (this.#closed) {
+      return;
+    }
     this.#finish(error);
     try {
       this.#socket.close(1000);
@@ -263,7 +280,9 @@ export class Connection {
    * Settle what the socket was waiting for, once, when it closes
    */
   #finish(error: Error): void {
-    if (this.#closed) return;
+    if (this.#closed) {
+      return;
+    }
     this.#closed = true;
     clearTimeout(this.#idleTimer);
     clearInterval(this.#heartbeatTimer);
@@ -280,17 +299,23 @@ export class Connection {
    * the connection open. A retired connection closes as soon as it is idle.
    */
   #update(): void {
-    if (this.#closed) return;
+    if (this.#closed) {
+      return;
+    }
     this.#updateHeartbeat();
     clearTimeout(this.#idleTimer);
     this.#idleTimer = undefined;
-    if (this.#pending.size > 0 || this.#connecting > 0 || this.#push) return;
+    if (this.#pending.size > 0 || this.#connecting > 0 || this.#push) {
+      return;
+    }
     if (this.#retired) {
       this.close();
       return;
     }
     const { idleSeconds } = this.#options;
-    if (!Number.isFinite(idleSeconds)) return;
+    if (!Number.isFinite(idleSeconds)) {
+      return;
+    }
     this.#idleTimer = setTimeout(() => this.close(), Math.max(0, idleSeconds) * 1000);
     // Don't keep a Node process alive just to close an idle socket
     unref(this.#idleTimer);
@@ -335,7 +360,9 @@ export class Connection {
     // The next beat checks for the response, so the request needs no timeout
     this.#track(id, undefined, Infinity).then(
       () => {
-        if (this.#heartbeat === id) this.#heartbeat = undefined;
+        if (this.#heartbeat === id) {
+          this.#heartbeat = undefined;
+        }
       },
       () => {},
     );
@@ -373,7 +400,9 @@ export class Connection {
       this.#healthy = true;
       this.#options.onHealthy(this);
     }
-    if (typeof message !== "object" || message === null) return;
+    if (typeof message !== "object" || message === null) {
+      return;
+    }
     const { "@type": type, requestId } = message as { "@type"?: unknown; requestId?: unknown };
     if (type === "Response") {
       this.#settle(requestId, (handle) => {
@@ -402,9 +431,13 @@ export class Connection {
   }
 
   #settle(requestId: unknown, settle: (handle: Pending) => void): void {
-    if (typeof requestId !== "string") return;
+    if (typeof requestId !== "string") {
+      return;
+    }
     const handle = this.#pending.get(requestId);
-    if (!handle) return;
+    if (!handle) {
+      return;
+    }
     this.#pending.delete(requestId);
     handle.cleanup();
     settle(handle);
@@ -416,7 +449,9 @@ export class Connection {
  * Let a Node process exit while only this timer is running
  */
 function unref(timer: ReturnType<typeof setTimeout> | undefined): void {
-  if (typeof timer === "object" && timer !== null && "unref" in timer) timer.unref();
+  if (typeof timer === "object" && timer !== null && "unref" in timer) {
+    timer.unref();
+  }
 }
 
 /**

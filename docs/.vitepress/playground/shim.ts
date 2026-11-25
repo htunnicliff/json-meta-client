@@ -13,7 +13,9 @@ const builtInUrns = new Set<string>(Object.values(BUILT_IN_CAPABILITIES).map(({ 
  * capability provides
  */
 function customUrns(capabilities: unknown): string[] {
-  if (!Array.isArray(capabilities)) return [];
+  if (!Array.isArray(capabilities)) {
+    return [];
+  }
   return capabilities
     .filter((capability): capability is library.Capability =>
       Boolean(capability && typeof capability === "object" && "urn" in capability),
@@ -43,12 +45,16 @@ export function createShim(
   class JsonMetaClient extends Client<any, any> {
     constructor(options: library.Config<any>) {
       const urns = customUrns(options?.capabilities);
-      if (urns.length) reportUrns(urns);
+      if (urns.length) {
+        reportUrns(urns);
+      }
       const filled = fillPlaceholders(options, server);
       if (instrumentation?.generateMethodCallId && !filled.generateMethodCallId) {
         filled.generateMethodCallId = instrumentation.generateMethodCallId;
       }
-      if (instrumentation && filled.hooks) hookObservers.set(filled, instrumentation.observeHooks);
+      if (instrumentation && filled.hooks) {
+        hookObservers.set(filled, instrumentation.observeHooks);
+      }
       super(filled);
     }
   }
