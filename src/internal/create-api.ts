@@ -8,12 +8,11 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { JsonObject } from "type-fest";
-
 import { UnknownEntityError } from "../errors/index.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
 import { addRefMethod, markResultRefs } from "./ref.ts";
+import type { JsonObject } from "./type-utils.ts";
 import type { AugmentedOptions } from "./types.ts";
 
 interface ApiOptions {
