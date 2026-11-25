@@ -78,6 +78,9 @@ request, passing the query's IDs to `Email/get` with a result reference.
 Follow the [getting started guide](https://json-meta-client.dev/getting-started)
 for runtime requirements and a complete walkthrough.
 
+Upgrading from 0.14? Follow the
+[migration guide](https://json-meta-client.dev/migration).
+
 ## License
 
 The [MPL-2.0 License](./LICENSE).

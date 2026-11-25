@@ -47,6 +47,7 @@ export default defineConfig({
           { text: "Introduction", link: "/getting-started" },
           { text: "Testing", link: "/testing" },
           { text: "Examples", link: "/examples" },
+          { text: "Migrating from 0.14", link: "/migration" },
         ],
       },
       {
