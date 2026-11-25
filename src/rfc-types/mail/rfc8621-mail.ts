@@ -21,8 +21,6 @@ import type {
   SetError,
 } from "../core/index.ts";
 
-// TODO: Finish mail types
-
 /**
  * Account limits and features advertised by the JMAP Mail capability.
  *
@@ -225,9 +223,7 @@ export interface EmailComputedFields {
 }
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1 */
-export interface ReadableEmail extends EmailBase, EmailComputedFields {
-  [header: `header:${string}`]: unknown;
-}
+export interface ReadableEmail extends EmailBase, EmailComputedFields, EmailHeaderProperties {}
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.6 */
 export interface WritableEmailBodyValue {
@@ -239,10 +235,10 @@ export interface WritableEmailBodyValue {
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.6 */
 export type WritableEmailBodyPart = Partial<
   Pick<EmailBodySubPart, "name" | "type" | "disposition" | "cid" | "language" | "location">
-> & {
-  [header: `header:${string}`]: unknown;
-  headers?: never;
-} & (
+> &
+  WritableEmailHeaderProperties & {
+    headers?: never;
+  } & (
     | { partId: string; blobId?: never; charset?: never; size?: never; subParts?: never }
     | { partId?: never; blobId?: never; charset?: string | null; size?: never; subParts?: never }
     | { blobId: string; partId?: never; charset?: string | null; size?: number; subParts?: never }
@@ -263,8 +259,8 @@ export type WritableEmail = WithoutProperties<
   Partial<Omit<EmailBase, "id" | "blobId" | "threadId" | "size" | "mailboxIds" | "headers">> & {
     bodyValues?: { [partId: string]: WritableEmailBodyValue };
     headers?: never;
-    [header: `header:${string}`]: unknown;
-  } & (
+  } & WritableEmailHeaderProperties &
+  (
     | {
         bodyStructure: WritableEmailBodyPart;
         textBody?: never;
@@ -304,8 +300,114 @@ export interface EmailHeader {
   value: string;
 }
 
+/**
+ * The value of each parsed form of a header field, keyed by the form's
+ * name in a `header:{name}:{form}` property.
+ *
+ * @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2
+ */
+export interface EmailHeaderForms {
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.1 */
+  asRaw: string;
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.2 */
+  asText: string;
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.3 */
+  asAddresses: EmailAddress[];
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.4 */
+  asGroupedAddresses: EmailAddressGroup[];
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.5 */
+  asMessageIds: string[] | null;
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.6 */
+  asDate: string | null;
+  /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2.7 */
+  asURLs: string[] | null;
+}
+
+/** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.2 */
+export type EmailHeaderForm = keyof EmailHeaderForms;
+
+/**
+ * The value of a `header:{name}[:{form}][:all]` property, as the server
+ * returns it. Without a form, the header is read `asRaw`. Without `:all`,
+ * the value is the last instance of the header, or `null` when the header
+ * is absent; with `:all`, it is every instance, in order.
+ *
+ * @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.3
+ */
+export type EmailHeaderValue<Property extends string> =
+  Property extends `header:${string}:${infer Form extends EmailHeaderForm}:all`
+    ? EmailHeaderForms[Form][]
+    : Property extends `header:${string}:${infer Form extends EmailHeaderForm}`
+      ? EmailHeaderForms[Form] | null
+      : Property extends `header:${string}:all`
+        ? string[]
+        : Property extends `header:${string}`
+          ? string | null
+          : never;
+
+/**
+ * `header:` properties on a readable `Email` or body part. A property that
+ * names its form has that form's value. A property without a form, or with
+ * only `:all`, can't be told apart from the others by an index signature, so
+ * it is `unknown` here. Requesting it by name through `Email/get` gives its
+ * exact type ({@link EmailHeaderValue}).
+ *
+ * @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.3
+ */
+export interface EmailHeaderProperties {
+  [header: `header:${string}`]: unknown;
+  [header: `header:${string}:asRaw`]: string | null;
+  [header: `header:${string}:asText`]: string | null;
+  [header: `header:${string}:asAddresses`]: EmailAddress[] | null;
+  [header: `header:${string}:asGroupedAddresses`]: EmailAddressGroup[] | null;
+  [header: `header:${string}:asMessageIds`]: string[] | null;
+  [header: `header:${string}:asDate`]: string | null;
+  [header: `header:${string}:asURLs`]: string[] | null;
+  [header: `header:${string}:asRaw:all`]: string[];
+  [header: `header:${string}:asText:all`]: string[];
+  [header: `header:${string}:asAddresses:all`]: EmailAddress[][];
+  [header: `header:${string}:asGroupedAddresses:all`]: EmailAddressGroup[][];
+  [header: `header:${string}:asMessageIds:all`]: (string[] | null)[];
+  [header: `header:${string}:asDate:all`]: (string | null)[];
+  [header: `header:${string}:asURLs:all`]: (string[] | null)[];
+}
+
+/**
+ * `header:` properties when creating an `Email` or body part. A header is
+ * written in one of its parsed forms, and with `:all` as a list of
+ * instances.
+ *
+ * @see https://www.rfc-editor.org/info/rfc8621/#section-4.6
+ */
+export interface WritableEmailHeaderProperties {
+  [header: `header:${string}`]:
+    | NonNullable<EmailHeaderForms[EmailHeaderForm]>
+    | NonNullable<EmailHeaderForms[EmailHeaderForm]>[];
+  [header: `header:${string}:asRaw`]: string;
+  [header: `header:${string}:asText`]: string;
+  [header: `header:${string}:asAddresses`]: EmailAddress[];
+  [header: `header:${string}:asGroupedAddresses`]: EmailAddressGroup[];
+  [header: `header:${string}:asMessageIds`]: string[];
+  [header: `header:${string}:asDate`]: string;
+  [header: `header:${string}:asURLs`]: string[];
+  [header: `header:${string}:asRaw:all`]: string[];
+  [header: `header:${string}:asText:all`]: string[];
+  [header: `header:${string}:asAddresses:all`]: EmailAddress[][];
+  [header: `header:${string}:asGroupedAddresses:all`]: EmailAddressGroup[][];
+  [header: `header:${string}:asMessageIds:all`]: string[][];
+  [header: `header:${string}:asDate:all`]: string[];
+  [header: `header:${string}:asURLs:all`]: string[][];
+}
+
+/**
+ * The exact value of each `header:` property named in `Requested`
+ */
+type RequestedHeaders<Requested> = {
+  [Property in Extract<Requested, `header:${string}`>]: EmailHeaderValue<Property>;
+};
+
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
-export interface EmailBodySubPart {
+export interface EmailBodySubPart extends EmailHeaderProperties {
   partId: string | null;
   blobId: string | null;
   size: number;
@@ -317,7 +419,6 @@ export interface EmailBodySubPart {
   cid: string | null;
   language: string[] | null;
   location: string | null;
-  [header: `header:${string}`]: unknown;
 }
 
 /** @see https://www.rfc-editor.org/info/rfc8621/#section-4.1.4 */
@@ -333,7 +434,8 @@ export interface EmailBodyValue {
 }
 
 export type EmailBodyPartForArgs<Args> = PickPropertiesForEntity<
-  EmailBodySubPart,
+  EmailBodySubPart &
+    RequestedHeaders<Args extends { bodyProperties: readonly (infer P)[] } ? P : never>,
   Args extends { bodyProperties: infer P } ? { properties: P } : {},
   { defaultProperties: Exclude<keyof EmailBodySubPart, "headers" | `header:${string}`> }
 > &
@@ -343,15 +445,16 @@ export type EmailBodyPartForArgs<Args> = PickPropertiesForEntity<
       : { subParts?: EmailBodyPartForArgs<Args>[] | null }
     : { subParts?: EmailBodyPartForArgs<Args>[] | null });
 
-export type EmailForArgs<Args> = Omit<ReadableEmail, keyof EmailComputedFields> & {
-  bodyStructure: EmailBodyPartForArgs<Args>;
-  bodyValues: EmailComputedFields["bodyValues"];
-  textBody: EmailBodyPartForArgs<Args>[];
-  htmlBody: EmailBodyPartForArgs<Args>[];
-  attachments: Omit<EmailBodyPartForArgs<Args>, "subParts">[];
-  hasAttachment: boolean;
-  preview: string;
-};
+export type EmailForArgs<Args> = Omit<ReadableEmail, keyof EmailComputedFields> &
+  RequestedHeaders<Args extends { properties: readonly (infer P)[] } ? P : never> & {
+    bodyStructure: EmailBodyPartForArgs<Args>;
+    bodyValues: EmailComputedFields["bodyValues"];
+    textBody: EmailBodyPartForArgs<Args>[];
+    htmlBody: EmailBodyPartForArgs<Args>[];
+    attachments: Omit<EmailBodyPartForArgs<Args>, "subParts">[];
+    hasAttachment: boolean;
+    preview: string;
+  };
 
 /**
  * What other capabilities add to `Email`, read from a contract's
