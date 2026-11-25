@@ -6,7 +6,6 @@ export default defineConfig({
   exports: true,
   attw: true,
   target: ["esnext"],
-  minify: true,
   banner: [
     "// ----------------------------------------------------------------------- //",
     "//                                                                         //",
