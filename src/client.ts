@@ -36,7 +36,8 @@ import type {
 
 export class JsonMetaClient<
   const GivenCapabilities extends ReadonlyArray<CapabilityOption>,
-  API extends ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities>,
+  API extends ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities> =
+    ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities>,
 > {
   constructor(options: Config<GivenCapabilities>) {
     assertValidConfig(options);

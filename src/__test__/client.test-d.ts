@@ -51,6 +51,15 @@ describe(JsonMetaClient, () => {
     assertType<Generator>(async () => "call-id");
   });
 
+  it("can be named by its capabilities alone", () => {
+    const mailClient = new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["mail"] });
+
+    expectTypeOf(mailClient).toEqualTypeOf<JsonMetaClient<["mail"]>>();
+    expectTypeOf(client).toEqualTypeOf<JsonMetaClient<[typeof core, typeof mail]>>();
+    expectTypeOf<JsonMetaClient<["mail"]>["api"]>().toHaveProperty("Email");
+    expectTypeOf<JsonMetaClient<["contacts"]>["api"]>().not.toHaveProperty("Email");
+  });
+
   it("exposes built-in capability details on the session", async () => {
     const session = await client.session;
     const contactsSession = await new JsonMetaClient({
