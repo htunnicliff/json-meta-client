@@ -1,6 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>htunnicliff/renovate"],
+  "packageRules": [
+    {
+      "description": "Stay on TypeScript 6: the docs tooling uses its compiler API, which TypeScript 7 doesn't provide. CI checks the types against TypeScript 7 separately.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",

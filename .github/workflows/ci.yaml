@@ -64,6 +64,34 @@ jobs:
         env:
           PACKAGE_CHECK_TYPESCRIPT: "5.4"
 
+  typescript-7:
+    name: Types on TypeScript 7
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      # The repository builds with TypeScript 6, whose compiler API the docs
+      # tooling uses. These steps check what consumers on TypeScript 7 see.
+      - run: pnpm package:check
+        env:
+          PACKAGE_CHECK_TYPESCRIPT: "7"
+
+      - name: Type-check the source and type tests
+        run: pnpm dlx --package=typescript@7 tsc -p tsconfig.typecheck.json
+
   integration:
     name: Stalwart integration tests
     runs-on: ubuntu-latest
