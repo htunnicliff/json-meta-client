@@ -45,7 +45,7 @@ export function createOtherClient<const T extends ReadonlyArray<CapabilityOption
   ...capabilities: T
 ): IntegrationClient<T> {
   const { other } = inject("stalwart");
-  return createClientWith(
+  return createClientWith<T>(
     { auth: { username: other.username, password: other.password } },
     ...capabilities,
   );
