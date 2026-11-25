@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in json-meta-client doesn't work as documented.
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        To report a security issue, follow the [security policy](https://github.com/htunnicliff/json-meta-client/security/policy) instead.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest code that shows the problem. A link to the [playground](https://json-meta-client.dev/playground) works too.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: exchange
+    attributes:
+      label: JMAP Request and Response
+      description: The JMAP Request the client sent and the Response it got, if the problem involves a server. The playground's Timeline panel shows both. Remove tokens and personal data first.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: json-meta-client version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and TypeScript version
+      placeholder: Node.js 24.1.0, TypeScript 6.0.3
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options:
+        - httpTransport() (default)
+        - webSocketTransport()
+        - A custom transport
+  - type: input
+    id: server
+    attributes:
+      label: JMAP server
+      description: The server and its version, if the problem involves a server.
+      placeholder: Stalwart 0.13.0
