@@ -1,5 +1,3 @@
-import { createEventSource } from "eventsource-client";
-import type { EventSourceOptions } from "eventsource-client";
 import nock from "nock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,11 +12,46 @@ import type { Session } from "../rfc-types/core/index.ts";
 import type { PushEvents, Transport, TransportFactory } from "../transports/types.ts";
 import type { CapabilityOption, OnStateChangeHandler } from "../types.ts";
 
-vi.mock("eventsource-client", () => ({ createEventSource: vi.fn<typeof createEventSource>() }));
-
 const host = "https://example.test";
 const accountId = "primary-account";
-const close = vi.fn<() => void>();
+const encoder = new TextEncoder();
+
+/** An event stream the client opened, which the test writes to */
+interface EventStream {
+  request: Request;
+  send: (text: string) => void;
+}
+
+/** The event streams the client opened, in order */
+const streams: EventStream[] = [];
+
+/**
+ * Answer event-stream requests with streams the test writes to, and pass
+ * every other request to nock
+ */
+function serveEventStreams(): void {
+  const realFetch = globalThis.fetch;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const request = new Request(input, init);
+    if (new URL(request.url).pathname !== "/events") {
+      return realFetch(input, init);
+    }
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({
+      start: (c) => {
+        controller = c;
+      },
+    });
+    request.signal.addEventListener("abort", () => controller.error(request.signal.reason));
+    streams.push({ request, send: (text) => controller.enqueue(encoder.encode(text)) });
+    return new Response(body, { headers: { "content-type": "text/event-stream" } });
+  });
+}
+
+/** Whether the nth event stream the client opened has been closed */
+function isClosed(index: number): boolean {
+  return streams[index]?.request.signal.aborted ?? false;
+}
 
 /** Accounts by ID, each listing the given capability URNs */
 function accountsWith(urnsByAccountId: Record<string, string[]>): Session["accounts"] {
@@ -65,11 +98,7 @@ async function subscribe(
     capabilities,
   });
   await client.onStateChange(handler);
-  const options = vi.mocked(createEventSource).mock.calls[0]?.[0];
-  if (!options || typeof options !== "object" || options instanceof URL || !options.onMessage) {
-    throw new Error("Expected an event source message callback");
-  }
-  return (data: string) => options.onMessage!({ data, event: "message", id: undefined });
+  return (data: string) => emitOn(0, data);
 }
 
 /**
@@ -83,7 +112,9 @@ async function isPrimaryAccount(
 ): Promise<boolean | undefined> {
   const handler = vi.fn<OnStateChangeHandler>();
   const emit = await subscribe(handler, capabilities);
-  emit(JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { [entity]: "state" } } }));
+  await emit(
+    JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { [entity]: "state" } } }),
+  );
   expect(handler).toHaveBeenCalledExactlyOnceWith(null, expect.objectContaining({ entity }));
   return handler.mock.calls[0]![1]?.isPrimaryAccount;
 }
@@ -97,34 +128,21 @@ function client(transport?: TransportFactory) {
   });
 }
 
-/** Emit a message on the nth event source the client opened */
-function emitOn(index: number, data: string): void {
-  const options = vi.mocked(createEventSource).mock.calls[index]?.[0];
-  if (!options || typeof options !== "object" || options instanceof URL) {
-    throw new Error(`Expected event source ${index}`);
+/** Emit a message on the nth event stream the client opened, and let it arrive */
+async function emitOn(index: number, data: string): Promise<void> {
+  await vi.waitFor(() => expect(streams.length).toBeGreaterThan(index));
+  streams[index]!.send(`event: state\ndata: ${data}\n\n`);
+  for (let tick = 0; tick < 3; tick++) {
+    // oxlint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  options.onMessage!({ data, event: "message", id: undefined });
 }
 
 describe("onStateChange", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(createEventSource).mockImplementation(
-      (options: EventSourceOptions | string | URL) => ({
-        close,
-        connect: vi.fn<() => void>(),
-        lastEventId: undefined,
-        url:
-          typeof options === "object" && !(options instanceof URL)
-            ? String(options.url)
-            : String(options),
-        readyState: "open",
-        [Symbol.iterator](): never {
-          throw new Error("Not supported");
-        },
-        async *[Symbol.asyncIterator]() {},
-      }),
-    );
+    vi.restoreAllMocks();
+    streams.length = 0;
+    serveEventStreams();
     mockSession({ [mail.urn]: accountId }, { [accountId]: [mail.urn], secondary: [mail.urn] });
   });
 
@@ -135,7 +153,7 @@ describe("onStateChange", () => {
   it("delivers a null error and a change for each entity in each account", async () => {
     const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
-    emit(
+    await emit(
       JSON.stringify({
         "@type": "StateChange",
         changed: {
@@ -169,7 +187,7 @@ describe("onStateChange", () => {
   ])("reports malformed messages as StateChangeError: $data", async ({ data, causeType }) => {
     const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
-    expect(() => emit(data)).not.toThrow();
+    await expect(emit(data)).resolves.toBeUndefined();
     expect(handler).toHaveBeenCalledExactlyOnceWith(expect.any(StateChangeError), undefined);
     const error = handler.mock.calls[0]![0];
     if (!(error instanceof StateChangeError)) {
@@ -182,8 +200,10 @@ describe("onStateChange", () => {
   it("continues delivering changes after a malformed message", async () => {
     const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
-    emit("{invalid");
-    emit(JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { Email: "next" } } }));
+    await emit("{invalid");
+    await emit(
+      JSON.stringify({ "@type": "StateChange", changed: { [accountId]: { Email: "next" } } }),
+    );
     expect(handler.mock.calls).toEqual([
       [expect.any(StateChangeError), undefined],
       [null, { accountId, entity: "Email", state: "next", isPrimaryAccount: true }],
@@ -193,8 +213,8 @@ describe("onStateChange", () => {
   it("ignores other message types and empty changes", async () => {
     const handler = vi.fn<OnStateChangeHandler>();
     const emit = await subscribe(handler);
-    emit(JSON.stringify({ "@type": "Ping" }));
-    emit(JSON.stringify({ "@type": "StateChange", changed: {} }));
+    await emit(JSON.stringify({ "@type": "Ping" }));
+    await emit(JSON.stringify({ "@type": "StateChange", changed: {} }));
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -331,9 +351,9 @@ describe("onStateChange", () => {
 
       await jmap.onStateChange(first);
       await jmap.onStateChange(second);
-      emitOn(0, change);
+      await emitOn(0, change);
 
-      expect(createEventSource).toHaveBeenCalledOnce();
+      expect(streams).toHaveLength(1);
       expect(first).toHaveBeenCalledExactlyOnceWith(null, payload);
       expect(second).toHaveBeenCalledExactlyOnceWith(null, payload);
     });
@@ -344,8 +364,8 @@ describe("onStateChange", () => {
       await jmap.onStateChange(vi.fn<OnStateChangeHandler>());
       await jmap.onStateChange(vi.fn<OnStateChangeHandler>(), { pingSeconds: 5 });
 
-      expect(createEventSource).toHaveBeenCalledTimes(2);
-      const urls = vi.mocked(createEventSource).mock.results.map(({ value }) => value.url);
+      await vi.waitFor(() => expect(streams).toHaveLength(2));
+      const urls = streams.map(({ request }) => request.url);
       expect(urls).toEqual([expect.stringContaining("ping=30"), expect.stringContaining("ping=5")]);
     });
 
@@ -358,17 +378,17 @@ describe("onStateChange", () => {
       await jmap.onStateChange(second, { signal: controller.signal });
 
       a[Symbol.dispose]();
-      emitOn(0, change);
-      expect(close).not.toHaveBeenCalled();
+      await emitOn(0, change);
+      expect(isClosed(0)).toBe(false);
       expect(first).not.toHaveBeenCalled();
       expect(second).toHaveBeenCalledOnce();
 
       controller.abort();
-      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+      await vi.waitFor(() => expect(isClosed(0)).toBe(true));
 
       // A new handler opens a new stream
       await jmap.onStateChange(vi.fn<OnStateChangeHandler>());
-      expect(createEventSource).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => expect(streams).toHaveLength(2));
     });
 
     it("keeps delivering to other handlers when one throws", async () => {
@@ -384,7 +404,7 @@ describe("onStateChange", () => {
         });
         await jmap.onStateChange(second);
 
-        emitOn(0, change);
+        await emitOn(0, change);
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(second).toHaveBeenCalledExactlyOnceWith(null, payload);
@@ -400,7 +420,7 @@ describe("onStateChange", () => {
       const handler = vi.fn<OnStateChangeHandler>();
 
       await jmap.onStateChange(handler);
-      emitOn(0, change);
+      await emitOn(0, change);
 
       expect(subscribe).toHaveBeenCalledOnce();
       expect(handler).toHaveBeenCalledExactlyOnceWith(null, payload);
@@ -423,7 +443,7 @@ describe("onStateChange", () => {
       const error = new StateChangeError("Dropped");
       events!.onError(error);
 
-      expect(createEventSource).not.toHaveBeenCalled();
+      expect(streams).toHaveLength(0);
       expect(subscribe).toHaveBeenCalledOnce();
       expect(first.mock.calls).toEqual([
         [null, payload],
@@ -445,7 +465,8 @@ describe("onStateChange", () => {
 
       jmap[Symbol.dispose]();
 
-      await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(streams).toHaveLength(2));
+      await vi.waitFor(() => expect([isClosed(0), isClosed(1)]).toEqual([true, true]));
       await expect(jmap.onStateChange(handler)).rejects.toBeInstanceOf(CancellationError);
     });
   });
