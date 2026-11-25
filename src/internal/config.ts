@@ -1,13 +1,3 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 import { BUILT_IN_CAPABILITIES, getCapabilitiesForBuiltIns } from "../built-ins.ts";
 import { CapabilityConfigurationError, ConfigurationError } from "../errors/index.ts";
 import type { Auth, CapabilityOption, Config } from "../types.ts";
@@ -20,6 +10,13 @@ export function assertValidConfig(options: Config<ReadonlyArray<CapabilityOption
   assertValidSessionUrl(options.sessionUrl);
   assertValidCapabilities(options.capabilities);
   assertValidTransport(options.transport);
+  assertValidOnWarning(options.onWarning);
+}
+
+function assertValidOnWarning(onWarning: unknown): void {
+  if (onWarning !== undefined && typeof onWarning !== "function") {
+    throw new ConfigurationError("`onWarning` must be a function", { cause: { onWarning } });
+  }
 }
 
 function assertValidTransport(transport: unknown): void {

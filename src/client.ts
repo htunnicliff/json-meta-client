@@ -1,16 +1,7 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { getCapabilitiesForBuiltIns } from "./built-ins.ts";
 import { CancellationError, ConfigurationError } from "./errors/index.ts";
+import type { JsonMetaError } from "./errors/index.ts";
 import { CapabilityIndex } from "./internal/capability-index.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
@@ -36,7 +27,8 @@ import type {
 
 export class JsonMetaClient<
   const GivenCapabilities extends ReadonlyArray<CapabilityOption>,
-  API extends ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities>,
+  API extends ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities> =
+    ClientApi<GivenCapabilities> & ClientApi<DefaultCapabilities>,
 > {
   constructor(options: Config<GivenCapabilities>) {
     assertValidConfig(options);
@@ -45,6 +37,7 @@ export class JsonMetaClient<
     this.#http = new HttpClient(options.auth, options.hooks);
     this.#capabilities = new CapabilityIndex(getCapabilitiesForBuiltIns(options.capabilities));
     this.#generateMethodCallId = options.generateMethodCallId ?? defaultMethodCallId;
+    this.#onWarning = options.onWarning ?? defaultOnWarning;
 
     // One transport per client, shared by every dispatcher
     const context: TransportContext = {
@@ -97,8 +90,8 @@ export class JsonMetaClient<
    *
    * Upon loading the session for the first time, the client
    * capabilities will be evaluated against the capabilities
-   * provided in the actual {@link ClientSession}; discrepancies will
-   * result in a logged warning.
+   * provided in the actual {@link ClientSession}; discrepancies are
+   * passed to the `onWarning` option, which defaults to `console.warn`.
    */
   refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
     if (this.#lifetime.signal.aborted) {
@@ -286,13 +279,18 @@ export class JsonMetaClient<
   #sessionLoaded = false;
 
   /**
+   * Receives problems the client can work around
+   */
+  readonly #onWarning: (warning: JsonMetaError) => void;
+
+  /**
    * Evaluates the capabilities configured in the client with
    * the actual capabilities exposed by the JMAP server
    * in its {@link ClientSession} object.
    *
    * Any of the configured capabilities that are found neither in
    * the session's capabilities nor in any account's capabilities
-   * will be logged as a warning. Some servers advertise a capability
+   * will be passed to `onWarning`. Some servers advertise a capability
    * only on the accounts that can use it.
    */
   #validateSessionCapabilities(session: ClientSession<GivenCapabilities>): void {
@@ -315,7 +313,7 @@ export class JsonMetaClient<
           },
         },
       );
-      console.warn(error);
+      this.#onWarning(error);
     }
   }
 
@@ -329,6 +327,10 @@ export class JsonMetaClient<
       generateMethodCallId: this.#generateMethodCallId,
     });
   }
+}
+
+function defaultOnWarning(warning: JsonMetaError): void {
+  console.warn(warning);
 }
 
 function defaultMethodCallId(method: string): string {

@@ -1,13 +1,3 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 import { inspect, isDeepStrictEqual } from "node:util";
 
 import nock from "nock";
@@ -270,6 +260,7 @@ describe(JsonMetaClient, () => {
       { sessionUrl: "invalid-url" },
       { capabilities: null },
       { capabilities: "mail" },
+      { onWarning: "warn" },
     ])("reports invalid options with their original values: %j", (invalidOptions) => {
       const options = {
         auth: token,
@@ -750,6 +741,30 @@ describe(JsonMetaClient, () => {
       await customClient.session;
 
       expect(scope.isDone()).toBe(true);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("passes unavailable capabilities to onWarning instead of the console", async () => {
+      const onWarning = vi.fn<(warning: JsonMetaError) => void>();
+      const customClient = new JsonMetaClient({
+        sessionUrl,
+        auth: token,
+        capabilities: [mail, "sieve"],
+        onWarning,
+      });
+
+      await customClient.session;
+      mockSession();
+      await customClient.refreshSession();
+
+      // Only the first session load is checked
+      expect(onWarning).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          name: "ConfigurationError",
+          cause: { invalidCapabilities: [BUILT_IN_CAPABILITIES.sieve.urn] },
+        }),
+      );
+      expect(onWarning.mock.calls[0]![0]).toBeInstanceOf(ConfigurationError);
       expect(warnSpy).not.toHaveBeenCalled();
     });
   });

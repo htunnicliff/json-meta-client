@@ -5,8 +5,10 @@ export default defineConfig({
   publint: true,
   exports: true,
   attw: true,
-  target: ["esnext"],
-  minify: true,
+  target: ["es2023"],
+  // Keep the code readable but drop JSDoc from the JavaScript; the
+  // declaration files still carry it for editors.
+  outputOptions: { comments: { jsdoc: false } },
   banner: [
     "// ----------------------------------------------------------------------- //",
     "//                                                                         //",

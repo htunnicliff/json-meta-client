@@ -231,9 +231,9 @@ console.log(
 );
 ```
 
-To accept the whole client, use the type of an existing one, such as
-`typeof client`. `JsonMetaClient`'s second type parameter has no default, so
-`JsonMetaClient<["mail"]>` alone is not a valid type.
+To accept the whole client, name it by its capabilities. `JsonMetaClient<["mail"]>`
+is the type of a client constructed with `capabilities: ["mail"]`, the same as
+`typeof client`.
 
 ## Event types
 

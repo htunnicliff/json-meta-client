@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest a new capability, method, option, or improvement.
+labels: ["needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you're trying to do, and what makes it hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How you'd like it to work. Code showing the API you have in mind helps.
+  - type: input
+    id: spec
+    attributes:
+      label: Specification
+      description: The RFC or draft section this relates to, if any.
+      placeholder: RFC 8621 section 4.1.2

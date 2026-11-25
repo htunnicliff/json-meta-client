@@ -1,13 +1,3 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 import type {
   BUILT_IN_CAPABILITIES,
   BuiltInCapabilityName,
@@ -18,7 +8,7 @@ import type {
   InferContractExtensions,
   InferMethodsFromCapability,
 } from "./capability.ts";
-import type { StateChangeError } from "./errors/index.ts";
+import type { JsonMetaError, StateChangeError } from "./errors/index.ts";
 import type { UnionToIntersection } from "./internal/type-utils.ts";
 import type { Augment, MarkDefaultAccounts } from "./internal/types.ts";
 import type {
@@ -64,6 +54,12 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    * `webSocketTransport()` for the JMAP WebSocket subprotocol.
    */
   transport?: TransportFactory;
+  /**
+   * Receives problems the client can work around, such as configured
+   * capabilities that the server doesn't advertise. Defaults to
+   * `console.warn`. Pass a no-op function to silence warnings.
+   */
+  onWarning?: (warning: JsonMetaError) => void;
   /**
    * Hooks into different client behaviors
    */
