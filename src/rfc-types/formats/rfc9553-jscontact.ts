@@ -8,7 +8,7 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { JsonValue, RequireAtLeastOne } from "type-fest";
+import type { JsonValue, RequireAtLeastOne } from "../../internal/type-utils.ts";
 
 // cspell:words jyut textphone
 

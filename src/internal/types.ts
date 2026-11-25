@@ -8,19 +8,16 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
+import type { CapabilityMethods, MethodContract } from "../capability.ts";
+import type { Ref, WithResultRefFn } from "./ref.ts";
 import type {
   ArrayElement,
   IsUnknown,
   KeysOfUnion,
-  Paths,
-  Replace,
   SetOptional,
   SetRequired,
   Simplify,
-} from "type-fest";
-
-import type { CapabilityMethods, MethodContract } from "../capability.ts";
-import type { Ref, WithResultRefFn } from "./ref.ts";
+} from "./type-utils.ts";
 
 /**
  * Extracts the type produced by evaluating a JMAP JSON Pointer against `T`.
@@ -73,12 +70,8 @@ type ResolveSegment<T, Segment extends string, Rest extends string> = Segment ex
  */
 type FlattenOnce<T> = T extends ReadonlyArray<infer Item> ? Item : T;
 
-/** Convert a type-fest dot path into a JSON Pointer. */
-type DotPathToPointer<Path extends string> = `/${Replace<Path, ".", "/", { all: true }>}`;
-
 /**
- * Allow JMAP `*` in place of any numeric array-index segment
- * (RFC 8620 §3.7), which type-fest's {@link Paths} does not model.
+ * Allow JMAP `*` in place of any numeric array-index segment (RFC 8620 §3.7).
  */
 type WithArrayWildcards<Pointer extends string> = Pointer extends `/${infer Rest}`
   ? `/${WithArrayWildcardsInner<Rest>}`
@@ -93,15 +86,57 @@ type WithArrayWildcardsInner<Rest extends string> = Rest extends `${infer Seg}/$
     : Rest;
 
 /**
- * Union of JSON Pointers that {@link ExtractByPointer} can resolve against `T`.
- * Built from type-fest {@link Paths}, remapped to pointer syntax with JMAP wildcards.
+ * Union of JSON Pointers that {@link ExtractByPointer} can resolve against `T`,
+ * with JMAP wildcards in place of array indexes.
  */
 export type PointerPaths<T> =
-  Paths<T> extends infer Path
+  PathSegments<T> extends infer Path
     ? Path extends string
-      ? WithArrayWildcards<DotPathToPointer<Path>>
+      ? WithArrayWildcards<`/${Path}`>
       : never
     : never;
+
+/** How many segments below the first a pointer may have. */
+type MaxPathDepth = 5;
+
+/** Values a pointer can't descend into. */
+type LeafValue =
+  | string
+  | number
+  | boolean
+  | bigint
+  | symbol
+  | null
+  | undefined
+  | ((...args: never) => unknown)
+  | ReadonlyMap<unknown, unknown>
+  | ReadonlySet<unknown>
+  | WeakMap<WeakKey, unknown>
+  | WeakSet<WeakKey>;
+
+/**
+ * Every path of property names and array indexes into `T`, joined by `/`,
+ * down to {@link MaxPathDepth}. Array indexes are `${number}`.
+ */
+type PathSegments<T, Depth extends unknown[] = []> = T extends LeafValue
+  ? never
+  : 0 extends 1 & T
+    ? never
+    : T extends object
+      ? PathSegmentsOf<Required<T>, PathKeys<Required<T>>, Depth>
+      : never;
+
+/** The keys a pointer can follow: indexes for arrays, otherwise every key. */
+type PathKeys<T> = T extends readonly unknown[] ? keyof T & number : keyof T;
+
+type PathSegmentsOf<T, Keys, Depth extends unknown[]> = {
+  [Key in Keys & keyof T]: Key extends string | number
+    ? | `${Key}`
+      | (Depth["length"] extends MaxPathDepth
+          ? never
+          : `${Key}/${PathSegments<T[Key], [...Depth, unknown]> & string}`)
+    : never;
+}[Keys & keyof T];
 
 /**
  * Allows a {@link Ref} of the expected value in place of the value itself.
