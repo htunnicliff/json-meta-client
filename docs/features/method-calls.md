@@ -364,15 +364,47 @@ A `null` value removes a property. Keys that contain `~` or `/` are escaped
 as `~0` and `~1`, following JSON Pointer, and the types expect the escaped
 form.
 
-When the key comes from a variable, such as a mailbox ID, build the paths
-with `patchMap()`. A computed key such as ``[`mailboxIds/${id}`]`` is typed
-as `string`, which the patch types can't check, but `patchMap()` checks the
-map's name and each value against the patch, and escapes the keys. Spread
-it to combine it with other paths:
+### Keys from a variable
+
+Some properties are maps keyed by ID, such as an email's `mailboxIds`. To
+change one entry of a map and leave the rest, the path ends in its key, as
+in `mailboxIds/<id>`. When the ID is in a variable, build those paths with
+`patchMap()`. This call adds the email to the archive and removes it from
+the inbox:
 
 ```ts
 import { patchMap } from "json-meta-client";
 
+const inboxId = (
+  await client.api.Mailbox.query({
+    filter: { role: "inbox" },
+  })
+).ids[0]!;
+
+await client.api.Email.set({
+  update: {
+    [email.id]: patchMap("mailboxIds", {
+      [archiveId]: true,
+      [inboxId]: null,
+    }),
+  },
+});
+```
+
+The update it sends is
+`{ "mailboxIds/<archive-id>": true, "mailboxIds/<inbox-id>": null }`.
+
+Writing the key yourself, as in ``[`mailboxIds/${archiveId}`]``, doesn't
+work, because TypeScript types that key as a plain `string` and can't tell
+which property it points to. `patchMap()` checks that `mailboxIds` is a map
+on an email, and that each value is one the map accepts, so
+`patchMap("mailboxIdz", …)` or a value of `false` is a type error. It also
+escapes `~` and `/` in each key.
+
+To change other properties in the same update, spread `patchMap()` into
+the patch:
+
+```ts
 await client.api.Email.set({
   update: {
     [email.id]: {

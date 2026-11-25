@@ -334,10 +334,10 @@ await client.api.Email.set({
 });
 ```
 
-[`patchMap()`](./reference/api.md#patchmap) turns the IDs into patch
-paths such as `mailboxIds/<id>`. The patch type checks the map name and
-each value, so a misspelled `mailboxIdz`, or `false` in place of `null`, is
-a type error.
+[`patchMap()`](./reference/api.md#patchmap) builds a path for each ID,
+such as `mailboxIds/<inbox-id>`. Writing those keys yourself loses their
+types, so use `patchMap()` whenever the ID is in a variable. Refer to
+[Keys from a variable](./features/method-calls.md#keys-from-a-variable).
 
 ## Mark an email as read
 

@@ -595,25 +595,29 @@ different `defaultAccount` settings.
 
 ## `patchMap()`
 
-Builds the patch paths for a map keyed by ID, such as an email's
-`mailboxIds`, with one path per key. Use it in a `/set` call's `update`,
-where a computed key would otherwise be typed as `string`. Refer to
-[Patch updates](../features/method-calls.md#patch-updates).
+Builds the patch paths for some entries of a map keyed by ID, such as an
+email's `mailboxIds`. `patchMap("mailboxIds", { a: true, b: null })`
+returns `{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+[Keys from a variable](../features/method-calls.md#keys-from-a-variable).
 
-| Parameter | Type                    | Description                                           |
-| --------- | ----------------------- | ----------------------------------------------------- |
-| `path`    | `string`                | The map's patch path, such as `"mailboxIds"`          |
-| `entries` | `Record<string, Value>` | The value to set for each key; `null` removes the key |
+| Parameter | Type                    | Description                                                 |
+| --------- | ----------------------- | ----------------------------------------------------------- |
+| `path`    | `string`                | The path of the map, such as `"mailboxIds"`                 |
+| `entries` | `Record<string, Value>` | The value for each key. `null` removes the key from the map |
 
-**Returns** the patch entries, such as `{ "mailboxIds/<id>": true }`. Each
-key is escaped as a JSON Pointer segment, so `~` becomes `~0` and `/`
-becomes `~1`.
+**Returns** a patch with one path per key. `~` and `/` in a key are
+escaped as `~0` and `~1`, as JSON Pointer requires.
 
-The patch type comes from where the result is used, so `path` must name a
-map in that type, and each value must be one the map accepts. With no patch
-type to check against, such as in a variable with no type annotation, no
-path is accepted. Annotate the variable with
-[`PatchObject`](./types.md#jmap-types) in that case:
+### How the types are checked
+
+`patchMap()` checks `path` and the values against the patch it is placed
+in. Inside a `/set` call's `update`, that is the method's patch type, so
+`path` must be a map on that object, and each value must be one the map
+accepts.
+
+On its own, as in a variable without a type, it has nothing to check
+against, and every `path` is a type error. Give the variable a
+[`PatchObject`](./types.md#jmap-types) type:
 
 ```ts
 import { patchMap } from "json-meta-client";
@@ -624,9 +628,7 @@ import type {
 
 const move: PatchObject<EmailUpdate> = patchMap(
   "mailboxIds",
-  {
-    "<mailbox-id>": true,
-  },
+  { "<mailbox-id>": true },
 );
 ```
 
