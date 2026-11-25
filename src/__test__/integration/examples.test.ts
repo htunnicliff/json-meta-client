@@ -1,13 +1,3 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 // The flows on the examples page (docs/examples.md), run against Stalwart.
 // The provisioned user sends to their own address, so every message is
 // delivered back into the same account and the tests can find it.
