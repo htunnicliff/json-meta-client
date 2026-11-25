@@ -139,6 +139,71 @@ const withAttachments = await client.api.Email.get({
 });
 ```
 
+### Header properties
+
+`Email/get` can also return any header field, parsed into one of the forms
+that RFC 8621 section 4.1.2 defines. Name the property
+`header:{name}:{form}`, and add `:all` to get every instance of the header
+rather than only the last one. Each property is typed from its form:
+
+| Form                 | Value                 |
+| -------------------- | --------------------- |
+| `asRaw` (no form)    | `string`              |
+| `asText`             | `string`              |
+| `asAddresses`        | `EmailAddress[]`      |
+| `asGroupedAddresses` | `EmailAddressGroup[]` |
+| `asMessageIds`       | `string[] \| null`    |
+| `asDate`             | `string \| null`      |
+| `asURLs`             | `string[] \| null`    |
+
+A header named without `:all` is `null` when the email doesn't have it.
+With `:all`, the value is a list with one entry per instance, which is
+empty when the header is absent.
+
+```ts
+const headers = await client.api.Email.get({
+  ids: recent.resultRef("/ids"),
+  properties: [
+    "header:List-Unsubscribe:asURLs",
+    "header:Received:asText:all",
+    "header:X-Spam-Status",
+  ],
+});
+
+for (const email of headers.list) {
+  const unsubscribe: string[] | null =
+    email["header:List-Unsubscribe:asURLs"];
+  const received: string[] =
+    email["header:Received:asText:all"];
+  // No form means asRaw
+  const spamStatus: string | null =
+    email["header:X-Spam-Status"];
+  console.log(unsubscribe, received.length, spamStatus);
+}
+```
+
+`bodyProperties` takes `header:` properties too, typed the same way on each
+body part. When creating an email, a `header:` property takes a value of its
+form, never `null`:
+
+```ts
+await client.api.Email.set({
+  create: {
+    draft: {
+      mailboxIds: { drafts: true },
+      subject: "Weekly update",
+      "header:List-Id:asText":
+        "Team updates <updates.example.com>",
+      "header:Keywords:asText:all": ["status", "weekly"],
+    },
+  },
+});
+```
+
+The value types are exported from `json-meta-client/rfc-types` as
+`EmailHeaderForms`, and `EmailHeaderValue<Property>` gives the value of a
+property name.
+
 ## Result references
 
 A result reference passes part of one call's result into another call's
