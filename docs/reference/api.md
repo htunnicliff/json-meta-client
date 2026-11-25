@@ -128,6 +128,27 @@ new JsonMetaClient({
 });
 ```
 
+### `onWarning` (optional)
+
+A function that receives problems the client can work around, as a
+[`JsonMetaError`](./errors.md#jsonmetaerror). Today the only warning is a
+[`ConfigurationError`](./errors.md#configurationerror) listing configured
+capabilities that the server doesn't advertise (refer to
+[Checking server support](../features/capabilities.md#checking-server-support)).
+Defaults to `console.warn`. Use it to send warnings to your own logger, or
+pass a function that does nothing to silence them.
+
+```ts {5-7}
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  onWarning: (warning) => {
+    console.info("json-meta-client:", warning.message);
+  },
+});
+```
+
 ### `hooks` (optional)
 
 To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks.md).
@@ -235,8 +256,9 @@ session, rejects with the same error until
 When a session loads for the first time, the client compares the configured
 capabilities with the URNs the server advertises in `capabilities` and in each
 account's `accountCapabilities`. A configured URN found in neither place is
-logged with `console.warn` as a [`ConfigurationError`](./errors.md#configurationerror).
-The session still resolves. Refer to
+passed to [`onWarning`](#onwarning-optional) as a
+[`ConfigurationError`](./errors.md#configurationerror), which by default logs
+it with `console.warn`. The session still resolves. Refer to
 [Checking server support](../features/capabilities.md#checking-server-support).
 
 ## `.refreshSession()`

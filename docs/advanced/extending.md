@@ -115,8 +115,9 @@ declared.
 Pass the result in the client's `capabilities` option, alongside the names
 of any built-in capabilities you use. The client checks the definition when
 it is constructed and throws `CapabilityConfigurationError` if it is
-malformed. When the session first loads, the client logs a warning if the
-server doesn't list the URN.
+malformed. When the session first loads, the client reports a warning
+through [`onWarning`](../reference/api.md#onwarning-optional) if the server
+doesn't list the URN.
 
 ## Depending on other URNs
 

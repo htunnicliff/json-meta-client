@@ -115,10 +115,11 @@ client that also has `"submission"` configured.
 Servers differ in what they support. The first time the client loads the
 session, it compares the configured capabilities with what the server
 advertises. A configured URN found neither in `session.capabilities` nor in
-any account's `accountCapabilities` is reported with `console.warn` and a
-`ConfigurationError` that lists the missing URNs. This is only a warning: the
-client keeps working, and calls that need a missing capability are rejected
-by the server.
+any account's `accountCapabilities` is reported as a `ConfigurationError`
+that lists the missing URNs. The error goes to the client's
+[`onWarning`](../reference/api.md#onwarning-optional) option, which defaults to
+`console.warn`. This is only a warning: the client keeps working, and calls
+that need a missing capability are rejected by the server.
 
 Either location counts because some servers advertise a capability only on
 the accounts that can use it. Stalwart, for example, lists
