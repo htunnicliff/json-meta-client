@@ -291,16 +291,40 @@ export interface AugmentedOptions {
   id?: string;
 }
 
+/**
+ * A method on the client's API. When the contract requires no arguments
+ * once the client fills in `accountId`, the arguments can be left out, as
+ * in `client.api.Mailbox.get()`.
+ */
 export type AugmentMethod<Contract extends MethodContract, Name extends string = string> = <
-  Args extends MethodArguments<Contract>,
+  // Without arguments, `Args` has nothing to infer from and is `{}`
+  // oxlint-disable-next-line typescript/no-generated-empty-object-type
+  Args extends MethodArguments<Contract> = Extract<Record<never, never>, MethodArguments<Contract>>,
   Output extends Apply<Contract, EffectiveMethodInput<Contract, Args>> = Apply<
     Contract,
     EffectiveMethodInput<Contract, Args>
   >,
 >(
-  args: Args & NoInfer<UnknownProperties<Args, AcceptedInput<Contract>>>,
-  options?: AugmentedOptions,
-) => WithResultRefFn<Promise<Output>, Output> & {
+  // oxlint-disable-next-line typescript/no-generated-empty-object-type
+  ...params: Record<never, never> extends MethodArguments<Contract>
+    ? [
+        args?: Args & NoInfer<UnknownProperties<Args, AcceptedInput<Contract>>>,
+        options?: AugmentedOptions,
+      ]
+    : [
+        args: Args & NoInfer<UnknownProperties<Args, AcceptedInput<Contract>>>,
+        options?: AugmentedOptions,
+      ]
+) => AugmentedResult<Name, Args, Output>;
+
+/**
+ * What a method call returns: its pending result, with the call's details
+ * and reference helpers
+ */
+type AugmentedResult<Name extends string, Args, Output> = WithResultRefFn<
+  Promise<Output>,
+  Output
+> & {
   readonly $id: string;
   readonly $args: Args;
   readonly $method: string;

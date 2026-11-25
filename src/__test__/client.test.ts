@@ -892,6 +892,25 @@ describe(JsonMetaClient, () => {
       expect(apiScope.isDone()).toBe(true);
     });
 
+    it("sends empty arguments with the default account ID when they are left out", async () => {
+      const get = client.api.Mailbox.get();
+
+      const apiScope = mockApi(
+        {
+          using: [core.urn, mail.urn],
+          methodCalls: [["Mailbox/get", { accountId }, get.$id]],
+        },
+        {
+          methodResponses: [["Mailbox/get", { list: [], notFound: [] }, get.$id]],
+          sessionState,
+        },
+      );
+
+      await expect(get).resolves.toEqual({ list: [], notFound: [] });
+      expect(get.$args).toEqual({ accountId });
+      expect(apiScope.isDone()).toBe(true);
+    });
+
     it("turns nested result references into JMAP result-reference arguments", async () => {
       const mailboxQuery = client.api.Mailbox.query({ limit: 1 });
       const emailGet = client.api.Email.get({ ids: mailboxQuery.resultRef("/ids") });

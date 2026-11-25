@@ -386,7 +386,7 @@ describe(JsonMetaClient, () => {
         type GivenArgs = GetContract["input"];
         expectTypeOf<GivenArgs["accountId"]>().toEqualTypeOf<string>();
 
-        type ClientArgs = Parameters<typeof client.api.Example.get>[0];
+        type ClientArgs = NonNullable<Parameters<typeof client.api.Example.get>[0]>;
         expectTypeOf<ClientArgs["accountId"]>().toEqualTypeOf<AllowRef<string | undefined>>();
       });
 
@@ -503,7 +503,10 @@ describe(JsonMetaClient, () => {
         >();
 
         // Args are unknown
-        type Args = Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>[0];
+        // oxlint-disable-next-line typescript/no-generated-empty-object-type
+        type Args = NonNullable<
+          Parameters<NonNullable<typeof client.api.Something.aRandomMethod>>[0]
+        >;
         // oxlint-disable-next-line typescript/no-generated-empty-object-type
         expectTypeOf<Args>().toEqualTypeOf<MethodArguments<MethodContract>>();
         expectTypeOf<Args>().toExtend<object>();
@@ -608,6 +611,27 @@ describe(JsonMetaClient, () => {
     });
   });
 
+  describe("optional arguments", () => {
+    it("lets a method with no required arguments be called without them", async () => {
+      const mailClient = new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["mail"] });
+      const withoutArgs = await mailClient.api.Mailbox.get();
+      const withEmptyArgs = await mailClient.api.Mailbox.get({});
+      expectTypeOf(withoutArgs).toEqualTypeOf(withEmptyArgs);
+
+      void mailClient.api.Email.query();
+      void mailClient.api.Mailbox.get(undefined, { id: "mailboxes" });
+    });
+
+    it("still requires arguments when the method has required ones", () => {
+      const mailClient = new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["mail"] });
+      expectTypeOf(mailClient.api.Email.parse).parameter(0).not.toBeNullable();
+      // @ts-expect-error Email/parse requires blobIds.
+      void mailClient.api.Email.parse();
+      // @ts-expect-error Blob/copy requires fromAccountId, accountId and blobIds.
+      void mailClient.api.Blob.copy();
+    });
+  });
+
   describe("copy methods", () => {
     it("requires the destination accountId for Blob.copy", () => {
       expectTypeOf(client.api.Blob.copy)
@@ -621,8 +645,7 @@ describe(JsonMetaClient, () => {
 
     it("lets the RFC 9404 Blob methods omit accountId alongside Blob.copy", () => {
       const blobClient = new JsonMetaClient({ auth: token, sessionUrl, capabilities: ["blob"] });
-      expectTypeOf(blobClient.api.Blob.get)
-        .parameter(0)
+      expectTypeOf<NonNullable<Parameters<typeof blobClient.api.Blob.get>[0]>>()
         .toHaveProperty("accountId")
         .toEqualTypeOf<AllowRef<string> | undefined>();
       void blobClient.api.Blob.get({ ids: ["blob"] });
