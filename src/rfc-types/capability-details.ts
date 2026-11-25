@@ -1,13 +1,3 @@
-// ----------------------------------------------------------------------- //
-//                                                                         //
-//   Copyright (c) 2026 Hunter Tunnicliff                                  //
-//                                                                         //
-//   This source code is subject to the terms of the Mozilla Public        //
-//   License, version 2.0. If a copy of the MPL was not distributed with   //
-//   this file, you can obtain one at https://mozilla.org/MPL/2.0/.        //
-//                                                                         //
-// ----------------------------------------------------------------------- //
-
 import type { ContactsAccountCapabilities } from "./contacts/rfc9610-contacts.ts";
 import type { CoreSessionCapabilities, EmptyCapabilityDetails } from "./core/rfc8620-jmap.ts";
 import type { WebSocketSessionCapabilities } from "./core/rfc8887-websocket.ts";
