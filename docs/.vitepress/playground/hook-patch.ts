@@ -62,7 +62,16 @@ import { hookObservers } from "../docs/.vitepress/playground/hook-trace.ts";`,
   ],
   [
     eventStream,
-    [[`http.fetch(url, requestOptions, true)`, `http.fetch(url, "eventSource", requestOptions)`]],
+    [
+      [
+        `options.http.fetch(
+        options.url,
+        { headers, signal: connection.signal },
+        true,
+      );`,
+        `options.http.fetch(options.url, "eventSource", { headers, signal: connection.signal });`,
+      ],
+    ],
   ],
   [
     transport,

@@ -37,13 +37,21 @@ const subscription = await client.onStateChange(
 With the default HTTP transport, the client connects to the session's
 `eventSourceUrl`, an [event stream](https://www.rfc-editor.org/rfc/rfc8620#section-7.3) that
 stays open. It subscribes to every type (`types: "*"`) and keeps the
-connection open after each change (`closeafter: "no"`). The stream support
-comes from [`eventsource-client`](https://www.npmjs.com/package/eventsource-client),
-which the client loads only when you first subscribe.
+connection open after each change (`closeafter: "no"`).
+
+The client reads the stream itself. It reconnects when the stream ends or
+the network fails, sending `Last-Event-ID` when the server gave events an
+`id`. It waits the server's `retry` time (2 seconds by default) before
+reconnecting, and backs off, with jitter, after failures in a row. If
+nothing arrives for two ping intervals, the client treats the connection
+as dead and reconnects. If the server refuses the connection, with an HTTP
+error or a response that isn't an event stream, the client reports a
+`StateChangeError` and stops. Every failure reaches your handler as a
+`StateChangeError`.
 
 ::: note
-The client uses `eventsource-client` instead of the browser's built-in
-`EventSource` because `EventSource` can't send custom headers. Without
+The client reads the stream with `fetch` instead of the browser's built-in
+`EventSource`, because `EventSource` can't send custom headers. Without
 them, the event stream couldn't carry the `Authorization` header that
 [`auth`](../reference/api.md#auth) sets on every other request.
 :::

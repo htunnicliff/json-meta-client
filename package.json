@@ -60,9 +60,6 @@
     "docs:check": "pnpm build && node scripts/check-docs.mjs",
     "package:check": "pnpm build && node scripts/check-package.mjs"
   },
-  "dependencies": {
-    "eventsource-client": "^1.2.0"
-  },
   "devDependencies": {
     "@arethetypeswrong/core": "0.18.5",
     "@changesets/changelog-github": "1.0.1",
