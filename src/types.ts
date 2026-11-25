@@ -8,8 +8,6 @@
 //                                                                         //
 // ----------------------------------------------------------------------- //
 
-import type { UnionToIntersection } from "type-fest";
-
 import type {
   BUILT_IN_CAPABILITIES,
   BuiltInCapabilityName,
@@ -21,6 +19,7 @@ import type {
   InferMethodsFromCapability,
 } from "./capability.ts";
 import type { JsonMetaError, StateChangeError } from "./errors/index.ts";
+import type { UnionToIntersection } from "./internal/type-utils.ts";
 import type { Augment, MarkDefaultAccounts } from "./internal/types.ts";
 import type {
   Request as JmapRequest,
