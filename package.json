@@ -62,7 +62,7 @@
   },
   "dependencies": {
     "eventsource-client": "^1.2.0",
-    "type-fest": "^5.10.0"
+    "type-fest": "^6.0.0"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "0.18.5",
