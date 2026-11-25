@@ -101,7 +101,9 @@ function createMethod(
 ): ApiMethod {
   const name = `${entity}/${method}`;
 
-  return (args: JsonObject, options?: AugmentedOptions) => {
+  return (given?: JsonObject, options?: AugmentedOptions) => {
+    // Arguments can be left out when none are required
+    const args = given ?? {};
     // Unknown entities keep their arguments as given and never reach
     // the dispatcher, so they get no default account and are never sent
     const known = isKnownEntity(entity);

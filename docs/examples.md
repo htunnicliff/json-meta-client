@@ -72,7 +72,7 @@ const [mailboxes, identities] = await Promise.all([
     filter: { role: "drafts" },
   }),
   // Leaving out `ids` gets every identity
-  client.api.Identity.get({}),
+  client.api.Identity.get(),
 ]);
 
 const draftMailboxId = mailboxes.ids[0]!;

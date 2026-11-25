@@ -17,7 +17,7 @@ request:
 ```ts
 const [inboxes, identities] = await Promise.all([
   client.api.Mailbox.query({ filter: { role: "inbox" } }),
-  client.api.Identity.get({}),
+  client.api.Identity.get(),
 ]);
 ```
 
@@ -77,11 +77,11 @@ batch, so this code makes three round trips where one would do:
 
 ```ts
 // Three requests, one after another
-const mailboxQuery = await client.api.Mailbox.query({});
+const mailboxQuery = await client.api.Mailbox.query();
 const mailboxGet = await client.api.Mailbox.get({
   ids: mailboxQuery.ids,
 });
-const identityGet = await client.api.Identity.get({});
+const identityGet = await client.api.Identity.get();
 ```
 
 The batched version makes the same calls in one request. The second call
@@ -89,13 +89,13 @@ reads the first call's IDs through a result reference instead of waiting
 for them:
 
 ```ts
-const allMailboxes = client.api.Mailbox.query({});
+const allMailboxes = client.api.Mailbox.query();
 
 const [mailboxes, senders] = await Promise.all([
   client.api.Mailbox.get({
     ids: allMailboxes.resultRef("/ids"),
   }),
-  client.api.Identity.get({}),
+  client.api.Identity.get(),
 ]);
 ```
 
