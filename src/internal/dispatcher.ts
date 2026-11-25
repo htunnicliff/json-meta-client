@@ -13,8 +13,11 @@ import {
   CancellationError,
   ConfigurationError,
   JmapError,
+  JsonMetaError,
   MethodCallError,
+  NetworkError,
   ResultReferenceError,
+  UnknownError,
 } from "../errors/index.ts";
 import type { ResultReferenceErrorReason } from "../errors/index.ts";
 import type {
@@ -23,21 +26,19 @@ import type {
   Response as JmapResponse,
   Session,
 } from "../rfc-types/core/index.ts";
+import type { Transport } from "../transports/types.ts";
 import type { CapabilityOption, Config } from "../types.ts";
 import type { FindMethodOwner } from "./capability-index.ts";
 import { resolveDefaultAccount } from "./capability-index.ts";
 import type { MethodCall } from "./method-call.ts";
 import { containsRef, isRef } from "./ref.ts";
 
-/**
- * Sends a JMAP Request envelope and returns the server's Response envelope
- */
-export interface Transport {
-  (request: JmapRequest, session: Session): Promise<JmapResponse>;
-}
-
 export interface DispatcherOptions {
   transport: Transport;
+  /**
+   * Aborted when the client is disposed
+   */
+  signal: AbortSignal;
   session: () => Promise<Session>;
   /**
    * The capability URNs, including `dependsOn`, that a call on the entity needs
@@ -87,6 +88,10 @@ export class Dispatcher {
    */
   send = (methodCall: MethodCall<object>): Promise<unknown> => {
     const handle = Promise.withResolvers<unknown>();
+    if (this.#options.signal.aborted) {
+      handle.reject(new CancellationError("The client was disposed"));
+      return handle.promise;
+    }
     if (this.#batch.length === 0) {
       queueMicrotask(() => {
         const batch = this.#batch.splice(0);
@@ -126,6 +131,9 @@ export class Dispatcher {
       return !reason;
     });
     try {
+      if (this.#options.signal.aborted) {
+        throw new CancellationError("The client was disposed");
+      }
       const session = await this.#options.session();
       unsettled = unsettled.filter((pending) => this.#addDefaultAccount(pending, session));
       if (unsettled.length === 0) {
@@ -198,13 +206,59 @@ export class Dispatcher {
       // oxlint-disable-next-line no-await-in-loop
       request = await hook({ jmapRequest: request });
     }
-    let response = await this.#options.transport(request, session);
+    let response = await this.#send(request, session);
     for (const hook of this.#options.hooks?.afterJmapResponse ?? []) {
       // oxlint-disable-next-line no-await-in-loop
       response = await hook({ jmapRequest: request, jmapResponse: response });
     }
     return response;
   }
+
+  /**
+   * Send a JMAP Request through the transport. A failure that isn't a
+   * `JsonMetaError` becomes a `CancellationError` once the client is
+   * disposed, and a `NetworkError` otherwise, so callers can always catch
+   * `JsonMetaError`.
+   */
+  async #send(request: JmapRequest, session: Session): Promise<JmapResponse> {
+    const { transport, signal } = this.#options;
+    if (signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
+    let response: unknown;
+    try {
+      response = await transport.send(request, { session, signal });
+    } catch (error) {
+      if (error instanceof JsonMetaError) {
+        throw error;
+      }
+      if (signal.aborted) {
+        throw new CancellationError("The client was disposed", { cause: error });
+      }
+      throw new NetworkError(error instanceof Error ? error.message : "Transport failed", {
+        cause: error,
+        request: undefined,
+      });
+    }
+    if (!isJmapResponse(response)) {
+      throw new UnknownError("The transport returned something that isn't a JMAP Response", {
+        cause: response,
+      });
+    }
+    return response;
+  }
+}
+
+/**
+ * Whether a value has the shape of a JMAP Response, enough to settle method
+ * calls from
+ */
+function isJmapResponse(value: unknown): value is JmapResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Array.isArray((value as { methodResponses?: unknown }).methodResponses)
+  );
 }
 
 /**

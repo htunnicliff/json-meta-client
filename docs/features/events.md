@@ -34,8 +34,8 @@ const subscription = await client.onStateChange(
 );
 ```
 
-The client connects to the session's `eventSourceUrl`, an
-[event stream](https://www.rfc-editor.org/rfc/rfc8620#section-7.3) that
+With the default HTTP transport, the client connects to the session's
+`eventSourceUrl`, an [event stream](https://www.rfc-editor.org/rfc/rfc8620#section-7.3) that
 stays open. It subscribes to every type (`types: "*"`) and keeps the
 connection open after each change (`closeafter: "no"`). The stream support
 comes from [`eventsource-client`](https://www.npmjs.com/package/eventsource-client),
@@ -53,7 +53,27 @@ them, the event stream couldn't carry the `Authorization` header that
 - **`signal`**: an `AbortSignal` that closes the connection when aborted. See
   [Unsubscribing](#unsubscribing).
 - **`pingSeconds`**: how often, in seconds, the server should send a ping to
-  keep the connection alive. Defaults to `30`.
+  keep the event stream alive. Defaults to `30`. WebSocket push ignores it
+  and sends its own heartbeat instead; see
+  [Transports](../advanced/transports.md#push).
+
+## Push channels
+
+State changes arrive on one of two push channels:
+
+- **WebSocket push**, when the client uses `webSocketTransport()` and the
+  session's WebSocket capability sets `supportsPush`. It shares the socket
+  that carries method calls. See [Transports](../advanced/transports.md#push).
+- **The event stream** otherwise, as described above.
+
+With the default HTTP transport, which is the recommended choice, state
+changes use the event stream. You don't need the WebSocket transport to
+receive them.
+
+Handlers share a channel. The client opens one WebSocket push subscription
+for all of them, or one event stream for each distinct `pingSeconds` value,
+and closes it when the last handler leaves. A handler that throws doesn't
+stop delivery to the others.
 
 ## The handler
 
@@ -163,6 +183,10 @@ that refreshes credentials keeps the stream authenticated.
 If the server answers a connection with HTTP `204 No Content`, the stream
 stops and doesn't reconnect.
 
+WebSocket push reports a dropped socket to the handler as a
+`StateChangeError`, then reconnects with backoff and resumes from the last
+`pushState` the server sent.
+
 ## Unsubscribing
 
 `onStateChange()` resolves to a `Disposable`. Dispose of it to close the
@@ -179,7 +203,8 @@ async function watchFor(ms: number) {
 } // The connection closes here
 ```
 
-You can also close it directly, or with an abort signal:
+Disposing the client with `client[Symbol.dispose]()` ends every
+subscription. You can also close one directly, or with an abort signal:
 
 ```ts
 subscription[Symbol.dispose]();

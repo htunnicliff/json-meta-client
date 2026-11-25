@@ -18,6 +18,7 @@ is the `capabilities` array, which the constructor infers as a readonly tuple.
 | `capabilities`         | `ReadonlyArray<CapabilityOption>` | Built-in capability names and custom capabilities                 |
 | `generateMethodCallId` | `(method: string) => string`      | Optional. Generates a method call ID from a name like `Email/get` |
 | `hooks`                | object of hook arrays             | Optional. Refer to [Hook types](#hook-types)                      |
+| `transport`            | `TransportFactory`                | Optional. Refer to [Transport types](#transport-types)            |
 
 ### `Auth`
 
@@ -42,6 +43,22 @@ type AuthCallback = (args: {
 Receives each outgoing `Request` and changes it in place, such as by setting
 its `Authorization` header. The client awaits it before running any
 `beforeFetch` hook.
+
+## Transport types
+
+See [Transports](../advanced/transports.md#writing-a-transport) for
+`TransportFactory`, `TransportContext`, `Transport`, `PushEvents` and
+`DisposableLike`, and [the API reference](./api.md#websockettransport) for `WebSocketLike` and
+`WebSocketTransportOptions`.
+
+## Dispose fallback types
+
+On a runtime without `Symbol.dispose`, the method that disposes an object is
+named `disconnect`. `DisposeFallback` types it as an optional
+`disconnect(): void`. The client, the `Transport` interface and the
+subscriptions `onStateChange()` resolves to all include it.
+`DisposableLike` is what a transport's `subscribe` may return: a
+`Disposable`, or an object with a `disconnect` method.
 
 ## Hook types
 
@@ -256,10 +273,10 @@ Checking `error` narrows `change` to a `StateChangePayload`.
 
 ### `OnStateChangeOptions`
 
-| Property      | Type          | Description                                                         |
-| ------------- | ------------- | ------------------------------------------------------------------- |
-| `signal`      | `AbortSignal` | Optional. Closes the connection when aborted                        |
-| `pingSeconds` | `number`      | Optional. How often the server should send a ping. Defaults to `30` |
+| Property      | Type          | Description                                                        |
+| ------------- | ------------- | ------------------------------------------------------------------ |
+| `signal`      | `AbortSignal` | Optional. Ends this subscription when aborted                      |
+| `pingSeconds` | `number`      | Optional. How often the event stream should ping. Defaults to `30` |
 
 ## JMAP Types
 
@@ -269,6 +286,10 @@ entry point, `json-meta-client/rfc-types`. It holds the objects, such as
 method helpers, such as `MethodGet` and `MethodSet`, that the built-in
 capabilities are made from. JSContact (RFC 9553) types are under the
 `JSContact` namespace, because some of their names are also JMAP type names.
+
+The main entry point also exports `JmapRequest`, `JmapResponse`, `Session`,
+`StateChange` and the RFC 8887 message types, which a
+[custom transport](../advanced/transports.md#writing-a-transport) needs.
 
 ```ts
 import type {

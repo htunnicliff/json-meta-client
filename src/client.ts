@@ -10,16 +10,21 @@
 
 import type { DefaultCapabilities } from "./built-ins.ts";
 import { getCapabilitiesForBuiltIns } from "./built-ins.ts";
-import { ConfigurationError, StateChangeError } from "./errors/index.ts";
+import { CancellationError, ConfigurationError } from "./errors/index.ts";
 import { CapabilityIndex } from "./internal/capability-index.ts";
 import { assertValidConfig } from "./internal/config.ts";
 import { createApi } from "./internal/create-api.ts";
 import type { DispatcherOptions } from "./internal/dispatcher.ts";
 import { Dispatcher } from "./internal/dispatcher.ts";
+import { addDisposeFallback, disposable, dispose } from "./internal/disposable.ts";
+import type { DisposeFallback } from "./internal/disposable.ts";
+import { openEventStream } from "./internal/event-stream.ts";
 import { expandURITemplate } from "./internal/expand-uri-template.ts";
 import { HttpClient } from "./internal/http.ts";
-import { readStateChanges } from "./internal/read-state-changes.ts";
-import type { FileDownload, FileUpload, Response as JMAPResponse } from "./rfc-types/core/index.ts";
+import { StateChangeHub } from "./internal/state-change-hub.ts";
+import type { FileDownload, FileUpload } from "./rfc-types/core/index.ts";
+import { httpTransport } from "./transports/http.ts";
+import type { Transport, TransportContext } from "./transports/types.ts";
 import type {
   CapabilityOption,
   ClientApi,
@@ -41,14 +46,24 @@ export class JsonMetaClient<
     this.#capabilities = new CapabilityIndex(getCapabilitiesForBuiltIns(options.capabilities));
     this.#generateMethodCallId = options.generateMethodCallId ?? defaultMethodCallId;
 
+    // One transport per client, shared by every dispatcher
+    const context: TransportContext = {
+      authenticate: this.#http.authenticate,
+      fetch: async (url, init) => (await this.#http.fetch(url, init)).response,
+    };
+    this.#transport = (options.transport ?? httpTransport())(context);
+    this.#stateChanges = new StateChangeHub({
+      transport: this.#transport,
+      openEventStream: (session, events, pingSeconds) =>
+        openEventStream(this.#http, session, events, pingSeconds),
+      isPrimaryAccount: (session, entity, accountId) =>
+        this.#capabilities.isPrimaryAccount(session, entity, accountId),
+    });
+
     // Everything a dispatcher needs; each API gets its own dispatcher
     this.#dispatcherOptions = {
-      transport: (request, session) =>
-        this.#http.fetchJson<JMAPResponse>(session.apiUrl, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(request),
-        }),
+      transport: this.#transport,
+      signal: this.#lifetime.signal,
       session: () => this.session,
       urnsForEntity: this.#capabilities.urnsForEntity,
       findMethodOwner: this.#capabilities.findMethodOwner,
@@ -59,6 +74,7 @@ export class JsonMetaClient<
     const dispatcher = new Dispatcher(this.#dispatcherOptions);
     this.api = this.#setupApi(dispatcher);
     this.cancelBatch = dispatcher.cancel;
+    addDisposeFallback(this, this[Symbol.dispose]);
 
     // Lock it down
     Object.freeze(this);
@@ -85,15 +101,20 @@ export class JsonMetaClient<
    * result in a logged warning.
    */
   refreshSession = (): Promise<ClientSession<GivenCapabilities>> => {
-    this.#session = this.#http
-      .fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl)
-      .then((session) => {
-        if (!this.#sessionLoaded) {
-          this.#sessionLoaded = true;
-          this.#validateSessionCapabilities(session);
-        }
-        return session;
-      });
+    if (this.#lifetime.signal.aborted) {
+      return Promise.reject(new CancellationError("The client was disposed"));
+    }
+    this.#session = this.#whileAlive(() =>
+      this.#http.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, {
+        signal: this.#lifetime.signal,
+      }),
+    ).then((session) => {
+      if (!this.#sessionLoaded) {
+        this.#sessionLoaded = true;
+        this.#validateSessionCapabilities(session);
+      }
+      return session;
+    });
 
     return this.#session;
   };
@@ -107,78 +128,80 @@ export class JsonMetaClient<
     /**
      * Upload a blob to the given account
      */
-    upload: async (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> => {
-      const session = await this.session;
-      const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
-      return this.#http.fetchJson<FileUpload.Result>(url, { method: "POST", body });
-    },
+    upload: (body: BodyInit, params: FileUpload.Params): Promise<FileUpload.Result> =>
+      this.#whileAlive(async () => {
+        const session = await this.session;
+        const url = expandURITemplate(session.uploadUrl, { accountId: params.accountId });
+        return this.#http.fetchJson<FileUpload.Result>(url, {
+          method: "POST",
+          body,
+          signal: this.#lifetime.signal,
+        });
+      }),
     /**
      * Download a blob from the given account
      */
-    download: async (params: FileDownload.Params): Promise<Response> => {
-      const session = await this.session;
-      const url = expandURITemplate(session.downloadUrl, { ...params });
-      const { response } = await this.#http.fetch(url, { method: "GET" });
-      return response;
-    },
+    download: (params: FileDownload.Params): Promise<Response> =>
+      this.#whileAlive(async () => {
+        const session = await this.session;
+        const url = expandURITemplate(session.downloadUrl, { ...params });
+        const { response } = await this.#http.fetch(url, {
+          method: "GET",
+          signal: this.#lifetime.signal,
+        });
+        return response;
+      }),
   };
 
   /**
-   * Subscribe to state changes
+   * Subscribe to state changes. Every handler shares one push channel: the
+   * transport's, when it provides one, or else the session's event stream.
    */
   onStateChange = async (
     handler: OnStateChangeHandler,
     options: OnStateChangeOptions = {},
-  ): Promise<Disposable> => {
+  ): Promise<Disposable & DisposeFallback> => {
     const { pingSeconds = 30, signal } = options;
+    if (this.#lifetime.signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
     const session = await this.session;
-    const url = expandURITemplate(session.eventSourceUrl, {
-      types: "*",
-      // spellchecker:disable-next-line
-      closeafter: "no",
-      ping: pingSeconds.toFixed(0),
-    });
-    const { createEventSource } = await import("eventsource-client");
-
-    const eventSource = createEventSource({
-      url,
-      fetch: async (url, options) => {
-        const requestOptions: RequestInit = options ?? {};
-        try {
-          return (await this.#http.fetch(url, requestOptions, true)).response;
-        } catch (cause) {
-          if (!requestOptions.signal?.aborted) {
-            handler(new StateChangeError("Event-stream connection failed", { cause }), undefined);
-          }
-          throw cause;
-        }
-      },
-      onMessage: (event) => {
-        try {
-          for (const change of readStateChanges(event.data)) {
-            handler(null, {
-              ...change,
-              isPrimaryAccount: this.#capabilities.isPrimaryAccount(
-                session,
-                change.entity,
-                change.accountId,
-              ),
-            });
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : `An error occurred when parsing a state change message payload`;
-          handler(new StateChangeError(message, { cause: error }), undefined);
-        }
-      },
-    });
-    signal?.addEventListener("abort", () => eventSource.close());
-    return {
-      [Symbol.dispose ?? "disconnect"]: () => eventSource.close(),
-    };
+    if (signal?.aborted) {
+      return disposable(() => {});
+    }
+    const subscription = await this.#stateChanges.add(session, handler, pingSeconds);
+    // The signal may have aborted while the channel opened, when a listener
+    // would never fire
+    if (signal?.aborted) {
+      dispose(subscription);
+      return subscription;
+    }
+    signal?.addEventListener("abort", () => dispose(subscription), { once: true });
+    return subscription;
   };
+
+  /**
+   * Release the client's connections: reject JMAP Requests, blob transfers
+   * and session requests in flight with `CancellationError`, end every
+   * `onStateChange` subscription, and dispose the transport. Later method
+   * calls, blob transfers, session refreshes and `onStateChange` calls reject
+   * with `CancellationError`. On a runtime without `Symbol.dispose`, this
+   * method is named {@link JsonMetaClient.disconnect}.
+   */
+  [Symbol.dispose] = (): void => {
+    if (this.#lifetime.signal.aborted) {
+      return;
+    }
+    this.#lifetime.abort();
+    this.#stateChanges.close();
+    dispose(this.#transport);
+  };
+
+  /**
+   * `[Symbol.dispose]()` on a runtime without `Symbol.dispose`, where it is
+   * the method that releases the client's connections. Absent elsewhere.
+   */
+  declare readonly disconnect?: () => void;
 
   /**
    * Clear pending JMAP requests
@@ -196,6 +219,25 @@ export class JsonMetaClient<
   // ------------------- Internals -------------------
 
   /**
+   * Run an HTTP call that the client's disposal cancels: it rejects with
+   * `CancellationError` once the client is disposed, whatever it failed with
+   */
+  async #whileAlive<T>(run: () => Promise<T>): Promise<T> {
+    const { signal } = this.#lifetime;
+    if (signal.aborted) {
+      throw new CancellationError("The client was disposed");
+    }
+    try {
+      return await run();
+    } catch (error) {
+      if (signal.aborted && !(error instanceof CancellationError)) {
+        throw new CancellationError("The client was disposed", { cause: error });
+      }
+      throw error;
+    }
+  }
+
+  /**
    * The URI for getting a JMAP session
    */
   readonly #sessionUrl: string | URL;
@@ -204,6 +246,21 @@ export class JsonMetaClient<
    * Makes every HTTP request, with authentication and the fetch hooks
    */
   readonly #http: HttpClient;
+
+  /**
+   * Carries every JMAP Request, and push messages when it supports them
+   */
+  readonly #transport: Transport;
+
+  /**
+   * Shares push channels between `onStateChange` handlers
+   */
+  readonly #stateChanges: StateChangeHub;
+
+  /**
+   * Aborted when the client is disposed
+   */
+  readonly #lifetime = new AbortController();
 
   /**
    * Lookups over the default and configured capabilities

@@ -109,6 +109,15 @@ export class HttpClient {
   };
 
   /**
+   * Return an authenticated copy of a request, without running hooks
+   */
+  authenticate = async (request: Request): Promise<Request> => {
+    const copy = request.clone();
+    await this.#authenticate(copy);
+    return copy;
+  };
+
+  /**
    * Apply the configured authentication to a request
    */
   async #authenticate(request: Request): Promise<void> {

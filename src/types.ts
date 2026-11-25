@@ -27,12 +27,15 @@ import type {
   Response as JmapResponse,
   Session as JmapSession,
 } from "./rfc-types/core/index.ts";
+import type { TransportFactory } from "./transports/types.ts";
 
 /** Mutate the outgoing request before request hooks; async callbacks are awaited. */
 export type AuthCallback = (args: { request: Request }) => void | Promise<void>;
 
 /**
- * Bearer token string, Basic credentials, or a custom callback, applied on every transport.
+ * Bearer token string, Basic credentials, or a custom callback. It is applied
+ * to every HTTP request. A WebSocket transport receives the resulting headers
+ * when it opens a socket, but a browser's `WebSocket` can't send them.
  */
 export type Auth = AuthCallback | string | { username: string; password: string };
 
@@ -56,6 +59,12 @@ export interface Config<T extends ReadonlyArray<CapabilityOption>> {
    * hex digits, separated by `::`.
    */
   generateMethodCallId?: (method: string) => string;
+  /**
+   * Creates the transport that carries JMAP Requests, and push messages when
+   * it supports them. Defaults to `httpTransport()`. Use
+   * `webSocketTransport()` for the JMAP WebSocket subprotocol.
+   */
+  transport?: TransportFactory;
   /**
    * Hooks into different client behaviors
    */
@@ -223,8 +232,12 @@ export type OnStateChangeHandler = (
 ) => void;
 
 export interface OnStateChangeOptions {
-  /** An abort signal that can terminate the event source */
+  /** An abort signal that ends this subscription */
   signal?: AbortSignal;
-  /** An interval in seconds to request that the server send pings */
+  /**
+   * An interval in seconds to request that the server send pings. Applies
+   * only to the event stream; a WebSocket push channel sends its own
+   * heartbeat, set with `heartbeatSeconds` on `webSocketTransport()`.
+   */
   pingSeconds?: number;
 }

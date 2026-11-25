@@ -109,6 +109,25 @@ new JsonMetaClient({
 });
 ```
 
+### `transport` (optional)
+
+A transport factory that creates the client's transport, which carries JMAP
+Requests and optionally state changes. Defaults to `httpTransport()`, which
+is the recommended choice. `webSocketTransport()` uses the JMAP WebSocket
+subprotocol instead, at the cost of a more complex connection to manage. To
+learn more, refer to the [transports guide](../advanced/transports.md#choosing-a-transport).
+
+```ts {7}
+import { webSocketTransport } from "json-meta-client";
+
+new JsonMetaClient({
+  sessionUrl: "https://<something>/.well-known/jmap",
+  auth: "<token>",
+  capabilities: ["mail"],
+  transport: webSocketTransport({ idleSeconds: 30 }),
+});
+```
+
 ### `hooks` (optional)
 
 To learn more about hook mechanics, refer to the [hooks guide](../advanced/hooks.md).
@@ -298,17 +317,20 @@ console.log(await download.text());
 
 ## `.onStateChange()`
 
-Subscribes to the server's event source and calls a handler for each changed
-entity type in each account. Refer to the [Events guide](../features/events.md).
+Subscribes to state changes and calls a handler for each changed entity type
+in each account. Changes arrive over WebSocket push when the client uses
+[`webSocketTransport()`](#websockettransport) and the server supports it, and
+over the server's event source otherwise. Every handler shares one
+connection. Refer to the [Events guide](../features/events.md).
 
-| Parameter             | Type                   | Description                                                         |
-| --------------------- | ---------------------- | ------------------------------------------------------------------- |
-| `handler`             | `OnStateChangeHandler` | Called with each change, or with an error                           |
-| `options.signal`      | `AbortSignal`          | Optional. Closes the connection when aborted                        |
-| `options.pingSeconds` | `number`               | Optional. How often the server should send a ping. Defaults to `30` |
+| Parameter             | Type                   | Description                                                        |
+| --------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `handler`             | `OnStateChangeHandler` | Called with each change, or with an error                          |
+| `options.signal`      | `AbortSignal`          | Optional. Ends this subscription when aborted                      |
+| `options.pingSeconds` | `number`               | Optional. How often the event stream should ping. Defaults to `30` |
 
-**Returns** a promise for a `Disposable`; disposing it closes the
-connection. It rejects with an [error](./errors.md) when the subscription
+**Returns** a promise for a `Disposable`; disposing it ends the
+subscription, and the connection closes when no handler is left. It rejects with an [error](./errors.md) when the subscription
 can't be started.
 
 The handler receives `(null, change)` for each change, where `change` is a
@@ -333,8 +355,8 @@ using subscription = await client.onStateChange(
 );
 ```
 
-The client subscribes to every type (`types=*`) and keeps the connection open
-(`closeafter=no`). On runtimes without `Symbol.dispose`, the returned object's
+The client subscribes to every type, and on the event source keeps the
+connection open (`closeafter=no`). On runtimes without `Symbol.dispose`, the returned object's
 method is named `disconnect` instead.
 
 ## `.cancelBatch()`
@@ -387,6 +409,34 @@ Here the two calls are sent in separate JMAP Requests. `cancel` works like
 references can only point to calls in the same batch, so a call made on an
 isolated `api` cannot reference one made on `client.api`. Refer to
 [Isolated queues](../advanced/batching.md#isolated-queues).
+
+## `[Symbol.dispose]()`
+
+Release the client's connections. JMAP Requests, blob transfers and session
+requests in flight reject with `CancellationError`, every `onStateChange`
+subscription ends, and the transport is disposed. Later method calls, blob
+transfers, session refreshes and subscriptions reject with
+`CancellationError`. On a runtime without `Symbol.dispose`, this method is
+named `disconnect`.
+
+## `httpTransport()`
+
+The default transport factory: sends each JMAP Request as an HTTP `POST` to
+the session's `apiUrl`.
+
+## `webSocketTransport()`
+
+A transport factory for the JMAP WebSocket subprotocol (RFC 8887).
+
+::: tip
+Prefer the default [`httpTransport()`](#httptransport) unless you need the
+WebSocket transport. See
+[Choosing a transport](../advanced/transports.md#choosing-a-transport).
+:::
+
+<<< ../../src/transports/websocket/types.ts#websocket-transport-options
+
+<<< ../../src/transports/websocket/types.ts#websocket-like
 
 ## Pending method calls
 

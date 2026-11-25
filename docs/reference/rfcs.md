@@ -19,7 +19,7 @@ listed capability is enabled. Refer to the
 | [RFC 9661](https://www.rfc-editor.org/info/rfc9661/) | JMAP for Sieve Scripts                    | [`sieve`](./capabilities.md#sieve)                                                                                                       | ✅    | ✅      |
 | [RFC 9670](https://www.rfc-editor.org/info/rfc9670/) | JMAP for Sharing                          | [`sharing`](./capabilities.md#sharing)                                                                                                   | ✅    | ✅      |
 | [RFC 9749](https://www.rfc-editor.org/info/rfc9749/) | JMAP VAPID                                | None (see [note](#note-about-vapid))                                                                                                     | ✅    | ❌      |
-| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket            | None (see [note](#note-about-websocket-support))                                                                                         | ✅    | ❌      |
+| [RFC 8887](https://www.rfc-editor.org/info/rfc8887/) | JMAP Subprotocol for WebSocket            | None (see [note](#note-about-websocket-support))                                                                                         | ✅    | ✅      |
 
 ## Note About VAPID
 
@@ -44,8 +44,9 @@ Creating the subscription itself uses `PushSubscription/set` from `core`.
 
 ## Note About WebSocket Support
 
-RFC 8887's session capability, `urn:ietf:params:jmap:websocket`, is typed on
-every session, but the client sends every JMAP Request over HTTP and does not
-open WebSocket connections. At this time, WebSocket support is not planned.
-For push notifications, use [`onStateChange()`](./api.md#onstatechange), which
-reads the server's event source.
+RFC 8887 needs no capability in `capabilities`. The client sends JMAP
+Requests over HTTP unless it is configured with
+[`webSocketTransport()`](./api.md#websockettransport). With it, method calls
+and push state changes share one WebSocket at the URL in the session's
+`urn:ietf:params:jmap:websocket` capability. Refer to
+[Transports](../advanced/transports.md).

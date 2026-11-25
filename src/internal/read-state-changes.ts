@@ -12,19 +12,24 @@ import type { StateChange } from "../rfc-types/core/rfc8620-jmap.ts";
 import type { StateChangePayload } from "../types.ts";
 
 /**
- * Read each entity's change from an event-stream message. Messages other
- * than a `StateChange` have none.
+ * Whether a parsed push message is a `StateChange`
+ */
+export function isStateChange(message: unknown): message is StateChange {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "@type" in message &&
+    message["@type"] === "StateChange"
+  );
+}
+
+/**
+ * Read each entity's change from a `StateChange` message
  */
 export function* readStateChanges(
-  data: string,
+  change: StateChange,
 ): Generator<Omit<StateChangePayload, "isPrimaryAccount">> {
-  const payload = JSON.parse(data);
-  if (payload["@type"] !== "StateChange") {
-    return;
-  }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const { changed } = payload as StateChange;
-  for (const [accountId, changes] of Object.entries(changed)) {
+  for (const [accountId, changes] of Object.entries(change.changed)) {
     for (const [entity, state] of Object.entries(changes)) {
       yield { entity, state, accountId };
     }

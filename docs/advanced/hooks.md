@@ -64,7 +64,10 @@ A batch of method calls adds JMAP hooks around its HTTP request:
 1. The batch's calls are queued, the session is loaded, and each call gets
    its default `accountId`.
 2. **`beforeJmapRequest`** hooks.
-3. The HTTP steps above, posting the envelope to the session's `apiUrl`.
+3. The [transport](./transports.md) sends the envelope. With the default
+   `httpTransport()`, that is the HTTP steps above, posting to the session's
+   `apiUrl`. With `webSocketTransport()`, it goes over the socket, and no
+   HTTP hooks run.
 4. **`afterJmapResponse`** hooks.
 5. Each method call settles from its matching
    [response](./batching.md#matching-responses).
@@ -72,6 +75,18 @@ A batch of method calls adds JMAP hooks around its HTTP request:
 The first batch also loads the session, so its own HTTP request, with its
 own `beforeFetch` and `afterFetch` hooks, comes before the batch's JMAP
 hooks.
+
+## Hooks by transport
+
+`beforeJmapRequest` and `afterJmapResponse` run for every batch, whatever
+the [transport](./transports.md). The HTTP hooks run only for HTTP requests:
+
+| Hook                         | `httpTransport()`                     | `webSocketTransport()`                             |
+| ---------------------------- | ------------------------------------- | -------------------------------------------------- |
+| `beforeJmapRequest`          | Every batch                           | Every batch                                        |
+| `afterJmapResponse`          | Every batch                           | Every batch                                        |
+| `beforeFetch` / `afterFetch` | Session, batches, blobs, event stream | Session, blobs, event stream (not the socket)      |
+| Event-source hooks           | Event stream                          | Event stream, when the server doesn't support push |
 
 ## Common rules
 
@@ -88,7 +103,9 @@ observes and returns nothing.
 
 The fetch hooks run on every HTTP request the client makes: loading the
 session, sending a batch of method calls, uploading and downloading blobs,
-and connecting to the event stream, including every reconnect.
+and connecting to the event stream, including every reconnect. They don't
+see WebSocket traffic: with `webSocketTransport()`, batches go over the
+socket instead.
 
 `beforeFetch` receives the authenticated `httpRequest` and returns the
 `Request` to send. Headers can be set on it directly. To change anything

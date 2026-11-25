@@ -8,6 +8,8 @@ const sourcePath = (file: string) => fileURLToPath(new URL(file, source)).replac
 const client = sourcePath("client.ts");
 const dispatcher = sourcePath("internal/dispatcher.ts");
 const http = sourcePath("internal/http.ts");
+const eventStream = sourcePath("internal/event-stream.ts");
+const transport = sourcePath("transports/http.ts");
 
 const edits = new Map<string, readonly Edit[]>([
   [
@@ -21,8 +23,16 @@ import { Dispatcher } from "./internal/dispatcher.ts${query}";
 import { hookObservers } from "../docs/.vitepress/playground/hook-trace.ts";`,
       ],
       [
+        `import { openEventStream } from "./internal/event-stream.ts";`,
+        `import { openEventStream } from "./internal/event-stream.ts${query}";`,
+      ],
+      [
         `import { HttpClient } from "./internal/http.ts";`,
         `import { HttpClient } from "./internal/http.ts${query}";`,
+      ],
+      [
+        `import { httpTransport } from "./transports/http.ts";`,
+        `import { httpTransport } from "./transports/http.ts${query}";`,
       ],
       [
         `this.#http = new HttpClient(options.auth, options.hooks);`,
@@ -30,34 +40,38 @@ import { hookObservers } from "../docs/.vitepress/playground/hook-trace.ts";`,
     this.#http = new HttpClient(options.auth, options.hooks, observeHooks);`,
       ],
       [
-        `transport: (request, session) =>
-        this.#http.fetchJson<JMAPResponse>(session.apiUrl, {`,
-        `transport: (request, session, trace) =>
-        this.#http.fetchJson<JMAPResponse>(session.apiUrl, "batch", {`,
-      ],
-      [
-        `body: JSON.stringify(request),
-        }),`,
-        `body: JSON.stringify(request),
-        }, trace),`,
+        `fetch: async (url, init) => (await this.#http.fetch(url, init)).response,`,
+        `fetch: async (url, init, trace) => (await this.#http.fetch(url, "batch", init, trace)).response,`,
       ],
       [`hooks: options.hooks,`, `hooks: options.hooks, observeHooks,`],
       [
-        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl)`,
-        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, "session")`,
+        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, {`,
+        `.fetchJson<ClientSession<GivenCapabilities>>(this.#sessionUrl, "session", {`,
       ],
       [
-        `this.#http.fetchJson<FileUpload.Result>(url, { method: "POST", body })`,
-        `this.#http.fetchJson<FileUpload.Result>(url, "upload", { method: "POST", body })`,
+        `this.#http.fetchJson<FileUpload.Result>(url, {`,
+        `this.#http.fetchJson<FileUpload.Result>(url, "upload", {`,
       ],
       [
-        `this.#http.fetch(url, { method: "GET" })`,
-        `this.#http.fetch(url, "download", { method: "GET" })`,
+        `this.#http.fetch(url, {
+          method: "GET",`,
+        `this.#http.fetch(url, "download", {
+          method: "GET",`,
       ],
+    ],
+  ],
+  [
+    eventStream,
+    [[`http.fetch(url, requestOptions, true)`, `http.fetch(url, "eventSource", requestOptions)`]],
+  ],
+  [
+    transport,
+    [
       [
-        `this.#http.fetch(url, requestOptions, true)`,
-        `this.#http.fetch(url, "eventSource", requestOptions)`,
+        `send: async (request, { session, signal }) => {`,
+        `send: async (request, { session, signal, trace }) => {`,
       ],
+      [`context.fetch(session.apiUrl, init);`, `context.fetch(session.apiUrl, init, trace);`],
     ],
   ],
   [
@@ -70,8 +84,12 @@ import { callHook } from "../../docs/.vitepress/playground/hook-trace.ts";
 import type { HookTrace, ObserveHooks } from "../../docs/.vitepress/playground/hook-trace.ts";`,
       ],
       [
-        `(request: JmapRequest, session: Session): Promise<JmapResponse>;`,
-        `(request: JmapRequest, session: Session, trace?: HookTrace): Promise<JmapResponse>;`,
+        `async #send(request: JmapRequest, session: Session): Promise<JmapResponse> {`,
+        `async #send(request: JmapRequest, session: Session, trace?: HookTrace): Promise<JmapResponse> {`,
+      ],
+      [
+        `response = await transport.send(request, { session, signal });`,
+        `response = await transport.send(request, { session, signal, trace });`,
       ],
       [
         `export interface DispatcherOptions {`,
@@ -83,7 +101,7 @@ import type { HookTrace, ObserveHooks } from "../../docs/.vitepress/playground/h
       // oxlint-disable-next-line no-await-in-loop
       request = await hook({ jmapRequest: request });
     }
-    let response = await this.#options.transport(request, session);
+    let response = await this.#send(request, session);
     for (const hook of this.#options.hooks?.afterJmapResponse ?? []) {
       // oxlint-disable-next-line no-await-in-loop
       response = await hook({ jmapRequest: request, jmapResponse: response });
@@ -92,7 +110,7 @@ import type { HookTrace, ObserveHooks } from "../../docs/.vitepress/playground/h
     for (const [index, hook] of (this.#options.hooks?.beforeJmapRequest ?? []).entries()) {
       request = await callHook(trace, "beforeJmapRequest", index, hook, { jmapRequest: request });
     }
-    let response = await this.#options.transport(request, session, trace);
+    let response = await this.#send(request, session, trace);
     for (const [index, hook] of (this.#options.hooks?.afterJmapResponse ?? []).entries()) {
       response = await callHook(trace, "afterJmapResponse", index, hook, { jmapRequest: request, jmapResponse: response });
     }`,
@@ -182,7 +200,7 @@ type Hooks = NonNullable`,
   ],
 ]);
 
-/** Only explicitly requested copies of these three modules are instrumented. */
+/** Only explicitly requested copies of these modules are instrumented. */
 export function hookPatchFile(id: string): string | undefined {
   if (!id.endsWith(query)) {
     return undefined;

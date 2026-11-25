@@ -32,10 +32,10 @@ export function createClient<const T extends ReadonlyArray<CapabilityOption>>(
 
 /**
  * Create a client for the provisioned Stalwart user, replacing its
- * credentials or adding hooks
+ * credentials, adding hooks or choosing a transport
  */
 export function createClientWith<const T extends ReadonlyArray<CapabilityOption>>(
-  options: Partial<Pick<Config<T>, "auth" | "hooks">>,
+  options: Partial<Pick<Config<T>, "auth" | "hooks" | "transport">>,
   ...capabilities: T
 ): IntegrationClient<T> {
   const { sessionUrl, username, password } = inject("stalwart");

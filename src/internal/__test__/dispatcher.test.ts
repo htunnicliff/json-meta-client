@@ -16,13 +16,17 @@ import {
   CancellationError,
   ConfigurationError,
   JmapError,
+  JsonMetaError,
   MethodCallError,
+  NetworkError,
+  UnknownError,
 } from "../../errors/index.ts";
 import type {
   Request as JmapRequest,
   Response as JmapResponse,
   Session,
 } from "../../rfc-types/core/index.ts";
+import type { Transport } from "../../transports/types.ts";
 import type { FindMethodOwner } from "../capability-index.ts";
 import { Dispatcher } from "../dispatcher.ts";
 import type { DispatcherOptions } from "../dispatcher.ts";
@@ -54,11 +58,14 @@ function setup(options: Partial<DispatcherOptions> & { respond?: typeof echo } =
   const { respond = echo, ...overrides } = options;
   const requests: JmapRequest[] = [];
   const dispatcher = new Dispatcher({
-    transport: async (request) => {
-      requests.push(request);
-      return respond(request);
+    transport: {
+      send: async (request) => {
+        requests.push(request);
+        return respond(request);
+      },
     },
     session: async () => makeSession(),
+    signal: new AbortController().signal,
     urnsForEntity: () => [],
     findMethodOwner: () => undefined,
     ...overrides,
@@ -167,12 +174,14 @@ describe(Dispatcher, () => {
     it("sends a method call made while a batch is in flight as a new request", async () => {
       const release = Promise.withResolvers<void>();
       const { dispatcher, requests } = setup({
-        transport: async (request) => {
-          requests.push(request);
-          if (request.methodCalls[0]![2] === "a") {
-            await release.promise;
-          }
-          return echo(request);
+        transport: {
+          send: async (request) => {
+            requests.push(request);
+            if (request.methodCalls[0]![2] === "a") {
+              await release.promise;
+            }
+            return echo(request);
+          },
         },
       });
 
@@ -345,10 +354,12 @@ describe(Dispatcher, () => {
     });
 
     it("keeps an ambiguous method call's own error when the rest of the batch fails", async () => {
-      const failure = new Error("Batch failed");
+      const failure = new JsonMetaError("Batch failed");
       const { dispatcher } = setupAccounts({
-        transport: async () => {
-          throw failure;
+        transport: {
+          send: async () => {
+            throw failure;
+          },
         },
       });
 
@@ -571,14 +582,14 @@ describe(Dispatcher, () => {
   });
 
   describe("batch failures", () => {
-    const failure = new Error("Batch failed");
+    const failure = new JsonMetaError("Batch failed");
     const fail = (): never => {
       throw failure;
     };
 
     it.each<[string, Partial<DispatcherOptions>]>([
       ["the session fails to load", { session: async () => fail() }],
-      ["the transport fails", { transport: async () => fail() }],
+      ["the transport fails", { transport: { send: async () => fail() } }],
       ["a beforeJmapRequest hook fails", { hooks: { beforeJmapRequest: [fail] } }],
       ["an afterJmapResponse hook fails", { hooks: { afterJmapResponse: [fail] } }],
     ])("rejects every method call in the batch when %s", async (_, options) => {
@@ -605,8 +616,8 @@ describe(Dispatcher, () => {
       ]);
 
       expect(results).toEqual([
-        { status: "rejected", reason: expect.any(TypeError) },
-        { status: "rejected", reason: expect.any(TypeError) },
+        { status: "rejected", reason: expect.any(UnknownError) },
+        { status: "rejected", reason: expect.any(UnknownError) },
       ]);
       if (results[0].status !== "rejected" || results[1].status !== "rejected") {
         return;
@@ -617,17 +628,131 @@ describe(Dispatcher, () => {
     it("sends a later batch normally after a failed one", async () => {
       let attempts = 0;
       const { dispatcher } = setup({
-        transport: async (request) => {
-          attempts++;
-          if (attempts === 1) {
-            throw failure;
-          }
-          return echo(request);
+        transport: {
+          send: async (request) => {
+            attempts++;
+            if (attempts === 1) {
+              throw failure;
+            }
+            return echo(request);
+          },
         },
       });
 
       await expect(dispatcher.send(call("Core/echo", "a"))).rejects.toBe(failure);
       await expect(dispatcher.send(call("Core/echo", "b"))).resolves.toEqual({ echo: "b" });
+    });
+
+    it("wraps a transport error that isn't a JsonMetaError in a NetworkError", async () => {
+      const cause = new TypeError("socket hang up");
+      const { dispatcher } = setup({
+        transport: {
+          send: async () => {
+            throw cause;
+          },
+        },
+      });
+
+      const error = await dispatcher.send(call("Core/echo", "a")).catch((error: unknown) => error);
+
+      expect(error).toBeInstanceOf(NetworkError);
+      expect(error).toMatchObject({ message: "socket hang up", cause });
+    });
+
+    it("maps a transport error after the signal aborts to CancellationError", async () => {
+      const controller = new AbortController();
+      const { dispatcher } = setup({
+        signal: controller.signal,
+        transport: {
+          send: (_request, { signal }) =>
+            new Promise((_resolve, reject) => {
+              // As fetch does: reject with a DOMException AbortError
+              signal.addEventListener("abort", () => reject(signal.reason));
+            }),
+        },
+      });
+
+      const result = dispatcher.send(call("Core/echo", "a"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      controller.abort();
+
+      const error = await result.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(CancellationError);
+      expect(error).toMatchObject({ cause: expect.objectContaining({ name: "AbortError" }) });
+    });
+
+    it("rejects with UnknownError when the transport resolves with something that isn't a JMAP Response", async () => {
+      const { dispatcher } = setup({
+        transport: {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          send: async () => undefined as never,
+        },
+      });
+
+      await expect(dispatcher.send(call("Core/echo", "a"))).rejects.toBeInstanceOf(UnknownError);
+    });
+
+    it("leaves a hook's own error unwrapped", async () => {
+      const cause = new TypeError("hook failed");
+      const { dispatcher } = setup({
+        hooks: {
+          beforeJmapRequest: [
+            () => {
+              throw cause;
+            },
+          ],
+        },
+      });
+
+      await expect(dispatcher.send(call("Core/echo", "a"))).rejects.toBe(cause);
+    });
+  });
+
+  describe("transport", () => {
+    it("passes the session and the client's signal to the transport", async () => {
+      const controller = new AbortController();
+      const session = makeSession();
+      const send = vi.fn<Transport["send"]>(async (request) => echo(request));
+      const { dispatcher } = setup({
+        transport: { send },
+        session: async () => session,
+        signal: controller.signal,
+      });
+
+      await dispatcher.send(call("Core/echo", "a"));
+
+      expect(send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ using: [core.urn] }), {
+        session,
+        signal: controller.signal,
+      });
+    });
+
+    it("sends the request that beforeJmapRequest returns", async () => {
+      const send = vi.fn<Transport["send"]>(async (request) => echo(request));
+      const { dispatcher } = setup({
+        transport: { send },
+        hooks: {
+          beforeJmapRequest: [({ jmapRequest }) => ({ ...jmapRequest, using: ["urn:test"] })],
+        },
+      });
+
+      await dispatcher.send(call("Core/echo", "a"));
+
+      expect(send.mock.calls[0]![0].using).toEqual(["urn:test"]);
+    });
+
+    it("rejects method calls with CancellationError once the signal aborts", async () => {
+      const controller = new AbortController();
+      const send = vi.fn<Transport["send"]>(async (request) => echo(request));
+      const { dispatcher } = setup({ transport: { send }, signal: controller.signal });
+
+      const waiting = dispatcher.send(call("Core/echo", "a"));
+      controller.abort();
+      const later = dispatcher.send(call("Core/echo", "b"));
+
+      await expect(waiting).rejects.toBeInstanceOf(CancellationError);
+      await expect(later).rejects.toBeInstanceOf(CancellationError);
+      expect(send).not.toHaveBeenCalled();
     });
   });
 
@@ -665,10 +790,12 @@ describe(Dispatcher, () => {
     it("leaves a batch that is already being sent to settle normally", async () => {
       const release = Promise.withResolvers<void>();
       const { dispatcher, requests } = setup({
-        transport: async (request) => {
-          requests.push(request);
-          await release.promise;
-          return echo(request);
+        transport: {
+          send: async (request) => {
+            requests.push(request);
+            await release.promise;
+            return echo(request);
+          },
         },
       });
 
