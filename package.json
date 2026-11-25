@@ -61,8 +61,7 @@
     "package:check": "pnpm build && node scripts/check-package.mjs"
   },
   "dependencies": {
-    "eventsource-client": "^1.2.0",
-    "type-fest": "^5.10.0"
+    "eventsource-client": "^1.2.0"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "0.18.5",
