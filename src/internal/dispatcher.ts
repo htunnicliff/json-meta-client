@@ -2,6 +2,7 @@ import { DEFAULT_CAPABILITIES } from "../built-ins.ts";
 import {
   CancellationError,
   ConfigurationError,
+  CreationReferenceError,
   JmapError,
   JsonMetaError,
   MethodCallError,
@@ -95,6 +96,13 @@ export class Dispatcher {
   };
 
   /**
+   * Whether a method call is waiting in the current batch, so that a call
+   * made now joins the same JMAP Request
+   */
+  isQueued = (methodCall: MethodCall<object>): boolean =>
+    this.#batch.some((pending) => pending.methodCall === methodCall);
+
+  /**
    * Reject every method call still waiting in the current batch. A batch
    * already being sent is unaffected.
    */
@@ -107,18 +115,29 @@ export class Dispatcher {
   /**
    * Send a batch and settle its method calls, rejecting every method call
    * with the same error when the batch fails as a whole. A method call that
-   * breaks a result reference rule, or whose default account is ambiguous,
-   * is rejected on its own and left out of the Request.
+   * breaks a result reference rule, reuses a creation ID, or whose default
+   * account is ambiguous, is rejected on its own and left out of the Request.
    */
   async #dispatch(batch: PendingMethodCall[]): Promise<void> {
     const earlierIds = new Set<string>();
+    const earlierCreationIds = new Set<string>();
     let unsettled = batch.filter(({ methodCall, handle }) => {
       const reason = brokenResultRefRule(methodCall, earlierIds);
       earlierIds.add(methodCall.id);
       if (reason) {
         handle.reject(new ResultReferenceError(reason, methodCall));
+        return false;
       }
-      return !reason;
+      const ids = creationIds(methodCall);
+      const reused = ids.find((id) => earlierCreationIds.has(id));
+      if (reused !== undefined) {
+        handle.reject(new CreationReferenceError("duplicate-id", methodCall, reused));
+        return false;
+      }
+      for (const id of ids) {
+        earlierCreationIds.add(id);
+      }
+      return true;
     });
     try {
       if (this.#options.signal.aborted) {
@@ -276,6 +295,22 @@ function brokenResultRefRule(
     }
   }
   return undefined;
+}
+
+/**
+ * The creation IDs a method call assigns: the keys of `create` in a `/set`
+ * or `/copy` call, and of `emails` in `Email/import`. RFC 8620 §5.3 shares
+ * one map of creation IDs between every call in a Request, so a reused ID
+ * would make later references resolve to the wrong object.
+ */
+function creationIds({ method, args }: MethodCall<object>): string[] {
+  const key = /\/(?:set|copy)$/.test(method)
+    ? "create"
+    : method === "Email/import"
+      ? "emails"
+      : undefined;
+  const created: unknown = key && Reflect.get(args, key);
+  return typeof created === "object" && created !== null ? Object.keys(created) : [];
 }
 
 /**

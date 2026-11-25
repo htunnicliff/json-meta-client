@@ -21,6 +21,7 @@ Error
     ├── StateChangeError
     ├── InvalidUriTemplateError
     ├── ResultReferenceError
+    ├── CreationReferenceError
     ├── UnknownEntityError
     └── UnknownError
 ```
@@ -165,6 +166,27 @@ allow. The call rejects before it is sent, and the rest of its batch proceeds.
 | `"duplicate-id"`       | Another call in the same batch has the same method call ID       |
 
 - Type guard: `isResultReferenceError()`
+
+### `CreationReferenceError`
+
+A creation ID can't be referenced the way RFC 8620 section 5.3 allows.
+`createdRef()` throws it synchronously for the reasons `"unknown-id"` and
+`"batch-sent"`. A call that reuses a creation ID rejects with it before it
+is sent, and the rest of its batch proceeds.
+
+| Property     | Type         | Description                                    |
+| ------------ | ------------ | ---------------------------------------------- |
+| `reason`     | `string`     | Which rule is broken                           |
+| `methodCall` | `MethodCall` | The call that creates, or would create, the ID |
+| `creationId` | `string`     | The creation ID                                |
+
+| `reason`         | Meaning                                                                   |
+| ---------------- | ------------------------------------------------------------------------- |
+| `"unknown-id"`   | The `/set` call's `create` has no such key                                |
+| `"batch-sent"`   | The `/set` call's batch was already sent, so no later call can use the ID |
+| `"duplicate-id"` | An earlier call in the same batch already uses the creation ID            |
+
+- Type guard: `isCreationReferenceError()`
 
 ### `UnknownEntityError`
 

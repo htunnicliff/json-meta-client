@@ -1,4 +1,4 @@
-import { UnknownEntityError } from "../errors/index.ts";
+import { CreationReferenceError, UnknownEntityError } from "../errors/index.ts";
 import { flattenPatchArguments } from "../patch.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
@@ -125,7 +125,9 @@ function createMethod(
     });
 
     return Object.assign(withRefMethod, {
-      ...(method === "set" ? { createdRef: (id: string) => createdRef(methodCall, id) } : {}),
+      ...(method === "set"
+        ? { createdRef: (id: string) => createdRef(methodCall, id, known ? dispatcher : undefined) }
+        : {}),
       $id: methodCall.id,
       $args: methodCall.args,
       $method: methodCall.method,
@@ -145,12 +147,21 @@ function prepareArguments(method: string, args: JsonObject): object {
 }
 
 /**
- * Reference an object that a `/set` call creates, by its creation ID
+ * Reference an object that a `/set` call creates, by its creation ID. The
+ * server only resolves the reference within the same JMAP Request, so the
+ * `/set` call must still be waiting in the current batch.
  */
-function createdRef(methodCall: MethodCall<object>, id: string): string {
+function createdRef(
+  methodCall: MethodCall<object>,
+  id: string,
+  dispatcher: Dispatcher | undefined,
+): string {
   const create: unknown = Reflect.get(methodCall.args, "create");
   if (typeof create !== "object" || create === null || !Object.hasOwn(create, id)) {
-    throw new RangeError(`Unknown creation ID "${id}" in ${methodCall.method}`);
+    throw new CreationReferenceError("unknown-id", methodCall, id);
+  }
+  if (dispatcher && !dispatcher.isQueued(methodCall)) {
+    throw new CreationReferenceError("batch-sent", methodCall, id);
   }
   return `#${id}`;
 }
