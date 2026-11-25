@@ -75,9 +75,4 @@ describe(collectTypes, () => {
       expect.stringContaining("Type 'number' is not assignable"),
     ]);
   });
-
-  it("includes only the type-fest files the library uses", () => {
-    const typeFest = Object.keys(files).filter((file) => file.includes("/type-fest/"));
-    expect(typeFest.length).toBeLessThan(100);
-  });
 });

@@ -84,7 +84,11 @@ describe(compile, () => {
   });
 
   it("allows type-only imports of other modules", () => {
-    expect(compile('import type { Except } from "type-fest";\nlet a: Except<{}, never>;')).toEqual({
+    expect(
+      compile(
+        'import type { Mailbox } from "json-meta-client/rfc-types";\nlet a: Mailbox | undefined;',
+      ),
+    ).toEqual({
       code: expect.any(String),
       source: expect.any(Object),
     });
