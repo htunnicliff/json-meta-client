@@ -22,11 +22,3 @@ Include what you can of the following:
 - The transport (`httpTransport()` or `webSocketTransport()`) and the JMAP
   server, if the issue depends on them.
 - Steps or code that reproduce the issue, and what an attacker gains.
-
-## What to expect
-
-json-meta-client is a personal project, maintained on a best-effort basis.
-Reports are reviewed as time allows, and the maintainer decides whether and
-how to fix an issue, when to release a fix, and whether and when to publish
-an advisory. Reporters may be credited
-in an advisory if they'd like.
