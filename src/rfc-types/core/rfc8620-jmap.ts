@@ -180,6 +180,42 @@ export type PatchObject<T> = {
   [Entry in PatchEntry<T> as Entry[0]]?: Entry[1];
 };
 
+declare const replacedValue: unique symbol;
+
+/**
+ * A value that an {@link UpdatePatch} sets whole, instead of patching it key
+ * by key. `replace()` from `json-meta-client` makes one.
+ */
+// An interface, not a type alias: an alias would be implicitly indexable, and
+// so would pass as a nested patch of a map
+export interface Replace<T> {
+  readonly [replacedValue]: T;
+}
+
+/**
+ * The value a property name takes in an {@link UpdatePatch}: a plain object
+ * patches only the keys it names, at any depth, and `null` removes a key.
+ * Arrays are atomic, and `Replace` sets an object whole.
+ */
+export type NestedPatch<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? { [Key in keyof T]?: NestedPatch<Exclude<T[Key], undefined>> | null } | Replace<T>
+    : T;
+
+/**
+ * The patch a client accepts in a `/set` call's `update`. A key with a `/`
+ * is a JSON Pointer path, and its value is sent as it is, as in
+ * {@link PatchObject}. A key without one is a property name, and its value
+ * is a {@link NestedPatch}, which the client flattens into JSON Pointer
+ * paths before sending.
+ */
+export type UpdatePatch<T> = {
+  [Entry in PatchEntry<T> as Entry[0]]?: Entry[0] extends `${string}/${string}`
+    ? Entry[1]
+    : NestedPatch<Exclude<Entry[1], null | undefined>> | null;
+};
+
 export namespace MethodSet {
   /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.3 */
   export interface Input<
@@ -190,7 +226,7 @@ export namespace MethodSet {
     accountId: string;
     ifInState?: string | null;
     create?: Record<string, Create> | null;
-    update?: Record<string, PatchObject<Update>> | null;
+    update?: Record<string, UpdatePatch<Update>> | null;
     destroy?: string[] | null;
   }
 

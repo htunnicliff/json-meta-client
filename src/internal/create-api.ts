@@ -1,4 +1,5 @@
 import { UnknownEntityError } from "../errors/index.ts";
+import { flattenPatchArguments } from "../patch.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import { MethodCall } from "./method-call.ts";
 import { addRefMethod, markResultRefs } from "./ref.ts";
@@ -110,7 +111,7 @@ function createMethod(
 
     const methodCall = new MethodCall({
       method: name,
-      args: known ? prepareArguments(args) : args,
+      args: known ? prepareArguments(name, args) : args,
       id: options?.id ?? generateMethodCallId(name),
     });
 
@@ -133,14 +134,14 @@ function createMethod(
 }
 
 /**
- * Rewrite the key of each top-level result reference in a method call's
- * arguments
+ * Flatten the patches in a method call's arguments, and rewrite the key of
+ * each top-level result reference
  */
-function prepareArguments(args: JsonObject): object {
+function prepareArguments(method: string, args: JsonObject): object {
   if (typeof args !== "object" || args === null || Array.isArray(args)) {
     throw new TypeError("JMAP method arguments must be an object");
   }
-  return markResultRefs(args);
+  return markResultRefs(flattenPatchArguments(method, args));
 }
 
 /**

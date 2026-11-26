@@ -307,10 +307,12 @@ An email belongs to every mailbox in its `mailboxIds`. To move it, replace
 `mailboxIds` with the destination:
 
 ```ts
+import { replace } from "json-meta-client";
+
 await client.api.Email.set({
   update: {
     [emailId]: {
-      mailboxIds: { [archiveId]: true },
+      mailboxIds: replace({ [archiveId]: true }),
     },
   },
 });
@@ -322,32 +324,27 @@ removes the email from a mailbox, and `true` adds it. Other mailboxes the
 email is in stay as they are.
 
 ```ts
-import { patchMap } from "json-meta-client";
-
 await client.api.Email.set({
   update: {
-    [emailId]: patchMap("mailboxIds", {
-      [inboxId]: null,
-      [archiveId]: true,
-    }),
+    [emailId]: {
+      mailboxIds: { [inboxId]: null, [archiveId]: true },
+    },
   },
 });
 ```
 
-[`patchMap()`](./reference/api.md#patchmap) builds a path for each ID,
-such as `mailboxIds/<inbox-id>`. Writing those keys yourself loses their
-types, so use `patchMap()` whenever the ID is in a variable. Refer to
-[Keys from a variable](./features/method-calls.md#keys-from-a-variable).
+The client sends this as a patch of each mailbox you name. Refer to
+[Patch updates](./features/method-calls.md#patch-updates).
 
 ## Mark an email as read
 
-Keywords are patched the same way as mailboxes. Set `keywords/$seen` to
-`true` to mark an email as read, or to `null` to mark it as unread.
+Keywords are patched the same way as mailboxes. Set `$seen` to `true` to
+mark an email as read, or to `null` to mark it as unread.
 
 ```ts
 await client.api.Email.set({
   update: {
-    [emailId]: { "keywords/$seen": true },
+    [emailId]: { keywords: { $seen: true } },
   },
 });
 ```

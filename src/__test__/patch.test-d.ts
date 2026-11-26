@@ -2,9 +2,9 @@ import { assertType, describe, expectTypeOf, it } from "vitest";
 
 import { mail } from "../capabilities/index.ts";
 import { JsonMetaClient } from "../client.ts";
-import { patchMap } from "../patch.ts";
+import { patchMap, replace } from "../patch.ts";
 import type { PatchMapPath, PatchMapValue } from "../patch.ts";
-import type { PatchObject } from "../rfc-types/core/index.ts";
+import type { PatchObject, Replace, UpdatePatch } from "../rfc-types/core/index.ts";
 import type { EmailUpdate } from "../rfc-types/mail/index.ts";
 
 const client = new JsonMetaClient({
@@ -70,5 +70,89 @@ describe(patchMap, () => {
   it("accepts no path without a patch type to check it against", () => {
     // @ts-expect-error - Nothing says which patch this is for
     assertType(patchMap("mailboxIds", { [inboxId]: true }));
+  });
+});
+
+declare const archiveId: string;
+
+describe("nested patches", () => {
+  it("accepts map entries by variable ID, with their value types", () => {
+    assertType(
+      client.api.Email.set({
+        update: {
+          [emailId]: {
+            mailboxIds: { [inboxId]: null, [archiveId]: true },
+            keywords: { $seen: true, $flagged: null },
+          },
+        },
+      }),
+    );
+  });
+
+  it("rejects a value the map doesn't accept", () => {
+    assertType(
+      client.api.Email.set({
+        // @ts-expect-error - A mailbox membership can only be added with `true`
+        update: { [emailId]: { mailboxIds: { [inboxId]: false } } },
+      }),
+    );
+  });
+
+  it("rejects a property the update type doesn't have", () => {
+    assertType(
+      client.api.Email.set({
+        // @ts-expect-error - Email has no `mailboxIdz` property
+        update: { [emailId]: { mailboxIdz: { [inboxId]: true } } },
+      }),
+    );
+  });
+
+  it("mixes nested patches with JSON Pointer paths and patchMap()", () => {
+    assertType(
+      client.api.Email.set({
+        update: {
+          [emailId]: {
+            ...patchMap("mailboxIds", { [inboxId]: null }),
+            "keywords/$seen": true,
+            keywords: { $flagged: true },
+          },
+        },
+      }),
+    );
+  });
+
+  it("replaces a map whole with replace()", () => {
+    assertType(
+      client.api.Email.set({
+        update: { [emailId]: { mailboxIds: replace({ [archiveId]: true }) } },
+      }),
+    );
+    assertType(
+      client.api.Email.set({
+        // @ts-expect-error - The replaced map is checked too
+        update: { [emailId]: { mailboxIds: replace({ [archiveId]: false }) } },
+      }),
+    );
+  });
+
+  it("patches nested objects at any depth", () => {
+    interface Settings {
+      display: { theme: "light" | "dark"; font: { size: number } };
+      tags: string[];
+    }
+    expectTypeOf<{ display: { font: { size: 12 } } }>().toExtend<UpdatePatch<Settings>>();
+    expectTypeOf<{ display: { font: { size: "12" } } }>().not.toExtend<UpdatePatch<Settings>>();
+    expectTypeOf<{ display: Replace<Settings["display"]> }>().toExtend<UpdatePatch<Settings>>();
+    // Arrays are atomic, so they can't be patched by index
+    expectTypeOf<{ tags: { 0: "a" } }>().not.toExtend<UpdatePatch<Settings>>();
+  });
+
+  it("keeps JSON Pointer paths in their wire form", () => {
+    interface Settings {
+      display: { font: { size: number } };
+    }
+    // A path's value is the value sent, so it is whole and can't be replace()d
+    expectTypeOf<{ "display/font": { size: 12 } }>().toExtend<UpdatePatch<Settings>>();
+    expectTypeOf<{ "display/font": Replace<{ size: 12 }> }>().not.toExtend<UpdatePatch<Settings>>();
   });
 });

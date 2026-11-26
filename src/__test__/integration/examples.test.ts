@@ -4,6 +4,7 @@
 
 import { describe, expect, inject, it, vi } from "vitest";
 
+import { replace } from "../../patch.ts";
 import { createClient, uniqueName } from "./client.ts";
 
 const capabilities = ["mail", "submission", "vacationResponse"] as const;
@@ -221,17 +222,25 @@ describe("examples page", () => {
     const emailId = created.created!.email!.id;
 
     await client.api.Email.set({
-      update: { [emailId]: { mailboxIds: { [archiveId]: true } } },
+      update: { [emailId]: { mailboxIds: replace({ [archiveId]: true }) } },
     });
     const replaced = await client.api.Email.get({ ids: [emailId], properties: ["mailboxIds"] });
     expect(replaced.list[0]!.mailboxIds).toEqual({ [archiveId]: true });
 
-    const membership: Record<`mailboxIds/${string}`, true | null> = {};
-    membership[`mailboxIds/${archiveId}`] = null;
-    membership[`mailboxIds/${sourceId}`] = true;
-    await client.api.Email.set({ update: { [emailId]: membership } });
-    const patched = await client.api.Email.get({ ids: [emailId], properties: ["mailboxIds"] });
+    await client.api.Email.set({
+      update: {
+        [emailId]: {
+          mailboxIds: { [archiveId]: null, [sourceId]: true },
+          keywords: { $seen: true },
+        },
+      },
+    });
+    const patched = await client.api.Email.get({
+      ids: [emailId],
+      properties: ["mailboxIds", "keywords"],
+    });
     expect(patched.list[0]!.mailboxIds).toEqual({ [sourceId]: true });
+    expect(patched.list[0]!.keywords).toMatchObject({ $seen: true });
   });
 
   it("turns a vacation response on and off", async () => {

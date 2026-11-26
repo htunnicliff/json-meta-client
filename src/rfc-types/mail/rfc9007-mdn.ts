@@ -1,4 +1,4 @@
-import type { PatchObject, SetError } from "../core/index.ts";
+import type { SetError, UpdatePatch } from "../core/index.ts";
 import type { EmailUpdate } from "./rfc8621-mail.ts";
 
 /** @see https://www.rfc-editor.org/info/rfc9007/#section-2 */
@@ -51,7 +51,7 @@ export namespace MDNSend {
     accountId: string;
     identityId: string;
     send: Record<string, WritableMDN>;
-    onSuccessUpdateEmail?: Record<string, PatchObject<EmailUpdate>> | null;
+    onSuccessUpdateEmail?: Record<string, UpdatePatch<EmailUpdate>> | null;
   }
   export interface Output {
     accountId: string;
