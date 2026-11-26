@@ -183,7 +183,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
     const [mailboxes, addressBooks] = await Promise.all([
       otherClient.api.Mailbox.set({
         create: {
-          shared: {
+          sharedMailbox: {
             name: "Shared",
             shareWith: {
               [mainAccountId]: {
@@ -199,7 +199,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
       }),
       otherClient.api.AddressBook.set({
         create: {
-          shared: {
+          sharedAddressBook: {
             name: "Shared",
             shareWith: {
               [mainAccountId]: { mayRead: true, mayWrite: true, mayShare: false, mayDelete: false },
@@ -208,8 +208,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
         },
       }),
     ]);
-    const sharedMailboxId = mailboxes.created?.shared?.id;
-    const sharedAddressBookId = addressBooks.created?.shared?.id;
+    const sharedMailboxId = mailboxes.created?.sharedMailbox?.id;
+    const sharedAddressBookId = addressBooks.created?.sharedAddressBook?.id;
     if (!sharedMailboxId || !sharedAddressBookId) {
       throw new Error(
         `Stalwart fixture sharing failed: ${JSON.stringify([mailboxes.notCreated, addressBooks.notCreated])}`,
