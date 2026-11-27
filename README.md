@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/version/json-meta-client" alt="npm version"></a>
-  <a href="./LICENSE"><img src="https://npmx.dev/api/registry/badge/license/json-meta-client" alt="License"></a>
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/types/json-meta-client" alt="Types included"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/v/json-meta-client" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/json-meta-client" alt="License"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/types/json-meta-client" alt="Types included"></a>
   <!-- bundle-size:start -->
   <img src="https://img.shields.io/badge/gzip-16%20kB-blue" alt="gzip bundle size">
   <!-- bundle-size:end -->
