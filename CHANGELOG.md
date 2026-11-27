@@ -1,5 +1,435 @@
 # json-meta-client
 
+## 1.0.0
+
+### Major Changes
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - json-meta-client 1.0.0 is the first stable release. From this version on,
+  it follows semantic versioning, and the
+  [versioning policy](https://json-meta-client.dev/reference/versioning)
+  describes how changes to its types map to version numbers.
+
+  The entries below describe what changed since 0.14.0. The 1.0.0-alpha
+  sections further down list each change as it was made.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** the required `auth` option replaces `bearerToken`. There is no
+  alias for the old option.
+
+  ```ts
+  // 0.14
+  new JsonMetaClient({
+    bearerToken: token,
+    sessionUrl,
+    capabilities,
+  });
+
+  // 1.0
+  new JsonMetaClient({
+    auth: token,
+    sessionUrl,
+    capabilities,
+  });
+  ```
+
+  `auth` also accepts Basic credentials, which the client encodes, or a
+  callback that changes each outgoing request:
+
+  ```ts
+  // Basic credentials
+  auth: { username, password },
+
+  // A callback
+  auth: async ({ request }) => {
+    request.headers.set("Authorization", `Bearer ${await getToken()}`);
+  },
+  ```
+
+  Authentication applies to every request the client makes: session
+  discovery, method calls, blob transfers, and each event stream connection
+  and reconnect. The callback runs for each one, so it can supply fresh
+  credentials.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** new hooks replace `beforeRequest`, `afterResponse`, and the
+  unstable `middleware` option.
+
+  | 0.14                       | 1.0                       |
+  | -------------------------- | ------------------------- |
+  | `hooks.beforeRequest`      | `hooks.beforeFetch`       |
+  | `hooks.afterResponse`      | `hooks.afterFetch`        |
+  | `middleware`               | `hooks.beforeJmapRequest` |
+  | `BeforeRequestHook` (type) | `BeforeFetchHook`         |
+  | `AfterResponseHook` (type) | `AfterFetchHook`          |
+
+  Fetch hooks receive `httpRequest` and, after the fetch, `httpResponse`,
+  instead of `request` and `response`:
+
+  ```ts
+  hooks: {
+    beforeFetch: [({ httpRequest }) => httpRequest],
+    afterFetch: [({ httpResponse }) => httpResponse],
+  },
+  ```
+
+  The new hooks are:
+
+  - `beforeJmapRequest` and `afterJmapResponse`, which receive the whole JMAP
+    Request (`jmapRequest`) and Response (`jmapResponse`) of each batch. Use
+    `beforeJmapRequest` in place of `middleware` to change outgoing method
+    calls.
+  - `beforeEventSourceConnect` and `afterEventSourceConnect`, which run for
+    each event stream connection and reconnect.
+
+  Each option takes an array of hooks, which may be async and run in order.
+  Passing `middleware` is now a type error, and the client ignores it.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** the default `accountId` now depends on the method. In 0.14,
+  every call without an `accountId` used the primary mail account. Now the
+  client picks the account when it sends the batch:
+
+  1. The primary account of the capability that owns the method, from
+     `session.primaryAccounts`. A `ContactCard/get` call, for example, goes to
+     the primary contacts account.
+  2. Otherwise, the only account whose `accountCapabilities` list that
+     capability.
+  3. Otherwise, if no account lists it, the call is sent without `accountId`.
+
+  If several accounts list the capability and none is primary, the call
+  rejects with a `ConfigurationError`. The rest of the batch is still sent.
+  Pass `accountId` to choose an account.
+
+  Other changes:
+
+  - `Core/echo` and `PushSubscription` calls are not scoped to an account and
+    no longer get an `accountId`.
+  - `$args.accountId` is absent until the batch is sent. `beforeJmapRequest`
+    hooks see it on each call's arguments.
+  - One batch can now go to several accounts. A result reference between
+    calls to different accounts may need an explicit `accountId`.
+
+  Custom capabilities can choose which methods get a default with the new
+  `defaultAccount` setting. A method set to `null` gets no default, and its
+  `accountId` is required:
+
+  ```ts
+  const tasks = defineCapability({
+    urn: "urn:example:tasks",
+    entities: ["Task"],
+    defaultAccount: { "*": "primary", "Task/copy": null },
+  });
+  ```
+
+  The client constructor throws `CapabilityConfigurationError` when two
+  capabilities claim the same method with different settings.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** `client.blob.upload()`, `client.blob.download()`, and
+  `Blob/copy` now require `accountId`. In 0.14, the blob transfers defaulted to
+  the primary mail account, but the right account depends on what the blob is
+  for.
+
+  ```ts
+  await client.blob.upload(body, { accountId });
+  await client.blob.download({
+    accountId,
+    blobId,
+    type,
+    name,
+  });
+  await client.api.Blob.copy({
+    fromAccountId,
+    accountId,
+    blobIds,
+  });
+  ```
+
+  For `Blob/copy`, `accountId` is the destination account. `Email/copy`,
+  `ContactCard/copy`, and the RFC 9404 `Blob/upload`, `Blob/get`, and
+  `Blob/lookup` methods still default it.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** `isPrimaryAccount` on a state change is now decided by the
+  changed entity. In 0.14, it was true only for the primary mail account.
+
+  It is now true when an `Entity/get` call for that entity, without an
+  `accountId`, would go to the changed account. With a primary mail account A
+  and a primary contacts account B:
+
+  | State change       | 0.14    | 1.0     |
+  | ------------------ | ------- | ------- |
+  | `Email` in A       | `true`  | `true`  |
+  | `ContactCard` in B | `false` | `true`  |
+  | `Email` in B       | `false` | `false` |
+  | `ContactCard` in A | `true`  | `false` |
+
+  For an entity with no such call, such as `EmailDelivery`, it is true when
+  the account is the primary account of any configured capability, or the
+  session's only account. `onStateChange` no longer needs a primary mail
+  account.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** a method call on an entity that no configured capability
+  declares, such as `client.api.Foo.bar()`, now rejects with
+  `UnknownEntityError` and is never sent. In 0.14, it was sent without a
+  capability URN in `using`.
+
+  Add a built-in capability that declares the entity, or declare it with
+  `defineCapability`. `Core`, `Blob`, and `PushSubscription` stay callable
+  without listing `core`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** method types are stricter.
+
+  - Arguments reject properties the method doesn't declare, at any depth:
+    at the top level, in `/set` `create` and `update` entries, and in filter
+    conditions inside `AND`, `OR`, and `NOT`. In 0.14, TypeScript let a
+    misspelled property, a server-set property, or a filter condition from a
+    capability the client doesn't configure through. Methods that leave their
+    arguments open, such as `Core/echo`, are not checked.
+  - `Blob`, `ContactCard`, `AddressBook`, and `SieveScript` methods now check
+    their arguments and type their responses.
+  - The types now follow the RFCs more closely. For example, the session's
+    core limits are required, email address names can be `null`, and creating
+    an `Email` requires `mailboxIds`.
+
+  The types are now part of the package instead of the `jmap-rfc-types`
+  dependency. To import them, use the new `json-meta-client/rfc-types` entry
+  point.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** result references now follow RFC 8620 §3.7. A `resultRef()`
+  must be a whole, top-level argument. The types reject one nested in an
+  object, such as a `filter` condition, or in an array.
+
+  The client also rejects a method call with the new `ResultReferenceError`,
+  without sending it, when:
+
+  - a reference is nested,
+  - the arguments name both `foo` and `#foo`,
+  - a reference points to a call from an earlier batch, or
+  - another call in the same batch already uses its method call ID.
+
+  The rest of the batch is still sent.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** creation references now follow RFC 8620 §5.3, and their
+  errors are the new `CreationReferenceError` instead of `RangeError`. Its
+  `reason` says what went wrong:
+
+  - `"unknown-id"`: `createdRef()` was given an ID that isn't a key of
+    `create`.
+  - `"batch-sent"`: `createdRef()` was called after its `/set` call's batch
+    was sent, for example after `await`ing the call. The server would no
+    longer resolve the reference.
+  - `"duplicate-id"`: a `/set` or `/copy` call, or `Email/import`, reuses a
+    creation ID from an earlier call in the same batch. The call rejects
+    without being sent, and the rest of the batch is still sent.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - **Breaking:** S/MIME types now need the new `smime` capability. With only
+  `"mail"`, `Email/get` no longer accepts the `smime*` properties, and
+  `Email/query`, `Email/queryChanges`, and `SearchSnippet/get` no longer
+  accept the `hasSmime` and `hasVerifiedSmime` filter conditions.
+
+  ```ts
+  capabilities: ["mail", "smime"],
+  ```
+
+  With `smime`, `Email` and `SearchSnippet` calls also send
+  `urn:ietf:params:jmap:smimeverify`. Configuring `smime` without `mail`
+  throws `CapabilityConfigurationError`.
+
+### Minor Changes
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add the `transport` client option and `webSocketTransport()`, for the JMAP
+  WebSocket subprotocol (RFC 8887). The default, `httpTransport()`, behaves as
+  0.14 did.
+
+  ```ts
+  import {
+    JsonMetaClient,
+    webSocketTransport,
+  } from "json-meta-client";
+
+  const client = new JsonMetaClient({
+    sessionUrl,
+    auth: token,
+    capabilities: ["mail"],
+    transport: webSocketTransport(),
+  });
+  ```
+
+  All of a client's batches share one socket. It opens with the first batch
+  and closes after `idleSeconds` (default 60) with nothing pending. A request
+  with no response within `requestTimeoutSeconds` (default 60) closes the
+  socket and rejects what was waiting with `NetworkError`. While push is
+  enabled, a `Core/echo` heartbeat every `heartbeatSeconds` (default 30)
+  detects a dead socket and reconnects. The global `WebSocket` can't send
+  the headers from `auth`, so pass `createWebSocket` to use a client that can,
+  such as the `ws` package.
+
+  To write your own transport, implement the new `Transport` interface. The
+  package now exports the `JmapRequest`, `JmapResponse`, `Session`, and
+  `StateChange` types it needs.
+
+  The client now wraps a transport error that isn't a `JsonMetaError` in a
+  `NetworkError`, or a `CancellationError` once the client is disposed, with
+  the original error as its `cause`. A response body that isn't valid JSON
+  rejects with `NetworkError` instead of `SyntaxError`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - `onStateChange` handlers now share one push channel, and the client reads
+  the event stream itself instead of using `eventsource-client`.
+
+  - With `webSocketTransport()` and a server that supports push, state changes
+    arrive over the WebSocket, and the transport resumes from the last
+    `pushState` after reconnecting.
+  - Otherwise, the client opens one event stream for each distinct
+    `pingSeconds` value, instead of one for each handler.
+  - The event stream reconnects when it ends or the network fails, sending
+    `Last-Event-ID` and honoring the server's `retry` time. After repeated
+    failures, it backs off with jitter, up to a minute.
+  - If nothing arrives, not even a ping, for two ping intervals, the client
+    reconnects and reports a `StateChangeError` to the handler.
+  - If the server refuses the connection with an HTTP error, or responds with
+    something other than an event stream, the client reports a
+    `StateChangeError` and stops reconnecting. HTTP 204 also stops it, without
+    an error.
+  - A handler receives nothing before its `onStateChange` call resolves, and a
+    `signal` that aborts while the subscription starts ends it.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add `client[Symbol.dispose]()`, so a client can be declared with `using`:
+
+  ```ts
+  using client = new JsonMetaClient({
+    sessionUrl,
+    auth,
+    capabilities,
+  });
+  ```
+
+  Disposing a client rejects requests in flight with `CancellationError`,
+  ends every `onStateChange` subscription, and disposes the transport. Later
+  calls reject with `CancellationError`. On a runtime without
+  `Symbol.dispose`, the method is named `disconnect`, as the new
+  `DisposeFallback` type describes.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add built-in capabilities for more JMAP extensions:
+
+  - `quota` (RFC 9425): `Quota` methods.
+  - `sharing` (RFC 9670): `Principal` and `ShareNotification` methods.
+  - `mdn` (RFC 9007): `MDN/send` and `MDN/parse`.
+  - `smime` (RFC 9219): the S/MIME properties and filters on `Email`. Use it
+    with `mail`.
+
+  A capability can list other URNs its methods need with the new `dependsOn`
+  option, including in `defineCapability()`. The client adds them to `using`
+  whenever one of the capability's entities is called.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add the `json-meta-client/rfc-types` entry point. It exports the JMAP types
+  that the built-in capabilities are made from, such as `MethodGet`,
+  `MethodSet`, and `MethodQuery`, and the core, mail, contacts, and sharing
+  entity types. Use them to build method contracts for custom capabilities:
+
+  ```ts
+  import type { MethodGet } from "json-meta-client/rfc-types";
+
+  type BookmarkGet = MethodGet.Contract<Bookmark>;
+  ```
+
+  The JSContact (RFC 9553) types are under the `JSContact` namespace, because
+  some of their names, such as `EmailAddress`, are also JMAP type names. The
+  entry point exports only types.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - `header:` properties on `Email` and its body parts are now typed by their
+  parsed form (RFC 8621 §4.1.2) instead of `unknown`:
+
+  | Property                    | Type                     |
+  | --------------------------- | ------------------------ |
+  | `header:To:asAddresses`     | `EmailAddress[] \| null` |
+  | `header:Subject:asText:all` | `string[]`               |
+  | `header:X-Spam`             | `string \| null`         |
+
+  Creating an `Email` checks each header value against its form. The
+  `EmailHeaderForms` and `EmailHeaderValue` types are exported from
+  `json-meta-client/rfc-types`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add `patch()` and `patchMap()` for partial updates in a `/set` call's
+  `update`. A plain object is still the property's whole new value, as in
+  JMAP.
+
+  `patch()` changes only the keys it's given:
+
+  ```ts
+  await client.api.Email.set({
+    update: {
+      [emailId]: {
+        keywords: patch({ $seen: true }),
+      },
+    },
+  });
+  ```
+
+  `patchMap()` builds the paths for a map keyed by ID, such as `mailboxIds`.
+  A computed key built from a variable ID is typed as `string`, so the
+  compiler can't check it. `patchMap()` checks the map's name and values:
+
+  ```ts
+  await client.api.Email.set({
+    update: {
+      [emailId]: patchMap("mailboxIds", {
+        [inboxId]: null,
+        [archiveId]: true,
+      }),
+    },
+  });
+  ```
+
+  Both send each key as a JSON Pointer path, escaping `~` and `/`.
+  `onSuccessUpdateEmail` accepts them too. The `update` types are now
+  `UpdatePatch<T>`, exported from `json-meta-client/rfc-types` with `Patch<T>`
+  and `PatchValue<T>`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Method arguments are now optional when a method has no required arguments
+  once the client fills in `accountId`. `client.api.Mailbox.get()` is the same
+  as `client.api.Mailbox.get({})`. To pass options without arguments, give
+  `undefined` as the arguments.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Add two client options:
+
+  - `generateMethodCallId` returns the ID for each method call, given its
+    method name. It applies to isolated batches too. An explicit `id` on a
+    call takes precedence.
+  - `onWarning` receives the configured capabilities that the server doesn't
+    advertise, as a `ConfigurationError`, when the session first loads. It
+    defaults to `console.warn`, as in 0.14.
+
+  The client no longer warns about a capability that the server lists only in
+  an account's `accountCapabilities`, as Stalwart does for
+  `urn:stalwart:jmap`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - `JsonMetaClient`'s second type parameter now has a default, so a client
+  type can be named by its capabilities alone, for example in a function
+  parameter:
+
+  ```ts
+  function summarize(client: JsonMetaClient<["mail"]>) {}
+  ```
+
+### Patch Changes
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Declare the supported runtimes: Node.js 22 or later and TypeScript 5.4 or
+  later. The published JavaScript now targets ES2023 instead of `esnext`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - The package no longer has runtime dependencies. The types that came from
+  `jmap-rfc-types` and `type-fest` are now part of the library, and the client
+  reads the event stream without `eventsource-client`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - The published JavaScript is no longer minified and no longer ships source
+  maps. Stack traces and debugger steps inside the library show the original
+  names. JSDoc comments are left out of the JavaScript, and the type
+  declarations keep them.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - `resultRef()` now flattens arrays collected by a `*` wildcard, as RFC 8620
+  §3.7 specifies. On a `Thread/get` call, `resultRef("/list/*/emailIds")` is
+  typed `Ref<string[]>` instead of `Ref<string[][]>`, so it can be passed as
+  `ids` to `Email/get`.
+
+- [#322](https://github.com/htunnicliff/json-meta-client/pull/322) [`bad28f0`](https://github.com/htunnicliff/json-meta-client/commit/bad28f0d8f6c0d2b796c6bbf419397c7ba663a2a) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Fix `cancelBatch()`, and the `cancel` that `isolated()` passes to its
+  callback, working only the first time. Every call now rejects the method
+  calls waiting in the current batch with `CancellationError`.
+
 ## 1.0.0-alpha.3
 
 ### Major Changes
