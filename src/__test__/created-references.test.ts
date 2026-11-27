@@ -3,6 +3,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { mail } from "../capabilities/mail.ts";
 import { submission } from "../capabilities/submission.ts";
 import { JsonMetaClient } from "../client.ts";
+import { CreationReferenceError } from "../errors/index.ts";
 import type { Request as JMAPRequest } from "../rfc-types/core/index.ts";
 
 const apiUrl = "https://example.test/api";
@@ -107,8 +108,46 @@ describe("set creation references", () => {
     const draft = client.api.Email.set({
       create: { draft: { subject: "Hello", mailboxIds: { drafts: true } } },
     });
-    expect(() => Reflect.apply(draft.createdRef, draft, ["missing"])).toThrow(RangeError);
+    expect(() => Reflect.apply(draft.createdRef, draft, ["missing"])).toThrow(
+      expect.objectContaining({
+        name: "CreationReferenceError",
+        reason: "unknown-id",
+        creationId: "missing",
+      }),
+    );
     await draft;
+  });
+
+  it("throws once the /set call's batch was sent", async () => {
+    const { client, requests } = setup();
+    const draft = client.api.Email.set({
+      create: { draft: { subject: "Hello", mailboxIds: { drafts: true } } },
+    });
+    await draft;
+
+    expect(() => draft.createdRef("draft")).toThrow(CreationReferenceError);
+    expect(() => draft.createdRef("draft")).toThrow(
+      expect.objectContaining({ reason: "batch-sent", creationId: "draft" }),
+    );
+    expect(requests).toHaveLength(1);
+  });
+
+  it("rejects a /set call that reuses a creation ID in the same batch", async () => {
+    const { client, requests } = setup();
+    const mailboxes = client.api.Mailbox.set({ create: { draft: { name: "Drafts" } } });
+    const emails = client.api.Email.set({
+      create: {
+        draft: { subject: "Hello", mailboxIds: { [mailboxes.createdRef("draft")]: true } },
+      },
+    });
+
+    await expect(mailboxes).resolves.toBeDefined();
+    await expect(emails).rejects.toMatchObject({
+      name: "CreationReferenceError",
+      reason: "duplicate-id",
+      creationId: "draft",
+    });
+    expect(requests[0]?.methodCalls.map(([method]) => method)).toEqual(["Mailbox/set"]);
   });
 
   it("only augments set methods", async () => {

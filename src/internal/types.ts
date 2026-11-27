@@ -335,6 +335,9 @@ type AugmentedResult<Name extends string, Args, Output> = WithResultRefFn<
         /**
          * Reference an object created by this /set call using its creation ID.
          * The call consuming this reference must be queued in the same batch.
+         *
+         * @throws {CreationReferenceError} when `create` has no such ID, or
+         * when this call's batch was already sent
          */
         createdRef: <
           Key extends keyof NonNullable<Args extends { create?: infer C } ? C : never> & string,

@@ -1,6 +1,7 @@
 export * from "./cancellation-error.ts";
 export * from "./capability-configuration-error.ts";
 export * from "./configuration-error.ts";
+export * from "./creation-reference-error.ts";
 export * from "./http-error.ts";
 export * from "./invalid-uri-template-error.ts";
 export * from "./jmap-error.ts";

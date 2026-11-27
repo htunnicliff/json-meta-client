@@ -5,6 +5,7 @@ import { core } from "../../capabilities/core.ts";
 import {
   CancellationError,
   ConfigurationError,
+  CreationReferenceError,
   JmapError,
   JsonMetaError,
   MethodCallError,
@@ -181,6 +182,79 @@ describe(Dispatcher, () => {
       release.resolve();
       await expect(first).resolves.toEqual({ echo: "a" });
       expect(requests).toHaveLength(2);
+    });
+  });
+
+  describe("creation IDs", () => {
+    it("rejects a call that reuses a creation ID from an earlier call in its batch", async () => {
+      const { dispatcher, requests } = setup();
+
+      const mailboxes = dispatcher.send(call("Mailbox/set", "a", { create: { draft: {} } }));
+      const emails = dispatcher.send(call("Email/set", "b", { create: { draft: {} } }));
+
+      await expect(mailboxes).resolves.toEqual({ echo: "a" });
+      await expect(emails).rejects.toBeInstanceOf(CreationReferenceError);
+      await expect(emails).rejects.toMatchObject({ reason: "duplicate-id", creationId: "draft" });
+      expect(callIds(requests)).toEqual([["a"]]);
+    });
+
+    it("shares creation IDs between /set, /copy and Email/import", async () => {
+      const { dispatcher, requests } = setup();
+
+      const set = dispatcher.send(call("Email/set", "a", { create: { one: {} } }));
+      const copy = dispatcher.send(call("Email/copy", "b", { create: { one: {} } }));
+      const imported = dispatcher.send(call("Email/import", "c", { emails: { one: {} } }));
+
+      await expect(set).resolves.toEqual({ echo: "a" });
+      await expect(copy).rejects.toMatchObject({ reason: "duplicate-id" });
+      await expect(imported).rejects.toMatchObject({ reason: "duplicate-id" });
+      expect(callIds(requests)).toEqual([["a"]]);
+    });
+
+    it("allows distinct creation IDs in one batch and reused ones across batches", async () => {
+      const { dispatcher, requests } = setup();
+
+      await Promise.all([
+        dispatcher.send(call("Mailbox/set", "a", { create: { box: {} } })),
+        dispatcher.send(call("Email/set", "b", { create: { draft: {} } })),
+      ]);
+      await dispatcher.send(call("Email/set", "c", { create: { draft: {} } }));
+
+      expect(callIds(requests)).toEqual([["a", "b"], ["c"]]);
+    });
+
+    it("ignores the creation IDs of a call it rejects", async () => {
+      const { dispatcher, requests } = setup();
+
+      const first = dispatcher.send(call("Email/set", "a", { create: { draft: {} } }));
+      const duplicate = dispatcher.send(call("Email/set", "a", { create: { other: {} } }));
+      const second = dispatcher.send(call("Email/set", "b", { create: { other: {} } }));
+
+      await expect(duplicate).rejects.toMatchObject({ reason: "duplicate-id" });
+      await Promise.all([first, second]);
+      expect(callIds(requests)).toEqual([["a", "b"]]);
+    });
+  });
+
+  describe("isQueued", () => {
+    it("is true until the batch is sent", async () => {
+      const { dispatcher } = setup();
+      const methodCall = call("Core/echo", "a");
+
+      const pending = dispatcher.send(methodCall);
+      expect(dispatcher.isQueued(methodCall)).toBe(true);
+      await pending;
+      expect(dispatcher.isQueued(methodCall)).toBe(false);
+    });
+
+    it("is false for a cancelled method call", async () => {
+      const { dispatcher } = setup();
+      const methodCall = call("Core/echo", "a");
+
+      const pending = dispatcher.send(methodCall);
+      dispatcher.cancel();
+      expect(dispatcher.isQueued(methodCall)).toBe(false);
+      await expect(pending).rejects.toBeInstanceOf(CancellationError);
     });
   });
 

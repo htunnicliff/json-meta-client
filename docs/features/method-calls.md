@@ -317,10 +317,34 @@ void client.api.EmailSubmission.set({
 ```
 
 `createdRef()` exists only on `/set` calls. The creation ID is checked
-against the keys of `create`, both in the types and at runtime, where an
-unknown ID throws a `RangeError`. As with result references, the call that
-uses the reference must be in the same batch. The
+against the keys of `create`, both in the types and at runtime. The server
+only knows a creation ID while it processes the request that creates it, so
+the call that uses the reference must be in the same batch. Call
+`createdRef()` before awaiting the `/set` call, and make the calls that use
+it before awaiting anything else. The
 [Send an email](../examples.md#send-an-email) example puts this together.
+
+RFC 8620 shares one set of creation IDs between every call in a request,
+whatever the type. Batching can put unrelated code in the same request, so
+pick creation IDs that won't collide, such as ones with a prefix for each
+feature.
+
+A creation reference resolves only where the RFC, or the extension that
+defines a method, says it does: for example in the objects of a `/set`
+call's `create` and `update`, or in `onSuccessUpdateEmail` in
+`EmailSubmission/set`. Elsewhere, such as in the `ids` of a `/get` call,
+whether it resolves is up to the server. A result reference to the `/set`
+call's `/created/<id>/id` works anywhere a result reference does.
+
+The client throws, or rejects the call, with a
+[`CreationReferenceError`](../reference/errors.md#creationreferenceerror)
+when:
+
+- `createdRef()` is given an ID that isn't a key of `create`.
+- `createdRef()` is called after the `/set` call's batch was sent.
+- A `/set` or `/copy` call, or `Email/import`, reuses a creation ID from an
+  earlier call in the same batch. The call rejects without being sent, and
+  the rest of its batch proceeds.
 
 ## Patch updates
 

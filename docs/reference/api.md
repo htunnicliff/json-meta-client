@@ -528,7 +528,9 @@ void client.api.Email.query({
 });
 ```
 
-It throws a `RangeError` synchronously when `create` has no such key. Refer to
+It throws a [`CreationReferenceError`](./errors.md#creationreferenceerror)
+synchronously when `create` has no such key, or when the call's batch was
+already sent. Refer to
 [Creation references](../features/method-calls.md#creation-references).
 
 ### `$id`, `$args` and `$method`
