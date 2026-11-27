@@ -1,4 +1,4 @@
-import type { Replace } from "./rfc-types/core/index.ts";
+import type { Patch } from "./rfc-types/core/index.ts";
 
 /**
  * The paths of a patch object that end in a map's key, such as
@@ -59,71 +59,65 @@ export function patchMap<Patch, const Path extends PatchMapPath<Patch>>(
   return patch as Patch;
 }
 
-const replacedValue = Symbol("replace");
+const patchedValue = Symbol("patch");
 
 /**
- * Set an object whole in an update, instead of patching only the keys it
- * names. A plain object in an update is a patch: `mailboxIds: { [id]: true }`
- * adds the email to one mailbox and leaves its others. Wrap it in
- * `replace()` to send the object as the property's new value, so that the
- * email is in that mailbox only.
+ * Change only some keys of an object in an update. As in JMAP, a plain
+ * object in an update is the property's whole new value:
+ * `mailboxIds: { [archiveId]: true }` puts the email in the archive only.
+ * Wrap the object in `patch()` to change only the keys it names, and leave
+ * the rest as they are. `null` removes a key.
+ *
+ * The client sends each key as a JSON Pointer path, such as
+ * `mailboxIds/<id>`, escaping `~` and `/` in it. A value that is itself a
+ * `patch()` is patched the same way, one level down.
  *
  * @example
  * await client.api.Email.set({
  *   update: {
- *     [emailId]: { mailboxIds: replace({ [archiveId]: true }) },
+ *     [emailId]: {
+ *       mailboxIds: patch({ [inboxId]: null, [archiveId]: true }),
+ *       keywords: patch({ $seen: true }),
+ *     },
  *   },
  * });
  */
-export function replace<const T extends object>(value: T): Replace<T> {
-  // The symbol stands for the declared `Replace` brand
+export function patch<const T extends object>(value: T): Patch<T> {
+  // The symbol stands for the declared `Patch` brand
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return { [replacedValue]: value } as unknown as Replace<T>;
+  return { [patchedValue]: value } as unknown as Patch<T>;
 }
 
-function isReplace(value: unknown): value is Record<typeof replacedValue, unknown> {
-  return typeof value === "object" && value !== null && Object.hasOwn(value, replacedValue);
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const prototype: unknown = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+function isPatch(value: unknown): value is Record<typeof patchedValue, unknown> {
+  return typeof value === "object" && value !== null && Object.hasOwn(value, patchedValue);
 }
 
 /**
- * Flatten an update into the JMAP wire form. A key with a `/` is already a
- * JSON Pointer path, and its value is kept as it is. A plain object under any
- * other key is patched key by key: its keys become path segments, escaped as
- * JSON Pointer requires, down to the first value that isn't a plain object.
- * `replace()` stops the descent and sends its value whole.
+ * Flatten an update into the JMAP wire form: each `patch()` becomes one
+ * JSON Pointer path per key it names. Every other value is sent as it is.
  */
-export function flattenPatch(patch: unknown): unknown {
-  if (!isPlainObject(patch)) {
-    return patch;
+export function flattenPatch(update: unknown): unknown {
+  if (typeof update !== "object" || update === null || Array.isArray(update)) {
+    return update;
   }
   const flat: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(patch)) {
-    if (key.includes("/")) {
-      flat[key] = isReplace(value) ? value[replacedValue] : value;
-    } else {
-      addNestedPatch(flat, key, value);
-    }
+  for (const [path, value] of Object.entries(update)) {
+    addPatch(flat, path, value);
   }
   return flat;
 }
 
-function addNestedPatch(flat: Record<string, unknown>, path: string, value: unknown): void {
-  if (isReplace(value)) {
-    flat[path] = value[replacedValue];
-  } else if (isPlainObject(value)) {
-    for (const [key, item] of Object.entries(value)) {
-      addNestedPatch(flat, `${path}/${escapePointerSegment(key)}`, item);
-    }
-  } else {
+function addPatch(flat: Record<string, unknown>, path: string, value: unknown): void {
+  if (!isPatch(value)) {
     flat[path] = value;
+    return;
+  }
+  const entries: unknown = value[patchedValue];
+  if (typeof entries !== "object" || entries === null) {
+    throw new TypeError(`patch() at "${path}" must be given an object`);
+  }
+  for (const [key, item] of Object.entries(entries)) {
+    addPatch(flat, `${path}/${escapePointerSegment(key)}`, item);
   }
 }
 
@@ -139,7 +133,7 @@ export function flattenPatchArguments(method: string, args: object): object {
   let result: Record<string, unknown> | undefined;
   for (const key of keys) {
     const patches: unknown = Reflect.get(args, key);
-    if (isPlainObject(patches)) {
+    if (typeof patches === "object" && patches !== null && !Array.isArray(patches)) {
       result ??= { ...args };
       result[key] = Object.fromEntries(
         Object.entries(patches).map(([id, patch]) => [id, flattenPatch(patch)]),

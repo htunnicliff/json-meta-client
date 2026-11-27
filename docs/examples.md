@@ -307,12 +307,10 @@ An email belongs to every mailbox in its `mailboxIds`. To move it, replace
 `mailboxIds` with the destination:
 
 ```ts
-import { replace } from "json-meta-client";
-
 await client.api.Email.set({
   update: {
     [emailId]: {
-      mailboxIds: replace({ [archiveId]: true }),
+      mailboxIds: { [archiveId]: true },
     },
   },
 });
@@ -324,17 +322,22 @@ removes the email from a mailbox, and `true` adds it. Other mailboxes the
 email is in stay as they are.
 
 ```ts
+import { patch } from "json-meta-client";
+
 await client.api.Email.set({
   update: {
     [emailId]: {
-      mailboxIds: { [inboxId]: null, [archiveId]: true },
+      mailboxIds: patch({
+        [inboxId]: null,
+        [archiveId]: true,
+      }),
     },
   },
 });
 ```
 
-The client sends this as a patch of each mailbox you name. Refer to
-[Patch updates](./features/method-calls.md#patch-updates).
+The client sends one path per mailbox, such as `mailboxIds/<inbox-id>`.
+Refer to [Change only some keys](./features/method-calls.md#change-only-some-keys).
 
 ## Mark an email as read
 
@@ -344,7 +347,7 @@ mark an email as read, or to `null` to mark it as unread.
 ```ts
 await client.api.Email.set({
   update: {
-    [emailId]: { keywords: { $seen: true } },
+    [emailId]: { keywords: patch({ $seen: true }) },
   },
 });
 ```

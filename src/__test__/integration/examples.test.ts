@@ -4,7 +4,7 @@
 
 import { describe, expect, inject, it, vi } from "vitest";
 
-import { replace } from "../../patch.ts";
+import { patch } from "../../patch.ts";
 import { createClient, uniqueName } from "./client.ts";
 
 const capabilities = ["mail", "submission", "vacationResponse"] as const;
@@ -222,7 +222,7 @@ describe("examples page", () => {
     const emailId = created.created!.email!.id;
 
     await client.api.Email.set({
-      update: { [emailId]: { mailboxIds: replace({ [archiveId]: true }) } },
+      update: { [emailId]: { mailboxIds: { [archiveId]: true } } },
     });
     const replaced = await client.api.Email.get({ ids: [emailId], properties: ["mailboxIds"] });
     expect(replaced.list[0]!.mailboxIds).toEqual({ [archiveId]: true });
@@ -230,8 +230,8 @@ describe("examples page", () => {
     await client.api.Email.set({
       update: {
         [emailId]: {
-          mailboxIds: { [archiveId]: null, [sourceId]: true },
-          keywords: { $seen: true },
+          mailboxIds: patch({ [archiveId]: null, [sourceId]: true }),
+          keywords: patch({ $seen: true }),
         },
       },
     });

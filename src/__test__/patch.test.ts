@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mail } from "../capabilities/mail.ts";
 import { submission } from "../capabilities/submission.ts";
 import { JsonMetaClient } from "../client.ts";
-import { flattenPatch, patchMap, replace } from "../patch.ts";
+import { flattenPatch, patch, patchMap } from "../patch.ts";
 import type { PatchObject } from "../rfc-types/core/index.ts";
 import type { EmailUpdate } from "../rfc-types/mail/index.ts";
 
@@ -25,28 +25,32 @@ describe(patchMap, () => {
 });
 
 describe(flattenPatch, () => {
-  it("patches a plain object key by key", () => {
+  it("sends each key of a patch() as a JSON Pointer path", () => {
     expect(
       flattenPatch({
-        mailboxIds: { inbox: null, archive: true },
-        keywords: { $seen: true },
+        mailboxIds: patch({ inbox: null, archive: true }),
+        keywords: patch({ $seen: true }),
       }),
     ).toEqual({ "mailboxIds/inbox": null, "mailboxIds/archive": true, "keywords/$seen": true });
   });
 
-  it("descends to the first value that isn't a plain object", () => {
+  it("sends plain objects and other values whole, as in JMAP", () => {
     expect(
-      flattenPatch({ name: { full: "Jane" }, addressBookIds: { a: { b: true } }, bcc: [{ a: 1 }] }),
-    ).toEqual({ "name/full": "Jane", "addressBookIds/a/b": true, bcc: [{ a: 1 }] });
+      flattenPatch({ mailboxIds: { archive: true }, bcc: [{ a: 1 }], subject: "Hi", x: null }),
+    ).toEqual({ mailboxIds: { archive: true }, bcc: [{ a: 1 }], subject: "Hi", x: null });
   });
 
-  it("sends a replaced value whole", () => {
+  it("patches deeper levels only where patch() is nested", () => {
     expect(
       flattenPatch({
-        mailboxIds: replace({ archive: true }),
-        media: { avatar: replace({ kind: "photo" }) },
+        name: patch({ full: "Jane", parts: patch({ given: "J" }) }),
+        media: patch({ avatar: { kind: "photo" } }),
       }),
-    ).toEqual({ mailboxIds: { archive: true }, "media/avatar": { kind: "photo" } });
+    ).toEqual({
+      "name/full": "Jane",
+      "name/parts/given": "J",
+      "media/avatar": { kind: "photo" },
+    });
   });
 
   it("keeps JSON Pointer paths and their values as they are", () => {
@@ -56,15 +60,15 @@ describe(flattenPatch, () => {
     });
   });
 
-  it("escapes nested keys, but not property names, which are already paths", () => {
-    expect(flattenPatch({ keywords: { "a~b/c": true }, "x~1y": { z: 1 } })).toEqual({
+  it("escapes the keys of a patch(), but not property names, which are already paths", () => {
+    expect(flattenPatch({ keywords: patch({ "a~b/c": true }), "x~1y": patch({ z: 1 }) })).toEqual({
       "keywords/a~0b~1c": true,
       "x~1y/z": 1,
     });
   });
 
-  it("sends nothing for an empty nested object", () => {
-    expect(flattenPatch({ keywords: {}, subject: "Hi" })).toEqual({ subject: "Hi" });
+  it("sends nothing for an empty patch()", () => {
+    expect(flattenPatch({ keywords: patch({}), subject: "Hi" })).toEqual({ subject: "Hi" });
   });
 });
 
@@ -89,24 +93,23 @@ describe("patches in method calls", () => {
 
   it("flattens each entry of a /set call's update", () => {
     const set = client.api.Email.set({
-      update: { e1: { mailboxIds: { inbox: null, archive: true }, keywords: { $seen: true } } },
+      update: {
+        e1: { mailboxIds: patch({ inbox: null, archive: true }), keywords: patch({ $seen: true }) },
+        e2: { mailboxIds: { archive: true } },
+      },
     });
     expect(set.$args).toEqual({
       update: {
         e1: { "mailboxIds/inbox": null, "mailboxIds/archive": true, "keywords/$seen": true },
+        e2: { mailboxIds: { archive: true } },
       },
     });
   });
 
   it("flattens onSuccessUpdateEmail", () => {
     const set = client.api.EmailSubmission.set({
-      onSuccessUpdateEmail: { "#send": { keywords: { $draft: null } } },
+      onSuccessUpdateEmail: { "#send": { keywords: patch({ $draft: null }) } },
     });
     expect(set.$args).toEqual({ onSuccessUpdateEmail: { "#send": { "keywords/$draft": null } } });
-  });
-
-  it("leaves create alone", () => {
-    const set = client.api.Email.set({ create: { d: { mailboxIds: { inbox: true } } } });
-    expect(set.$args).toEqual({ create: { d: { mailboxIds: { inbox: true } } } });
   });
 });

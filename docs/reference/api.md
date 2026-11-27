@@ -593,21 +593,21 @@ The client validates every capability when it is constructed, and throws a
 for a malformed one, or when two capabilities claim the same method with
 different `defaultAccount` settings.
 
-## `replace()`
+## `patch()`
 
-Marks an object in a `/set` call's `update` as the property's new value.
-Without it, a plain object is a patch that changes only the keys it names.
-`{ mailboxIds: replace({ a: true }) }` is sent as
-`{ "mailboxIds": { "a": true } }`, while `{ mailboxIds: { a: true } }` is
-sent as `{ "mailboxIds/a": true }`. Refer to
-[Patch updates](../features/method-calls.md#patch-updates).
+Changes only some keys of an object in a `/set` call's `update`. As in
+JMAP, a plain object there is the property's whole new value; wrapped in
+`patch()`, it changes only the keys it names.
+`{ mailboxIds: patch({ a: true, b: null }) }` is sent as
+`{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+[Change only some keys](../features/method-calls.md#change-only-some-keys).
 
-| Parameter | Type     | Description                    |
-| --------- | -------- | ------------------------------ |
-| `value`   | `object` | The property's whole new value |
+| Parameter | Type     | Description                                                   |
+| --------- | -------- | ------------------------------------------------------------- |
+| `value`   | `object` | The keys to change. `null` removes a key, and `patch()` nests |
 
-**Returns** a marker that the client unwraps before sending. The types
-check `value` against the property it replaces.
+**Returns** a marker that the client flattens into JSON Pointer paths
+before sending, escaping `~` and `/` in each key as `~0` and `~1`.
 
 ## `patchMap()`
 

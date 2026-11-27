@@ -1,5 +1,5 @@
 import type { CapabilityMethods, MethodContract } from "../capability.ts";
-import type { Replace } from "../rfc-types/core/index.ts";
+import type { Patch } from "../rfc-types/core/index.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 import type {
   ArrayElement,
@@ -265,11 +265,11 @@ type PropertyOfUnion<T, Key> = T extends unknown
  * check, so without this a misspelled property, or a property that needs a
  * capability the client doesn't have, would compile. Values that `Accepted`
  * leaves open (`unknown`, `object` or an index signature), result
- * references, and `replace()` values are not inspected.
+ * references, and `patch()` values are not inspected.
  */
 export type UnknownProperties<Given, Accepted> = [Given] extends [never]
   ? unknown
-  : [Extract<Given, Ref | Replace<unknown>>] extends [never]
+  : [Extract<Given, Ref | Patch<unknown>>] extends [never]
     ? CheckUnknownProperties<Given, Accepted>
     : unknown;
 

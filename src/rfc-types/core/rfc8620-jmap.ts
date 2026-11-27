@@ -180,40 +180,40 @@ export type PatchObject<T> = {
   [Entry in PatchEntry<T> as Entry[0]]?: Entry[1];
 };
 
-declare const replacedValue: unique symbol;
+declare const patchedValue: unique symbol;
 
 /**
- * A value that an {@link UpdatePatch} sets whole, instead of patching it key
- * by key. `replace()` from `json-meta-client` makes one.
+ * Patches an object key by key in an {@link UpdatePatch}, instead of
+ * setting it whole. `patch()` from `json-meta-client` makes one.
  */
-// An interface, not a type alias: an alias would be implicitly indexable, and
-// so would pass as a nested patch of a map
-export interface Replace<T> {
-  readonly [replacedValue]: T;
+// An interface, not a type alias: an alias would be implicitly indexable,
+// and so would pass as a whole value of a map
+export interface Patch<T> {
+  readonly [patchedValue]: T;
 }
 
 /**
- * The value a property name takes in an {@link UpdatePatch}: a plain object
- * patches only the keys it names, at any depth, and `null` removes a key.
- * Arrays are atomic, and `Replace` sets an object whole.
+ * The value a property takes in an {@link UpdatePatch}: the whole new value,
+ * as in JMAP, or for an object, a {@link Patch} of only the keys to change.
+ * `null` removes a key. Arrays can only be set whole.
  */
-export type NestedPatch<T> = T extends readonly unknown[]
-  ? T
-  : T extends object
-    ? { [Key in keyof T]?: NestedPatch<Exclude<T[Key], undefined>> | null } | Replace<T>
-    : T;
+export type PatchValue<T> =
+  | T
+  | (T extends readonly unknown[]
+      ? never
+      : T extends object
+        ? Patch<{ [Key in keyof T]?: PatchValue<Exclude<T[Key], undefined>> | null }>
+        : never);
 
 /**
- * The patch a client accepts in a `/set` call's `update`. A key with a `/`
- * is a JSON Pointer path, and its value is sent as it is, as in
- * {@link PatchObject}. A key without one is a property name, and its value
- * is a {@link NestedPatch}, which the client flattens into JSON Pointer
- * paths before sending.
+ * The patch a client accepts in a `/set` call's `update`: a
+ * {@link PatchObject}, whose property names may also take a {@link Patch}.
+ * The client flattens each `Patch` into JSON Pointer paths before sending.
  */
 export type UpdatePatch<T> = {
   [Entry in PatchEntry<T> as Entry[0]]?: Entry[0] extends `${string}/${string}`
     ? Entry[1]
-    : NestedPatch<Exclude<Entry[1], null | undefined>> | null;
+    : PatchValue<Exclude<Entry[1], null | undefined>> | null;
 };
 
 export namespace MethodSet {
