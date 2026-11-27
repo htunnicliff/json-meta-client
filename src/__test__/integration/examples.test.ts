@@ -4,6 +4,7 @@
 
 import { describe, expect, inject, it, vi } from "vitest";
 
+import { patch } from "../../patch.ts";
 import { createClient, uniqueName } from "./client.ts";
 
 const capabilities = ["mail", "submission", "vacationResponse"] as const;
@@ -226,12 +227,20 @@ describe("examples page", () => {
     const replaced = await client.api.Email.get({ ids: [emailId], properties: ["mailboxIds"] });
     expect(replaced.list[0]!.mailboxIds).toEqual({ [archiveId]: true });
 
-    const membership: Record<`mailboxIds/${string}`, true | null> = {};
-    membership[`mailboxIds/${archiveId}`] = null;
-    membership[`mailboxIds/${sourceId}`] = true;
-    await client.api.Email.set({ update: { [emailId]: membership } });
-    const patched = await client.api.Email.get({ ids: [emailId], properties: ["mailboxIds"] });
+    await client.api.Email.set({
+      update: {
+        [emailId]: {
+          mailboxIds: patch({ [archiveId]: null, [sourceId]: true }),
+          keywords: patch({ $seen: true }),
+        },
+      },
+    });
+    const patched = await client.api.Email.get({
+      ids: [emailId],
+      properties: ["mailboxIds", "keywords"],
+    });
     expect(patched.list[0]!.mailboxIds).toEqual({ [sourceId]: true });
+    expect(patched.list[0]!.keywords).toMatchObject({ $seen: true });
   });
 
   it("turns a vacation response on and off", async () => {

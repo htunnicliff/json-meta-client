@@ -6,9 +6,9 @@ import type {
   MethodQuery,
   MethodQueryChanges,
   MethodSet,
-  PatchObject,
   PickPropertiesForEntity,
   SetError,
+  UpdatePatch,
 } from "../core/index.ts";
 
 /**
@@ -891,7 +891,7 @@ export namespace EmailSubmissionSet {
     WritableEmailSubmission,
     { undoStatus: "canceled" } & WithoutProperties<Exclude<keyof EmailSubmission, "undoStatus">>
   > {
-    onSuccessUpdateEmail?: { [submissionId: string]: PatchObject<EmailUpdate> } | null;
+    onSuccessUpdateEmail?: { [submissionId: string]: UpdatePatch<EmailUpdate> } | null;
     onSuccessDestroyEmail?: string[] | null;
   }
   export interface Output extends MethodSet.Output<EmailSubmission> {}
@@ -931,7 +931,7 @@ export namespace VacationResponseSet {
     create?: never;
     destroy?: never;
     update?: {
-      singleton?: PatchObject<Omit<VacationResponse, "id"> & WithoutProperties<"id">>;
+      singleton?: UpdatePatch<Omit<VacationResponse, "id"> & WithoutProperties<"id">>;
     } | null;
   }
   export interface Output extends MethodSet.Output<VacationResponse> {}

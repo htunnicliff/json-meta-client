@@ -322,31 +322,32 @@ removes the email from a mailbox, and `true` adds it. Other mailboxes the
 email is in stay as they are.
 
 ```ts
-const membership: Record<
-  `mailboxIds/${string}`,
-  true | null
-> = {};
-membership[`mailboxIds/${inboxId}`] = null;
-membership[`mailboxIds/${archiveId}`] = true;
+import { patch } from "json-meta-client";
 
 await client.api.Email.set({
-  update: { [emailId]: membership },
+  update: {
+    [emailId]: {
+      mailboxIds: patch({
+        [inboxId]: null,
+        [archiveId]: true,
+      }),
+    },
+  },
 });
 ```
 
-In an object literal, TypeScript types a computed key such as
-``[`mailboxIds/${inboxId}`]`` as `string`, which the patch types reject.
-Declaring the patch's type first, as above, keeps each path's type.
+The client sends one path per mailbox, such as `mailboxIds/<inbox-id>`.
+Refer to [Change only some keys](./features/method-calls.md#change-only-some-keys).
 
 ## Mark an email as read
 
-Keywords are patched the same way as mailboxes. Set `keywords/$seen` to
-`true` to mark an email as read, or to `null` to mark it as unread.
+Keywords are patched the same way as mailboxes. Set `$seen` to `true` to
+mark an email as read, or to `null` to mark it as unread.
 
 ```ts
 await client.api.Email.set({
   update: {
-    [emailId]: { "keywords/$seen": true },
+    [emailId]: { keywords: patch({ $seen: true }) },
   },
 });
 ```

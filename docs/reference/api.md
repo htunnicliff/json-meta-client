@@ -593,6 +593,61 @@ The client validates every capability when it is constructed, and throws a
 for a malformed one, or when two capabilities claim the same method with
 different `defaultAccount` settings.
 
+## `patch()`
+
+Changes only some keys of an object in a `/set` call's `update`. As in
+JMAP, a plain object there is the property's whole new value; wrapped in
+`patch()`, it changes only the keys it names.
+`{ mailboxIds: patch({ a: true, b: null }) }` is sent as
+`{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+[Change only some keys](../features/method-calls.md#change-only-some-keys).
+
+| Parameter | Type     | Description                                                   |
+| --------- | -------- | ------------------------------------------------------------- |
+| `value`   | `object` | The keys to change. `null` removes a key, and `patch()` nests |
+
+**Returns** a marker that the client flattens into JSON Pointer paths
+before sending, escaping `~` and `/` in each key as `~0` and `~1`.
+
+## `patchMap()`
+
+Builds the patch paths for some entries of a map keyed by ID, such as an
+email's `mailboxIds`. `patchMap("mailboxIds", { a: true, b: null })`
+returns `{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+[Keys from a variable](../features/method-calls.md#keys-from-a-variable).
+
+| Parameter | Type                    | Description                                                 |
+| --------- | ----------------------- | ----------------------------------------------------------- |
+| `path`    | `string`                | The path of the map, such as `"mailboxIds"`                 |
+| `entries` | `Record<string, Value>` | The value for each key. `null` removes the key from the map |
+
+**Returns** a patch with one path per key. `~` and `/` in a key are
+escaped as `~0` and `~1`, as JSON Pointer requires.
+
+### How the types are checked
+
+`patchMap()` checks `path` and the values against the patch it is placed
+in. Inside a `/set` call's `update`, that is the method's patch type, so
+`path` must be a map on that object, and each value must be one the map
+accepts.
+
+On its own, as in a variable without a type, it has nothing to check
+against, and every `path` is a type error. Give the variable a
+[`UpdatePatch`](./types.md#jmap-types) type:
+
+```ts
+import { patchMap } from "json-meta-client";
+import type {
+  EmailUpdate,
+  UpdatePatch,
+} from "json-meta-client/rfc-types";
+
+const move: UpdatePatch<EmailUpdate> = patchMap(
+  "mailboxIds",
+  { "<mailbox-id>": true },
+);
+```
+
 ## Authentication
 
 The `auth` option accepts a bearer token string, a username and password, or a

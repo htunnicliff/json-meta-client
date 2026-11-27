@@ -1,4 +1,5 @@
 import type { CapabilityMethods, MethodContract } from "../capability.ts";
+import type { Patch } from "../rfc-types/core/index.ts";
 import type { Ref, WithResultRefFn } from "./ref.ts";
 import type {
   ArrayElement,
@@ -263,12 +264,12 @@ type PropertyOfUnion<T, Key> = T extends unknown
  * `never`, at any depth. Inferred arguments skip TypeScript's excess property
  * check, so without this a misspelled property, or a property that needs a
  * capability the client doesn't have, would compile. Values that `Accepted`
- * leaves open (`unknown`, `object` or an index signature) and result
- * references are not inspected.
+ * leaves open (`unknown`, `object` or an index signature), result
+ * references, and `patch()` values are not inspected.
  */
 export type UnknownProperties<Given, Accepted> = [Given] extends [never]
   ? unknown
-  : [Extract<Given, Ref>] extends [never]
+  : [Extract<Given, Ref | Patch<unknown>>] extends [never]
     ? CheckUnknownProperties<Given, Accepted>
     : unknown;
 
@@ -278,11 +279,12 @@ type CheckUnknownProperties<Given, Accepted> = [Given] extends [ReadonlyArray<un
     ? [KeysOfUnion<NonNullable<Accepted>>] extends [never]
       ? unknown
       : {
+          // `null` passes here, and the accepted type decides whether it may
           [Key in KeysOfUnion<Given>]?: StoredKey<Key> extends KeysOfUnion<NonNullable<Accepted>>
             ? UnknownProperties<
                 NonNullable<PropertyOfUnion<Given, Key>>,
                 PropertyOfUnion<NonNullable<Accepted>, Key>
-              >
+              > | null
             : never;
         }
     : unknown;

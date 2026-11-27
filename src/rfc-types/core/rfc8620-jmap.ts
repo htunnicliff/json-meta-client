@@ -180,6 +180,42 @@ export type PatchObject<T> = {
   [Entry in PatchEntry<T> as Entry[0]]?: Entry[1];
 };
 
+declare const patchedValue: unique symbol;
+
+/**
+ * Patches an object key by key in an {@link UpdatePatch}, instead of
+ * setting it whole. `patch()` from `json-meta-client` makes one.
+ */
+// An interface, not a type alias: an alias would be implicitly indexable,
+// and so would pass as a whole value of a map
+export interface Patch<T> {
+  readonly [patchedValue]: T;
+}
+
+/**
+ * The value a property takes in an {@link UpdatePatch}: the whole new value,
+ * as in JMAP, or for an object, a {@link Patch} of only the keys to change.
+ * `null` removes a key. Arrays can only be set whole.
+ */
+export type PatchValue<T> =
+  | T
+  | (T extends readonly unknown[]
+      ? never
+      : T extends object
+        ? Patch<{ [Key in keyof T]?: PatchValue<Exclude<T[Key], undefined>> | null }>
+        : never);
+
+/**
+ * The patch a client accepts in a `/set` call's `update`: a
+ * {@link PatchObject}, whose property names may also take a {@link Patch}.
+ * The client flattens each `Patch` into JSON Pointer paths before sending.
+ */
+export type UpdatePatch<T> = {
+  [Entry in PatchEntry<T> as Entry[0]]?: Entry[0] extends `${string}/${string}`
+    ? Entry[1]
+    : PatchValue<Exclude<Entry[1], null | undefined>> | null;
+};
+
 export namespace MethodSet {
   /** @see https://www.rfc-editor.org/info/rfc8620/#section-5.3 */
   export interface Input<
@@ -190,7 +226,7 @@ export namespace MethodSet {
     accountId: string;
     ifInState?: string | null;
     create?: Record<string, Create> | null;
-    update?: Record<string, PatchObject<Update>> | null;
+    update?: Record<string, UpdatePatch<Update>> | null;
     destroy?: string[] | null;
   }
 
