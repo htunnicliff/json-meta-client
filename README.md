@@ -85,3 +85,9 @@ how changes to its types map to version numbers.
 ## License
 
 The [MPL-2.0 License](./LICENSE).
+
+## Migrating
+
+This library is the successor to [`jmap-jam`](https://github.com/htunnicliff/jmap-jam). 
+The [migration guide](https://json-meta-client.dev/migrating-from-jmap-jam) provides an overview of what has changed and how to use the new library. 
+
