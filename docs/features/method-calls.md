@@ -324,34 +324,19 @@ uses the reference must be in the same batch. The
 
 ## Patch updates
 
-The `update` argument of a `/set` call takes a patch object for each ID. Its
-keys are paths into the object. Both the paths and their values are typed, so
-a misspelled path or a value of the wrong type is a type error:
+The `update` argument of a `/set` call takes a patch object for each ID, as
+in JMAP. Each key names a property, and its value is the property's whole
+new value. This moves the email out of every other mailbox and into the
+archive:
 
 ```ts
 const email = subjects.list[0]!;
-
-await client.api.Email.set({
-  update: {
-    [email.id]: {
-      // Set one keyword, leaving the others as they are
-      "keywords/$seen": true,
-      // Remove a keyword
-      "keywords/$flagged": null,
-    },
-  },
-});
-```
-
-To replace a whole property, use its name as the path. This moves the email
-out of every other mailbox and into the archive:
-
-```ts
-const archiveId = (
-  await client.api.Mailbox.query({
-    filter: { role: "archive" },
-  })
-).ids[0]!;
+const [inbox, archive] = await Promise.all([
+  client.api.Mailbox.query({ filter: { role: "inbox" } }),
+  client.api.Mailbox.query({ filter: { role: "archive" } }),
+]);
+const inboxId = inbox.ids[0]!;
+const archiveId = archive.ids[0]!;
 
 await client.api.Email.set({
   update: {
@@ -360,51 +345,66 @@ await client.api.Email.set({
 });
 ```
 
-A `null` value removes a property. Keys that contain `~` or `/` are escaped
-as `~0` and `~1`, following JSON Pointer, and the types expect the escaped
-form.
+A `null` value removes a property. The keys and values are typed, so a
+misspelled property or a value of the wrong type is a type error.
 
-### Keys from a variable
+### Change only some keys
 
-Some properties are maps keyed by ID, such as an email's `mailboxIds`. To
-change one entry of a map and leave the rest, the path ends in its key, as
-in `mailboxIds/<id>`. When the ID is in a variable, build those paths with
-`patchMap()`. This call adds the email to the archive and removes it from
-the inbox:
+To change some keys of an object and leave the rest, wrap them in
+`patch()`. This adds the email to the archive, takes it out of the inbox,
+and marks it as read, without touching its other mailboxes or keywords:
 
 ```ts
-import { patchMap } from "json-meta-client";
-
-const inboxId = (
-  await client.api.Mailbox.query({
-    filter: { role: "inbox" },
-  })
-).ids[0]!;
+import { patch } from "json-meta-client";
 
 await client.api.Email.set({
   update: {
-    [email.id]: patchMap("mailboxIds", {
-      [archiveId]: true,
-      [inboxId]: null,
-    }),
+    [email.id]: {
+      mailboxIds: patch({
+        [archiveId]: true,
+        [inboxId]: null,
+      }),
+      keywords: patch({ $seen: true }),
+    },
   },
 });
 ```
 
-The update it sends is
-`{ "mailboxIds/<archive-id>": true, "mailboxIds/<inbox-id>": null }`.
+`null` removes a key. The client sends each key as the JSON Pointer path
+JMAP expects, so the update it sends is
+`{ "mailboxIds/<archive-id>": true, "mailboxIds/<inbox-id>": null, "keywords/$seen": true }`.
+It escapes `~` and `/` in each key as `~0` and `~1`, so IDs and keywords
+can be used as they are. Because the keys are in an object, IDs from a
+variable keep their types, and a value the map doesn't accept, such as
+`false` in `mailboxIds`, is a type error.
 
-Writing the key yourself, as in ``[`mailboxIds/${archiveId}`]``, doesn't
-work, because TypeScript types that key as a plain `string` and can't tell
-which property it points to. `patchMap()` checks that `mailboxIds` is a map
-on an email, and that each value is one the map accepts, so
-`patchMap("mailboxIdz", …)` or a value of `false` is a type error. It also
-escapes `~` and `/` in each key.
+Inside `patch()`, values are whole values again. To patch a level further
+down, nest another `patch()`, as in `name: patch({ full: "Jane" })`.
 
-To change other properties in the same update, spread `patchMap()` into
-the patch:
+### JSON Pointer paths
+
+You can also write the paths yourself. A key that contains `/` is sent as
+it is, and the types expect it in its escaped form:
 
 ```ts
+await client.api.Email.set({
+  update: {
+    [email.id]: {
+      "keywords/$seen": true,
+      "keywords/$flagged": null,
+    },
+  },
+});
+```
+
+A path built from a variable, as in ``[`mailboxIds/${archiveId}`]``, loses
+its type, because TypeScript types the key as a plain `string`. Use
+`patch()` instead, or [`patchMap()`](../reference/api.md#patchmap), which
+builds the same paths as a standalone patch object:
+
+```ts
+import { patchMap } from "json-meta-client";
+
 await client.api.Email.set({
   update: {
     [email.id]: {

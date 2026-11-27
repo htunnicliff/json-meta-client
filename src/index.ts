@@ -7,7 +7,7 @@ export type {
 } from "./capability.ts";
 export { defineCapability } from "./capability.ts";
 export type { PatchMapPath, PatchMapValue } from "./patch.ts";
-export { patchMap } from "./patch.ts";
+export { patch, patchMap } from "./patch.ts";
 export * from "./client.ts";
 export * from "./errors/index.ts";
 export * from "./types.ts";

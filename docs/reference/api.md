@@ -593,6 +593,22 @@ The client validates every capability when it is constructed, and throws a
 for a malformed one, or when two capabilities claim the same method with
 different `defaultAccount` settings.
 
+## `patch()`
+
+Changes only some keys of an object in a `/set` call's `update`. As in
+JMAP, a plain object there is the property's whole new value; wrapped in
+`patch()`, it changes only the keys it names.
+`{ mailboxIds: patch({ a: true, b: null }) }` is sent as
+`{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+[Change only some keys](../features/method-calls.md#change-only-some-keys).
+
+| Parameter | Type     | Description                                                   |
+| --------- | -------- | ------------------------------------------------------------- |
+| `value`   | `object` | The keys to change. `null` removes a key, and `patch()` nests |
+
+**Returns** a marker that the client flattens into JSON Pointer paths
+before sending, escaping `~` and `/` in each key as `~0` and `~1`.
+
 ## `patchMap()`
 
 Builds the patch paths for some entries of a map keyed by ID, such as an
@@ -617,16 +633,16 @@ accepts.
 
 On its own, as in a variable without a type, it has nothing to check
 against, and every `path` is a type error. Give the variable a
-[`PatchObject`](./types.md#jmap-types) type:
+[`UpdatePatch`](./types.md#jmap-types) type:
 
 ```ts
 import { patchMap } from "json-meta-client";
 import type {
   EmailUpdate,
-  PatchObject,
+  UpdatePatch,
 } from "json-meta-client/rfc-types";
 
-const move: PatchObject<EmailUpdate> = patchMap(
+const move: UpdatePatch<EmailUpdate> = patchMap(
   "mailboxIds",
   { "<mailbox-id>": true },
 );
