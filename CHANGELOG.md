@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 1.0.1
+
+### Patch Changes
+
+- [#328](https://github.com/htunnicliff/json-meta-client/pull/328) [`032bd67`](https://github.com/htunnicliff/json-meta-client/commit/032bd67c6c15671a96d1256460cf9935f92871cb) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Refresh the README badges shown on npm: all badges now come from shields.io, and the README adds CI status, zero-dependency, and gzip bundle size badges.
+
 ## 1.0.0
 
 ### Major Changes
