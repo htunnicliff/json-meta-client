@@ -66,11 +66,10 @@ new JsonMetaClient({
 
 ### `capabilities`
 
-An array of the JMAP capabilities this client will use.
+An array of the JMAP capabilities this client uses.
 
-Each capability is associated with specific entities and methods. Including a
-capability in this array will make its corresponding entities and methods
-available at runtime while also enabling their types.
+Each capability declares entities and their methods. Listing a capability
+here makes those methods available on `client.api`, with their types.
 
 ```ts {4-9}
 new JsonMetaClient({
@@ -210,14 +209,8 @@ the client can stream events from it.
 
 ## `.api`
 
-This is the primary API for issuing JMAP requests. These requests use the
-following pattern:
-
-```
-<Entity>.<method>
-```
-
-Here are several examples of JMAP requests made using this API.
+The typed API for JMAP method calls. Each JMAP method `Entity/method` is a
+function at `client.api.Entity.method`:
 
 | JMAP                    | Usage                                    |
 | ----------------------- | ---------------------------------------- |
@@ -225,14 +218,11 @@ Here are several examples of JMAP requests made using this API.
 | `Mailbox/get`           | `client.api.Mailbox.get(args)`           |
 | `Identity/queryChanges` | `client.api.Identity.queryChanges(args)` |
 
-The JMAP standard refers to these requests as method calls. A method with no
-required arguments, once the client fills in `accountId`, can be called
-without them, as in `client.api.Mailbox.get()`.
+A method with no required arguments, once the client fills in `accountId`,
+can be called without them, as in `client.api.Mailbox.get()`.
 
-The `.api` object is a layered [`Proxy`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
-that helps to capture the entity, method, and arguments used in each request.
-
-A more thorough explanation can be found in the
+`.api` is a [`Proxy`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+that records the entity, method, and arguments of each call. Refer to the
 [Method Calls guide](../features/method-calls.md).
 
 ## `.session`
@@ -344,8 +334,9 @@ console.log(await download.text());
 Subscribes to state changes and calls a handler for each changed entity type
 in each account. Changes arrive over WebSocket push when the client uses
 [`webSocketTransport()`](#websockettransport) and the server supports it, and
-over the server's event source otherwise. Every handler shares one
-connection. Refer to the [Events guide](../features/events.md).
+over the server's event stream otherwise. Handlers share connections: one
+WebSocket push subscription, or one event stream for each distinct
+`pingSeconds`. Refer to the [Events guide](../features/events.md).
 
 | Parameter             | Type                   | Description                                                        |
 | --------------------- | ---------------------- | ------------------------------------------------------------------ |
@@ -353,9 +344,9 @@ connection. Refer to the [Events guide](../features/events.md).
 | `options.signal`      | `AbortSignal`          | Optional. Ends this subscription when aborted                      |
 | `options.pingSeconds` | `number`               | Optional. How often the event stream should ping. Defaults to `30` |
 
-**Returns** a promise for a `Disposable`; disposing it ends the
-subscription, and the connection closes when no handler is left. It rejects with an [error](./errors.md) when the subscription
-can't be started.
+**Returns** a promise for a `Disposable`. Disposing it ends the
+subscription, and the connection closes when no handler is left. It rejects
+with an [error](./errors.md) when the subscription can't be started.
 
 The handler receives `(null, change)` for each change, where `change` is a
 [`StateChangePayload`](./types.md#event-types), or `(error, undefined)` when
@@ -379,9 +370,9 @@ using subscription = await client.onStateChange(
 );
 ```
 
-The client subscribes to every type, and on the event source keeps the
-connection open (`closeafter=no`). On runtimes without `Symbol.dispose`, the returned object's
-method is named `disconnect` instead.
+The client subscribes to every type, and keeps the event stream open after
+each change (`closeafter=no`). On runtimes without `Symbol.dispose`, the
+returned object's method is named `disconnect` instead.
 
 ## `.cancelBatch()`
 
@@ -599,10 +590,14 @@ different `defaultAccount` settings.
 
 Changes only some keys of an object in a `/set` call's `update`. As in
 JMAP, a plain object there is the property's whole new value; wrapped in
-`patch()`, it changes only the keys it names.
-`{ mailboxIds: patch({ a: true, b: null }) }` is sent as
-`{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
+`patch()`, it changes only the keys it names. Refer to
 [Change only some keys](../features/method-calls.md#change-only-some-keys).
+
+```js
+{ mailboxIds: patch({ a: true, b: null }) }
+// is sent as
+{ "mailboxIds/a": true, "mailboxIds/b": null }
+```
 
 | Parameter | Type     | Description                                                   |
 | --------- | -------- | ------------------------------------------------------------- |
@@ -614,9 +609,14 @@ before sending, escaping `~` and `/` in each key as `~0` and `~1`.
 ## `patchMap()`
 
 Builds the patch paths for some entries of a map keyed by ID, such as an
-email's `mailboxIds`. `patchMap("mailboxIds", { a: true, b: null })`
-returns `{ "mailboxIds/a": true, "mailboxIds/b": null }`. Refer to
-[Keys from a variable](../features/method-calls.md#keys-from-a-variable).
+email's `mailboxIds`. Refer to
+[JSON Pointer paths](../features/method-calls.md#json-pointer-paths).
+
+```js
+patchMap("mailboxIds", { a: true, b: null })
+// returns
+{ "mailboxIds/a": true, "mailboxIds/b": null }
+```
 
 | Parameter | Type                    | Description                                                 |
 | --------- | ----------------------- | ----------------------------------------------------------- |
@@ -652,11 +652,10 @@ const move: UpdatePatch<EmailUpdate> = patchMap(
 
 ## Authentication
 
-The `auth` option accepts a bearer token string, a username and password, or a
-callback.
-The client applies it to every request it sends: session discovery, method
-calls, blob uploads and downloads, and event-stream connections, including
-reconnects.
+The [`auth`](#auth) option accepts a bearer token string, a username and
+password, or a callback. The client applies it to every request it sends:
+session discovery, method calls, blob uploads and downloads, and event-stream
+connections, including reconnects.
 
 | `auth` value             | Sends                                                    |
 | ------------------------ | -------------------------------------------------------- |
@@ -664,10 +663,16 @@ reconnects.
 | `{ username, password }` | `Authorization: Basic` with `username:password` as UTF-8 |
 | `AuthCallback`           | Whatever the callback sets on the request                |
 
-`AuthCallback` has the type
-`(args: { request: Request }) => void | Promise<void>`. It receives the
-outgoing `Request` and changes it in place; the client awaits it before
-running `beforeFetch` hooks. Use it for schemes the object forms don't cover,
+An `AuthCallback` has this type:
+
+```ts
+type AuthCallback = (args: {
+  request: Request;
+}) => void | Promise<void>;
+```
+
+It receives the outgoing `Request` and changes it in place. The client
+awaits it before running `beforeFetch` hooks. Use it for schemes the object forms don't cover,
 such as a proxy header, or to read a fresh credential for every request:
 
 ```ts

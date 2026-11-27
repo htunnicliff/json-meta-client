@@ -18,7 +18,7 @@ when it is constructed, so two clients never share a connection.
 ::: tip Prefer the HTTP transport
 Use the default `httpTransport()` unless you have a specific reason not to.
 It is the simpler and more predictable choice. Each batch is an ordinary HTTP
-request that your `auth`, hooks and platform tooling all see. The WebSocket
+request that your `auth`, hooks, and platform tooling all see. The WebSocket
 transport is a long-lived connection with more moving parts: request
 timeouts, heartbeats, reconnects with backoff, idle closing, and
 authentication that varies by `WebSocket` implementation. Choose it only
@@ -60,9 +60,6 @@ transport and the session doesn't advertise
 
 ## The WebSocket transport
 
-The HTTP transport is the recommended default; see
-[Choosing a transport](#choosing-a-transport).
-
 `webSocketTransport()` opens one socket per client, at the URL in the
 session's `urn:ietf:params:jmap:websocket` capability, with the `jmap`
 subprotocol. Every batch of the client shares it, including batches from
@@ -86,8 +83,8 @@ The socket's lifecycle:
 
 - **Connecting.** The socket opens on the first batch. Batches made while it
   connects wait for it, then share it.
-- **Responses.** Each JMAP Request carries an id, and each response settles
-  the request with that id, so the server may answer in any order. A
+- **Responses.** Each JMAP Request carries an ID, and each response settles
+  the request with that ID, so the server may answer in any order. A
   `RequestError` from the server rejects only its own request, with a
   `JmapError`.
 - **Closing.** When the socket closes unexpectedly, every request still in
@@ -148,7 +145,7 @@ stream, as with HTTP.
 
 `beforeJmapRequest` and `afterJmapResponse` run for every batch, whatever the
 transport. `beforeFetch` and `afterFetch` don't see WebSocket traffic: only
-the session request, blob transfers and the event stream go over HTTP.
+the session request, blob transfers, and the event stream go over HTTP.
 
 ## Closing the client
 

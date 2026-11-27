@@ -1,8 +1,8 @@
 # Examples
 
 These examples use the `client` configured in
-[Introduction](./getting-started.md#configuration), and each builds on the
-values found by the examples before it.
+[Setup](./getting-started.md#setup), and each one builds on the values that
+the examples before it found.
 
 ## Get the session
 
@@ -81,15 +81,10 @@ const identity = identities.list[0]!;
 
 ### Draft and send
 
-::: note
-Local IDs are used to help clients identify results returned
-by `/set` operations. These IDs can be any arbitrary string value.
-:::
-
-::: tip
-It can be a good idea to use short, unambiguous strings
-that are easily identifiable for debugging purposes.
-:::
+The keys of `create`, such as `draft` below, are creation IDs. They name
+each new object so that the response, and later calls in the same request,
+can refer to it. A creation ID can be any string; short, descriptive ones
+are easier to follow when debugging.
 
 ```ts
 const bodyId = "body";
@@ -97,7 +92,7 @@ const bodyId = "body";
 const draft = client.api.Email.set({
   create: {
     draft: {
-      // Ensure the email is a draft
+      // Mark the email as a draft
       keywords: { $draft: true },
 
       // Put the draft in the drafts mailbox
@@ -467,7 +462,8 @@ void client.onStateChange(async (error, change) => {
 
 The server can return only some of the changes, for example when you pass
 `maxChanges`. When `hasMoreChanges` is `true`, call `Email/changes` again
-with the new state until it is `false`. See [Events](./features/events.md) for more on the handler.
+with the new state until it is `false`. Refer to [Events](./features/events.md)
+for more on the handler.
 
 ## Set a vacation response
 

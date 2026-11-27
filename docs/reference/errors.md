@@ -122,7 +122,8 @@ understood, so the client can't settle it with a result or a `JmapError`.
 ### `CancellationError`
 
 A method call was cancelled before its batch was sent, for example with
-[`cancelBatch()`](./api.md#cancelbatch).
+[`cancelBatch()`](./api.md#cancelbatch), or a request was still in flight
+when the client was [disposed](./api.md#symbol-dispose).
 
 - Type guard: `isCancellationError()`
 
@@ -210,7 +211,7 @@ A fallback for an error the library can't classify.
 
 Not every error is a `JsonMetaError`. Errors from your own code, such as a
 hook, and some errors from the platform, such as a `SyntaxError` for a
-response that isn't valid JSON, can reach you as they are. A mistake in how
+session or upload response that isn't valid JSON, can reach you as they are. A mistake in how
 a method is called, such as an invalid argument, may also throw a standard
 `TypeError` or `RangeError` at the call site. Use `isJsonMetaError()` to tell
 the library's errors apart, and refer to
@@ -271,7 +272,8 @@ from the result's `notCreated`, `notUpdated` and `notDestroyed` properties.
 
 ### Request-level error types
 
-RFC 8620 defines these request-level types. They arrive in the `responseData.type` of an `HttpError`:
+RFC 8620 defines these request-level types. They arrive in the
+`responseData.type` of an `HttpError`:
 
 | `type`                                         | Meaning                                                           |
 | ---------------------------------------------- | ----------------------------------------------------------------- |

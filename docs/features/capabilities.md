@@ -67,8 +67,8 @@ passing the capability object in the same array.
 `"smime"` adds no methods of its own. It extends `mail`: with it, every
 `Email` and `SearchSnippet` call also sends the S/MIME verification URN,
 `Email/get` is typed with the `smime*` properties of RFC 9219, and
-`Email/query` accepts the `hasSmime` and `hasVerifiedSmime` filter
-conditions. A client without `"smime"` rejects those properties and
+`Email/query`, `Email/queryChanges`, and `SearchSnippet/get` accept the
+`hasSmime` and `hasVerifiedSmime` filter conditions. A client without `"smime"` rejects those properties and
 conditions at the type level.
 
 Because it extends `mail`, `"smime"` requires it. Configuring `"smime"`
@@ -106,9 +106,12 @@ client builds it for you from the calls in each batch:
   `"mdn"` calls also send the mail URN.
 - Each URN appears once, however many calls need it.
 
-A batch of only `Mailbox` calls therefore sends
-`["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]`, even on a
-client that also has `"submission"` configured.
+A batch of only `Mailbox` calls therefore sends this `using` array, even on
+a client that also has `"submission"` configured:
+
+```json
+["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
+```
 
 ## Checking server support
 
@@ -133,8 +136,8 @@ publishes in the session. The client types them for each configured
 capability:
 
 - `session.capabilities[urn]` holds server-wide details.
-- `session.accounts[accountId].accountCapabilities[urn]` holds the details
-  for one account.
+- Each account's `accountCapabilities[urn]`, under `session.accounts`, holds
+  the details for that account.
 
 Both are `Partial`, because the server may not support a capability you
 configured, or may support it only for some accounts. Check for `undefined`

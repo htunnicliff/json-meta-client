@@ -11,14 +11,15 @@ argument and result types from its configured capabilities.
 The options of [`new JsonMetaClient()`](./api.md#config). Its type parameter
 is the `capabilities` array, which the constructor infers as a readonly tuple.
 
-| Property               | Type                              | Description                                                       |
-| ---------------------- | --------------------------------- | ----------------------------------------------------------------- |
-| `sessionUrl`           | `string \| URL`                   | The JMAP session endpoint                                         |
-| `auth`                 | `Auth`                            | How requests are authenticated                                    |
-| `capabilities`         | `ReadonlyArray<CapabilityOption>` | Built-in capability names and custom capabilities                 |
-| `generateMethodCallId` | `(method: string) => string`      | Optional. Generates a method call ID from a name like `Email/get` |
-| `hooks`                | object of hook arrays             | Optional. Refer to [Hook types](#hook-types)                      |
-| `transport`            | `TransportFactory`                | Optional. Refer to [Transport types](#transport-types)            |
+| Property               | Type                               | Description                                                       |
+| ---------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `sessionUrl`           | `string \| URL`                    | The JMAP session endpoint                                         |
+| `auth`                 | `Auth`                             | How requests are authenticated                                    |
+| `capabilities`         | `ReadonlyArray<CapabilityOption>`  | Built-in capability names and custom capabilities                 |
+| `generateMethodCallId` | `(method: string) => string`       | Optional. Generates a method call ID from a name like `Email/get` |
+| `transport`            | `TransportFactory`                 | Optional. Refer to [Transport types](#transport-types)            |
+| `onWarning`            | `(warning: JsonMetaError) => void` | Optional. Receives problems the client can work around            |
+| `hooks`                | object of hook arrays              | Optional. Refer to [Hook types](#hook-types)                      |
 
 ### `Auth`
 
@@ -46,17 +47,17 @@ its `Authorization` header. The client awaits it before running any
 
 ## Transport types
 
-See [Transports](../advanced/transports.md#writing-a-transport) for
-`TransportFactory`, `TransportContext`, `Transport`, `PushEvents` and
-`DisposableLike`, and [the API reference](./api.md#websockettransport) for `WebSocketLike` and
-`WebSocketTransportOptions`.
+Refer to [Writing a transport](../advanced/transports.md#writing-a-transport)
+for `TransportFactory`, `TransportContext`, `Transport`, `PushEvents`, and
+`DisposableLike`, and to [`webSocketTransport()`](./api.md#websockettransport)
+for `WebSocketLike` and `WebSocketTransportOptions`.
 
 ## Dispose fallback types
 
 On a runtime without `Symbol.dispose`, the method that disposes an object is
 named `disconnect`. `DisposeFallback` types it as an optional
-`disconnect(): void`. The client, the `Transport` interface and the
-subscriptions `onStateChange()` resolves to all include it.
+`disconnect(): void`. The client, the `Transport` interface, and the
+subscriptions that `onStateChange()` resolves to all include it.
 `DisposableLike` is what a transport's `subscribe` may return: a
 `Disposable`, or an object with a `disconnect` method.
 
@@ -231,9 +232,19 @@ console.log(
 );
 ```
 
-To accept the whole client, name it by its capabilities. `JsonMetaClient<["mail"]>`
-is the type of a client constructed with `capabilities: ["mail"]`, the same as
-`typeof client`.
+To accept the whole client, name it by its capabilities. A client
+constructed with `capabilities: ["mail"]` has the type
+`JsonMetaClient<["mail"]>`:
+
+```ts
+import type { JsonMetaClient } from "json-meta-client";
+
+function describeClient(
+  mailClient: JsonMetaClient<["mail"]>,
+) {
+  return mailClient.api.Mailbox.get();
+}
+```
 
 ## Event types
 
@@ -288,7 +299,7 @@ capabilities are made from. JSContact (RFC 9553) types are under the
 `JSContact` namespace, because some of their names are also JMAP type names.
 
 The main entry point also exports `JmapRequest`, `JmapResponse`, `Session`,
-`StateChange` and the RFC 8887 message types, which a
+`StateChange`, and the RFC 8887 message types, which a
 [custom transport](../advanced/transports.md#writing-a-transport) needs.
 
 ```ts
@@ -351,8 +362,9 @@ type Unsubscribe =
 
 ### Envelope types
 
-The [JMAP hooks](#hook-types) receive these envelopes, also exported from
-`json-meta-client/rfc-types`.
+The [JMAP hooks](#hook-types) receive these envelopes. The main entry point
+exports them as `JmapRequest` and `JmapResponse`, and
+`json-meta-client/rfc-types` exports them as `Request` and `Response`.
 
 #### `JmapRequest`
 
