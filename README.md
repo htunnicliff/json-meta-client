@@ -10,7 +10,6 @@
 <p align="center">
   <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/v/json-meta-client" alt="npm version"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/npm/l/json-meta-client" alt="License"></a>
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/types/json-meta-client" alt="Types included"></a>
   <a href="https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/htunnicliff/json-meta-client/ci.yaml?branch=main&label=CI" alt="CI status"></a>
   <img src="https://img.shields.io/badge/dependencies-0-blue" alt="Zero dependencies">
   <!-- bundle-size:start -->
