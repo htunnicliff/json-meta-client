@@ -35,8 +35,6 @@ It features:
 
 ...and a lot more.
 
-The library is alpha software; its API may change between releases.
-
 View full documentation and examples on
 [json-meta-client.dev](https://json-meta-client.dev), or try the library in
 your browser in the [playground](https://json-meta-client.dev/playground).
