@@ -8,9 +8,13 @@
 </p>
 
 <p align="center">
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/version/json-meta-client" alt="npm version"></a>
-  <a href="./LICENSE"><img src="https://npmx.dev/api/registry/badge/license/json-meta-client" alt="License"></a>
-  <a href="https://npmx.dev/package/json-meta-client"><img src="https://npmx.dev/api/registry/badge/types/json-meta-client" alt="Types included"></a>
+  <a href="https://npmx.dev/package/json-meta-client"><img src="https://img.shields.io/npm/v/json-meta-client" alt="npm version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/json-meta-client" alt="License"></a>
+  <a href="https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/htunnicliff/json-meta-client/ci.yaml?branch=main&label=CI" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/dependencies-0-blue" alt="Zero dependencies">
+  <!-- bundle-size:start -->
+  <img src="https://img.shields.io/badge/gzip-16%20kB-blue" alt="gzip bundle size">
+  <!-- bundle-size:end -->
 </p>
 
 ## Introduction
@@ -88,6 +92,5 @@ The [MPL-2.0 License](./LICENSE).
 
 ## Migrating
 
-This library is the successor to [`jmap-jam`](https://github.com/htunnicliff/jmap-jam). 
-The [migration guide](https://json-meta-client.dev/migrating-from-jmap-jam) provides an overview of what has changed and how to use the new library. 
-
+This library is the successor to [`jmap-jam`](https://github.com/htunnicliff/jmap-jam).
+The [migration guide](https://json-meta-client.dev/migrating-from-jmap-jam) provides an overview of what has changed and how to use the new library.

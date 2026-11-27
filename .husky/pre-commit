@@ -1,3 +1,6 @@
+pnpm build
+pnpm size:badge
 pnpm lint
 pnpm spelling:check
 pnpm fmt
+git add README.md
