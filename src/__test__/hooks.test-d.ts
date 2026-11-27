@@ -77,9 +77,9 @@ describe("hook types", () => {
     // @ts-expect-error - The old response hook property has been removed.
     assertType<Hooks>({ afterResponse: [] });
     // @ts-expect-error - The old request hook type is no longer exported.
-    expectTypeOf<PublicTypes.BeforeRequestHook>();
+    expectTypeOf<PublicTypes.BeforeRequestHook>().toBeUnknown();
     // @ts-expect-error - The old response hook type is no longer exported.
-    expectTypeOf<PublicTypes.AfterResponseHook>();
+    expectTypeOf<PublicTypes.AfterResponseHook>().toBeUnknown();
   });
 
   it("rejects cross-layer arguments, wrong replacements, and missing returns", () => {
