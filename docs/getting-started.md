@@ -257,17 +257,18 @@ const file = await response.blob();
 
 ## Next Steps
 
-| I want to...                            | Read                                       |
-| --------------------------------------- | ------------------------------------------ |
-| Make JMAP requests                      | [Method Calls](./features/method-calls.md) |
-| Choose capabilities                     | [Capabilities](./features/capabilities.md) |
-| Listen for state changes                | [Events](./features/events.md)             |
-| Upload and download files               | [Blobs](./features/blobs.md)               |
-| See complete examples                   | [Examples](./examples.md)                  |
-| Test with this library                  | [Testing](./testing.md)                    |
-| Understand the API                      | [API](./reference/api.md)                  |
-| Handle failures                         | [Errors](./reference/errors.md)            |
-| Understand how method calls are batched | [Batching](./advanced/batching.md)         |
-| Hook into the request lifecycle         | [Hooks](./advanced/hooks.md)               |
-| Use WebSockets                          | [Transports](./advanced/transports.md)     |
-| Define custom capabilities              | [Extending](./advanced/extending.md)       |
+| I want to...                            | Read                                                    |
+| --------------------------------------- | ------------------------------------------------------- |
+| Make JMAP requests                      | [Method Calls](./features/method-calls.md)              |
+| Choose capabilities                     | [Capabilities](./features/capabilities.md)              |
+| Listen for state changes                | [Events](./features/events.md)                          |
+| Upload and download files               | [Blobs](./features/blobs.md)                            |
+| See complete examples                   | [Examples](./examples.md)                               |
+| Test with this library                  | [Testing](./testing.md)                                 |
+| Understand the API                      | [API](./reference/api.md)                               |
+| Handle failures                         | [Errors](./reference/errors.md)                         |
+| Understand how method calls are batched | [Batching](./advanced/batching.md)                      |
+| Hook into the request lifecycle         | [Hooks](./advanced/hooks.md)                            |
+| Use WebSockets                          | [Transports](./advanced/transports.md)                  |
+| Define custom capabilities              | [Extending](./advanced/extending.md)                    |
+| Migrate from jmap-jam                   | [Migrating from jmap-jam](./migrating-from-jmap-jam.md) |
