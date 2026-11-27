@@ -1,54 +1,27 @@
 # Migrating from jmap-jam
 
 json-meta-client is the successor to
-[jmap-jam](https://www.npmjs.com/package/jmap-jam). It keeps the fluent
-`api.<Entity>.<method>()` style, and adds automatic batching, default
-accounts, typed references and patches, and error classes.
-
-This page maps each part of jmap-jam 0.13 to json-meta-client 1.0. The
-jmap-jam examples come first, followed by their json-meta-client
-equivalents.
-
-## At a glance
-
-| jmap-jam                           | json-meta-client                                            |
-| ---------------------------------- | ----------------------------------------------------------- |
-| `import JamClient from "jmap-jam"` | `import { JsonMetaClient } from "json-meta-client"`         |
-| `bearerToken`                      | [`auth`](./reference/api.md#auth)                           |
-| Every entity, always               | [`capabilities`](./features/capabilities.md), required      |
-| `customCapabilities`               | [`defineCapability()`](./advanced/extending.md)             |
-| `[data, meta]` results             | The data alone                                              |
-| `accountId` on every call          | [Filled in for you](./features/method-calls.md#account-ids) |
-| `request([method, args])`          | `client.api.Entity.method(args)`                            |
-| `requestMany()` and `$ref()`       | [Batching](./advanced/batching.md) and `resultRef()`        |
-| `"#creationId"` strings            | `createdRef()`                                              |
-| JSON Pointer `update` keys         | [`patch()` and `patchMap()`](#updates)                      |
-| `fetchInit`, `using`, `createdIds` | [Hooks](./advanced/hooks.md) and capabilities               |
-| Thrown problem details             | [Error classes](./reference/errors.md)                      |
-| `getPrimaryAccount()`              | `session.primaryAccounts`                                   |
-| `JamClient.loadSession()`          | `client.refreshSession()`                                   |
-| `uploadBlob()` / `downloadBlob()`  | `client.blob.upload()` / `client.blob.download()`           |
-| `connectEventSource()`             | [`client.onStateChange()`](./features/events.md)            |
-| `jmap-rfc-types`                   | `json-meta-client/rfc-types`                                |
+[jmap-jam](https://www.npmjs.com/package/jmap-jam). This guide shows each
+part of jmap-jam 0.13 next to its json-meta-client 1.0 equivalent.
 
 ## Installing
 
-Replace the package:
+json-meta-client needs Node.js 22 or later, and TypeScript 5.4 or later.
 
 ```sh
 npm remove jmap-jam
 npm add json-meta-client
 ```
 
-json-meta-client needs Node.js 22 or later, and TypeScript 5.4 or later if
-you use TypeScript. It has no runtime dependencies.
-
 ## Creating a client
 
-jmap-jam exported its client as the default export and took a bearer
-token:
+The client is a named export. `auth` replaces `bearerToken`, and
+`capabilities` lists the entities the client can call. List `"mail"`,
+`"submission"`, and `"vacationResponse"` to match jmap-jam.
 
-```js
+::: code-group
+
+```js [jmap-jam]
 import JamClient from "jmap-jam";
 
 const jam = new JamClient({
@@ -57,28 +30,9 @@ const jam = new JamClient({
 });
 ```
 
-json-meta-client exports `JsonMetaClient` by name. `auth` replaces
-`bearerToken`, and `capabilities` lists what the client uses:
-
-```ts
+```ts [json-meta-client] {1,5-6}
 import { JsonMetaClient } from "json-meta-client";
 
-new JsonMetaClient({
-  sessionUrl: "https://jmap.example.com/.well-known/jmap",
-  auth: "<token>",
-  capabilities: ["mail", "submission"],
-});
-```
-
-`auth` also accepts Basic credentials or a callback. See
-[`auth`](./reference/api.md#auth).
-
-jmap-jam knew the `Mailbox`, `Thread`, `Email`, `SearchSnippet`, `Identity`,
-`EmailSubmission`, and `VacationResponse` entities on every client. In
-json-meta-client, an entity is available only when a configured capability
-declares it. To match jmap-jam, list these:
-
-```ts
 new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   auth: "<token>",
@@ -86,33 +40,30 @@ new JsonMetaClient({
 });
 ```
 
-A call on an entity that no capability declares rejects with
-`UnknownEntityError` and is never sent. `Core`, `Blob`, and
-`PushSubscription` are always available. The
-[capabilities reference](./reference/capabilities.md) lists every built-in
-capability, including contacts, quotas, Sieve, and sharing.
+:::
 
-The examples below use a `client` configured with `"mail"` and
-`"submission"`.
+`auth` also takes Basic credentials or a callback. See
+[`auth`](./reference/api.md#auth) and
+[Capabilities](./features/capabilities.md).
 
-### Custom capabilities
+## Custom capabilities
 
-jmap-jam mapped custom entities to URNs with `customCapabilities`:
+`defineCapability()` replaces `customCapabilities`. Add `withMethods()` to
+type the methods. See [Extending](./advanced/extending.md).
 
-```js
+::: code-group
+
+```js [jmap-jam]
 const jam = new JamClient({
-  sessionUrl,
-  bearerToken,
+  sessionUrl: "https://jmap.example.com/.well-known/jmap",
+  bearerToken: "<token>",
   customCapabilities: {
     Note: "urn:example:notes",
   },
 });
 ```
 
-In json-meta-client, define the capability with `defineCapability()` and
-add it to `capabilities`:
-
-```ts
+```ts [json-meta-client] {3-6,11}
 import { defineCapability } from "json-meta-client";
 
 const notes = defineCapability({
@@ -127,18 +78,17 @@ const notesClient = new JsonMetaClient({
 });
 ```
 
-Without `withMethods()`, the capability's methods are untyped, as they were
-in jmap-jam. Add `withMethods()` to type their arguments and results. See
-[Extending](./advanced/extending.md).
+:::
 
-## Method calls
+## Results and account IDs
 
-### Results
+A call resolves to its data, not a `[data, meta]` tuple. The client fills in
+`accountId` from the primary account of the method's capability. See
+[Account IDs](./features/method-calls.md#account-ids).
 
-jmap-jam resolved each call to a `[data, meta]` tuple, and every call needed
-an `accountId`:
+::: code-group
 
-```js
+```js [jmap-jam]
 const accountId = await jam.getPrimaryAccount();
 
 const [mailboxes] = await jam.api.Mailbox.get({
@@ -146,26 +96,19 @@ const [mailboxes] = await jam.api.Mailbox.get({
 });
 ```
 
-json-meta-client resolves to the data alone, and fills in `accountId`:
-
-```ts
+```ts [json-meta-client]
 const mailboxes = await client.api.Mailbox.get();
 ```
 
-The default account depends on the method. jmap-jam's
-`getPrimaryAccount()` always returned the primary mail account. The client
-uses the primary account of the capability that owns the method, so
-`ContactCard` calls go to the primary contacts account. Pass `accountId` to
-choose another account. See
-[Account IDs](./features/method-calls.md#account-ids).
+:::
 
-To read what `meta` held, see [Response metadata](#response-metadata).
+## Plain requests
 
-### Plain requests
+Call the method on `client.api` instead of `request()`.
 
-jmap-jam's `request()` took a method name and arguments:
+::: code-group
 
-```js
+```js [jmap-jam]
 const [emails] = await jam.request([
   "Email/get",
   {
@@ -176,21 +119,24 @@ const [emails] = await jam.request([
 ]);
 ```
 
-json-meta-client has no separate form. Call the method on `client.api`:
-
-```ts
+```ts [json-meta-client]
 const emails = await client.api.Email.get({
   ids: ["<emailId>"],
   properties: ["subject"],
 });
 ```
 
-### Several calls in one request
+:::
 
-jmap-jam sent several calls together with `requestMany()`. Each call was a
-draft, and `$ref()` created a result reference:
+## Several calls in one request
 
-```js
+Calls made together are batched into one request, so `requestMany()` isn't
+needed. `resultRef()` replaces `$ref()`. See
+[Batching](./advanced/batching.md).
+
+::: code-group
+
+```js [jmap-jam]
 const [{ emails }] = await jam.requestMany((t) => {
   const emailIds = t.Email.query({
     accountId,
@@ -208,11 +154,7 @@ const [{ emails }] = await jam.requestMany((t) => {
 });
 ```
 
-json-meta-client batches calls automatically. Calls made in the same tick
-share one request, so make them together and await only the results you
-use. `resultRef()` replaces `$ref()`:
-
-```ts
+```ts [json-meta-client] {7}
 const emailIds = client.api.Email.query({
   filter: { inMailbox: "<inboxId>" },
   limit: 10,
@@ -224,35 +166,63 @@ const recentEmails = await client.api.Email.get({
 });
 ```
 
-Use `Promise.all` to await several results:
+:::
 
-```ts
+To await several results, use `Promise.all`:
+
+::: code-group
+
+```js [jmap-jam]
+const [{ inboxes, identities }] = await jam.requestMany(
+  (t) => ({
+    inboxes: t.Mailbox.query({
+      accountId,
+      filter: { role: "inbox" },
+    }),
+    identities: t.Identity.get({ accountId }),
+  }),
+);
+```
+
+```ts [json-meta-client]
 const [inboxes, identities] = await Promise.all([
   client.api.Mailbox.query({ filter: { role: "inbox" } }),
   client.api.Identity.get(),
 ]);
 ```
 
-An `await` closes the batch, so a call made after it goes in a new request.
-A result reference must point to a call in the same batch. See
-[Batching](./advanced/batching.md).
+:::
 
-jmap-jam used the keys of the returned object as method call IDs. The
-client generates IDs. To choose one, pass the `id` option:
+## Method call IDs
 
-```ts
-const probe = client.api.Core.echo(
+The client generates method call IDs. Pass `id` to choose one.
+
+::: code-group
+
+```js [jmap-jam]
+const [{ probe }] = await jam.requestMany((t) => ({
+  probe: t.Core.echo({ hello: "world" }),
+}));
+```
+
+```ts [json-meta-client] {3}
+const probe = await client.api.Core.echo(
   { hello: "world" },
   { id: "probe" },
 );
 ```
 
-### Creation references
+:::
 
-jmap-jam had no helper for creation references, so they were written by
-hand as `"#"` and the creation ID:
+## Creation references
 
-```js
+`createdRef()` replaces hand-written `"#id"` strings, and checks the ID
+against the keys of `create`. Make the calls that use it in the same batch.
+See [Creation references](./features/method-calls.md#creation-references).
+
+::: code-group
+
+```js [jmap-jam]
 await jam.requestMany((t) => ({
   draft: t.Email.set({
     accountId,
@@ -272,23 +242,13 @@ await jam.requestMany((t) => ({
 }));
 ```
 
-json-meta-client adds `createdRef()` to `/set` calls. It checks the ID
-against the keys of `create`, in the types and at runtime:
-
-```ts
-const [drafts, senders] = await Promise.all([
-  client.api.Mailbox.query({ filter: { role: "drafts" } }),
-  client.api.Identity.get(),
-]);
-const draftsId = drafts.ids[0]!;
-const identityId = senders.list[0]!.id;
+```ts [json-meta-client] {13}
+const draftsId = "<draftsId>";
+const identityId = "<identityId>";
 
 const draft = client.api.Email.set({
   create: {
-    hello: {
-      mailboxIds: { [draftsId]: true },
-      subject: "Hello",
-    },
+    hello: { mailboxIds: { [draftsId]: true }, subject: "Hello" },
   },
 });
 
@@ -302,29 +262,18 @@ void client.api.EmailSubmission.set({
 });
 ```
 
-Call `createdRef()` before awaiting the `/set` call, and make the calls that
-use it in the same batch. Otherwise, it throws `CreationReferenceError`. See
-[Creation references](./features/method-calls.md#creation-references).
+:::
 
 ## Updates
 
-The `update` argument of a `/set` call works as JMAP defines it: each key
-names a property, and its value replaces the whole property. That hasn't
-changed. In both libraries, this update removes the email from every other
-mailbox:
+As in JMAP, a plain object in `update` replaces the whole property. To
+change only some keys, wrap them in `patch()`. The client builds and escapes
+the JSON Pointer paths. See
+[Patch updates](./features/method-calls.md#patch-updates).
 
-```ts
-await client.api.Email.set({
-  update: {
-    "<emailId>": { mailboxIds: { "<archiveId>": true } },
-  },
-});
-```
+::: code-group
 
-To change only some keys, jmap-jam needed JSON Pointer paths, built by hand
-and untyped:
-
-```js
+```js [jmap-jam]
 await jam.api.Email.set({
   accountId,
   update: {
@@ -337,10 +286,7 @@ await jam.api.Email.set({
 });
 ```
 
-json-meta-client adds `patch()`, which changes only the keys it's given. The
-client builds the paths and escapes `~` and `/`:
-
-```ts
+```ts [json-meta-client] {1,10-14}
 import { patch } from "json-meta-client";
 
 const emailId = "<emailId>";
@@ -360,50 +306,56 @@ await client.api.Email.set({
 });
 ```
 
-Paths written by hand still work, and are now typed. A path built from a
-variable is typed as a plain `string`, so use `patchMap()` to build it
-instead:
+:::
 
-```ts
-import { patchMap } from "json-meta-client";
+Paths written by hand are now typed. A path built from a variable is typed
+as `string`, so build it with `patchMap()`:
 
-await client.api.Email.set({
+::: code-group
+
+```js [jmap-jam]
+await jam.api.Email.set({
+  accountId,
   update: {
-    [emailId]: {
-      ...patchMap("mailboxIds", { [archiveId]: true }),
-      "keywords/$seen": true,
-    },
+    [emailId]: { [`mailboxIds/${archiveId}`]: true },
   },
 });
 ```
 
-See [Patch updates](./features/method-calls.md#patch-updates).
+```ts [json-meta-client] {1,5}
+import { patchMap } from "json-meta-client";
+
+await client.api.Email.set({
+  update: {
+    [emailId]: patchMap("mailboxIds", { [archiveId]: true }),
+  },
+});
+```
+
+:::
 
 ## Request options
 
-jmap-jam took options as the second argument of each call:
+Options apply to the whole client, through [hooks](./advanced/hooks.md):
 
-```js
+- `beforeFetch` replaces `fetchInit`.
+- `beforeJmapRequest` can add `createdIds`.
+- For `using`, list the URN in a capability's
+  [`dependsOn`](./advanced/extending.md#depending-on-other-urns).
+
+::: code-group
+
+```js [jmap-jam]
 await jam.api.Mailbox.get(
   { accountId },
   {
-    fetchInit: { headers: { "X-Trace": traceId } },
-    using: ["urn:example:extra"],
+    fetchInit: { headers: { "X-Trace": "<traceId>" } },
     createdIds: {},
   },
 );
 ```
 
-json-meta-client batches calls, so these options apply to the client
-instead:
-
-- **`fetchInit`**: use a `beforeFetch` hook to change each HTTP request.
-- **`using`**: the client builds `using` from the capabilities each batch
-  calls. To send another URN with a capability's calls, list it in
-  [`dependsOn`](./advanced/extending.md#depending-on-other-urns).
-- **`createdIds`**: use a `beforeJmapRequest` hook to add it to the request.
-
-```ts
+```ts [json-meta-client] {5-15}
 new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   auth: "<token>",
@@ -416,31 +368,28 @@ new JsonMetaClient({
       },
     ],
     beforeJmapRequest: [
-      ({ jmapRequest }) => ({
-        ...jmapRequest,
-        createdIds: {},
-      }),
+      ({ jmapRequest }) => ({ ...jmapRequest, createdIds: {} }),
     ],
   },
 });
 ```
 
-See [Hooks](./advanced/hooks.md).
+:::
 
 ## Response metadata
 
-jmap-jam returned `sessionState`, `createdIds`, and the Fetch `Response` in
-`meta`:
+Read what `meta` held in the `afterJmapResponse` and `afterFetch` hooks.
 
-```js
+::: code-group
+
+```js [jmap-jam]
 const [, meta] = await jam.api.Mailbox.get({ accountId });
-console.log(meta.sessionState, meta.response.status);
+
+console.log(meta.sessionState, meta.createdIds);
+console.log(meta.response.status);
 ```
 
-In json-meta-client, read them in hooks. `afterJmapResponse` receives each
-batch's JMAP response, and `afterFetch` receives each HTTP response:
-
-```ts
+```ts [json-meta-client] {5-21}
 new JsonMetaClient({
   sessionUrl: "https://jmap.example.com/.well-known/jmap",
   auth: "<token>",
@@ -465,13 +414,17 @@ new JsonMetaClient({
 });
 ```
 
+:::
+
 ## Errors
 
-jmap-jam threw plain values. An HTTP error threw the problem details or the
-response text. A method error threw its problem details, and
-`requestMany()` threw an array of them when any call failed:
+The client throws `Error` subclasses instead of plain problem details. Only
+the failed call rejects, and the rest of its batch resolves. See
+[Errors](./reference/errors.md).
 
-```js
+::: code-group
+
+```js [jmap-jam]
 try {
   await jam.api.Email.query({ accountId, sort });
 } catch (error) {
@@ -481,11 +434,7 @@ try {
 }
 ```
 
-json-meta-client throws `Error` subclasses with type guards. A method error
-is a `JmapError`, and only the failed call rejects. The rest of its batch
-still resolves:
-
-```ts
+```ts [json-meta-client] {1,8-12}
 import { isHttpError, isJmapError } from "json-meta-client";
 
 try {
@@ -494,44 +443,51 @@ try {
   });
 } catch (error) {
   if (isJmapError(error)) {
-    console.error(error.type); // e.g. "unsupportedSort"
+    console.error(error.type);
   } else if (isHttpError(error)) {
-    console.error(error.status, error.responseData);
+    console.error(error.status);
   }
 }
 ```
 
-`JmapError.isProblemDetails()` replaces `JamClient.isProblemDetails()`. See
-the [Errors reference](./reference/errors.md).
+:::
 
 ## Session
 
-jmap-jam fetched the session when the client was created. To fetch it
-again, `JamClient.loadSession()` returned a new session but didn't update
-the client's:
+The client loads the session on first use and caches it.
+`refreshSession()` replaces `JamClient.loadSession()`, and updates the
+cache.
 
-```js
+::: code-group
+
+```js [jmap-jam]
 const session = await jam.session;
 const accountId = await jam.getPrimaryAccount();
+
+const fresh = await JamClient.loadSession(
+  sessionUrl,
+  authHeader,
+);
 ```
 
-json-meta-client fetches the session on first use and caches it.
-`refreshSession()` fetches it again and updates the cache:
-
-```ts
+```ts [json-meta-client] {2-3,5}
 const session = await client.session;
 const mailAccountId =
   session.primaryAccounts["urn:ietf:params:jmap:mail"]!;
 
-await client.refreshSession();
+const fresh = await client.refreshSession();
 ```
+
+:::
 
 ## Blobs
 
-jmap-jam took the account as the first argument of `uploadBlob()`, and
-`mimeType` and `fileName` in `downloadBlob()`:
+Blob transfers are on `client.blob`, and still require `accountId`. `type`
+and `name` replace `mimeType` and `fileName`. See [Blobs](./features/blobs.md).
 
-```js
+::: code-group
+
+```js [jmap-jam]
 const uploaded = await jam.uploadBlob(accountId, file);
 
 const response = await jam.downloadBlob({
@@ -542,11 +498,7 @@ const response = await jam.downloadBlob({
 });
 ```
 
-In json-meta-client, the transfers are on `client.blob`. The account moves
-into the options, and `type` and `name` replace `mimeType` and `fileName`.
-Both still require `accountId`:
-
-```ts
+```ts [json-meta-client] {3-5,7,10-11}
 const file = new Blob(["Hello"], { type: "text/plain" });
 
 const uploaded = await client.blob.upload(file, {
@@ -561,14 +513,18 @@ const response = await client.blob.download({
 });
 ```
 
-See [Blobs](./features/blobs.md).
+:::
 
 ## Events
 
-jmap-jam's `connectEventSource()` returned the global `EventSource`. Its
-messages held the raw JMAP `StateChange`:
+`onStateChange()` replaces `connectEventSource()`. The handler gets one
+change per type and account. The client reads the stream with `fetch`, so
+`auth` applies to each connection, and it reconnects on its own. See
+[Events](./features/events.md).
 
-```js
+::: code-group
+
+```js [jmap-jam]
 const sse = await jam.connectEventSource({
   types: ["Email"],
   ping: 30,
@@ -581,11 +537,8 @@ sse.addEventListener("state", (event) => {
 });
 ```
 
-json-meta-client replaces it with `onStateChange()`. The handler receives
-one change for each type in each account, or an error:
-
-```ts
-await client.onStateChange(
+```ts [json-meta-client] {1,8,12}
+const subscription = await client.onStateChange(
   (error, change) => {
     if (error) {
       console.error(error);
@@ -600,38 +553,27 @@ await client.onStateChange(
 );
 ```
 
-Other differences:
+:::
 
-- **Authentication**: `EventSource` can't send headers, so jmap-jam's
-  stream couldn't carry the bearer token. The client reads the stream with
-  `fetch`, and applies `auth` to each connection and reconnect.
-- **Reconnects**: the client reconnects when the stream drops, sends
-  `Last-Event-ID`, and backs off after repeated failures.
-- **Types**: the client subscribes to every type. Check `change.entity` in
-  the handler instead of passing `types`.
-- **Closing**: `onStateChange()` resolves to a `Disposable`. Dispose of it,
-  or pass a `signal`, to unsubscribe. There is no `closeafter` option.
-
-With `webSocketTransport()`, changes can also arrive over WebSocket push.
-See [Events](./features/events.md).
+The client subscribes to every type, so filter on `change.entity`. To
+unsubscribe, dispose of the subscription or pass a `signal`.
 
 ## Types
 
-jmap-jam's types came from the `jmap-rfc-types` package. json-meta-client
-includes its own, which follow the RFCs more closely. Import them from
-`json-meta-client/rfc-types`:
+`json-meta-client/rfc-types` replaces `jmap-rfc-types`. Some names differ,
+such as `ReadableEmail` for `Email`.
 
-```ts
+::: code-group
+
+```js [jmap-jam]
+import type { Email, Mailbox } from "jmap-rfc-types";
+```
+
+```ts [json-meta-client]
 import type {
   Mailbox,
   ReadableEmail,
 } from "json-meta-client/rfc-types";
-
-type Subject = ReadableEmail["subject"];
-type Role = Mailbox["role"];
 ```
 
-Some names differ. For example, jmap-rfc-types' `Email` is `ReadableEmail`.
-
-Method arguments now reject properties a method doesn't declare, so a
-misspelled property is a type error. See [Types](./reference/types.md).
+:::
