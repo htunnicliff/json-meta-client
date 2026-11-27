@@ -171,8 +171,8 @@ fills in the session's primary account for the capability that owns the
 method: `session.primaryAccounts[urn]`. If the session lists no primary
 account for that URN, the client uses the only account whose
 `accountCapabilities` include it. When several accounts do, the call rejects
-with `ConfigurationError`; when none does, the client sends the call without
-`accountId`, and the server rejects it.
+with `ConfigurationError`. When none does, the client sends the call without
+`accountId`, and the server decides how to answer it.
 
 Some methods have no sensible default, such as a copy whose `accountId` is
 the destination. The `defaultAccount` setting tells the client which methods

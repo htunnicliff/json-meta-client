@@ -27,7 +27,7 @@ of it:
   when a URN has no primary account, and when it checks that the server
   supports the configured capabilities.
 - `capabilities`. The client warns when a configured capability is missing
-  from both `capabilities` and every account. The JMAP spec also requires
+  from both `capabilities` and every account. RFC 8620 also requires
   `urn:ietf:params:jmap:core` here, with the server's limits.
 
 ```ts

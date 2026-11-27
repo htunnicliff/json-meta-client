@@ -7,7 +7,7 @@ wraps those URLs in `client.blob`.
 
 ## Uploading
 
-`client.blob.upload(body, { accountId })` uploads data to an account and
+`client.blob.upload()` takes the data and the account to upload it to, and
 resolves to the new blob's details:
 
 ```ts
@@ -38,8 +38,9 @@ doesn't guess, so pass the account where the blob will be used.
 
 ## Downloading
 
-`client.blob.download({ accountId, blobId, type, name })` resolves to the raw
-`Response`, so you can stream it or read it however you need to:
+`client.blob.download()` takes the account, the blob's ID, and the type and
+file name to download it as. It resolves to the raw `Response`, so you can
+stream the body or read it however you need to:
 
 ```ts
 const response = await client.blob.download({
@@ -53,8 +54,8 @@ const text = await response.text();
 // or: response.blob(), response.arrayBuffer(), response.body
 ```
 
-`type` and `name` set the `Content-Type` and file name that the server
-gives the download.
+The server uses `type` and `name` for the download's `Content-Type` and file
+name.
 
 A failed download, such as an unknown `blobId`, rejects with
 [`HttpError`](../reference/errors.md).
@@ -104,8 +105,8 @@ void client.api.Email.import({
 ## Copying between accounts
 
 A blob ID is only valid in its own account. To use a blob in another
-account, copy it with `Blob/copy`, which is included with `core` and is available
-on every client:
+account, copy it with `Blob/copy`. It is part of `core`, so every client has
+it:
 
 ```ts
 void client.api.Blob.copy({
@@ -133,9 +134,9 @@ them:
 <<< @/snippets/blob-management.ts
 
 `createdRef()` exists only on `/set` calls, so the `Blob/get` call above
-refers to the new blob with its creation ID written out as `"#note"`. These
-methods get a default `accountId` like other method calls; see
-[Account IDs](./method-calls.md#account-ids).
+refers to the new blob by writing its creation ID out as `"#note"`. Unlike
+`client.blob.upload()` and `Blob/copy`, these methods get a default
+`accountId`, as described in [Account IDs](./method-calls.md#account-ids).
 
 ## Errors
 

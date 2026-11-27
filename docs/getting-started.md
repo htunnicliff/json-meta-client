@@ -9,12 +9,12 @@ install the library, configure it, and then use it to begin working with JMAP.
 
 ::: note
 
-If you are unfamiliar with the JSON meta application protocol (JMAP)
-standard, no worries. The library is fully typed and has a fairly smooth
-learning curve.
+If you are new to the JSON Meta Application Protocol (JMAP), no worries.
+The library is fully typed, so your editor can guide you through each method
+and its arguments.
 
-If you want to learn more about the underlying standards, the [JMAP.io](https://jmap.io/)
-website is a great place to dive in.
+To learn more about the underlying standards, [JMAP.io](https://jmap.io/) is
+a great place to start.
 
 :::
 
@@ -52,7 +52,7 @@ deno add npm:json-meta-client
 ```
 :::
 
-Or install it using a module script:
+Or import it in a module script from a CDN:
 
 <script setup>
 import { data as pkg } from './pkg.data.ts'
@@ -70,8 +70,8 @@ const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 
 ## Setup
 
-To begin, initialize an instance of `JsonMetaClient` with a session URL,
-credentials, and capabilities:
+To begin, create a `JsonMetaClient` with a session URL, credentials, and
+capabilities:
 
 ::: code-group
 
@@ -83,24 +83,26 @@ credentials, and capabilities:
 
 :::
 
-The `capabilities` value determines which entities and methods your client
-can use. These vary depending on the JMAP server. Review the
-[capabilities guide](./features/capabilities.md) to learn more.
+`sessionUrl` is where the client fetches the JMAP session, which describes
+the server, its accounts, and its capabilities. Many servers publish it at
+`/.well-known/jmap`.
 
-The `sessionUrl` is used to procure a session from your provider. These
-sometimes use the path `/.well-known/jmap`.
+`auth` authenticates every request the client sends. It takes a bearer
+token, a username and password for Basic authentication, or a callback that
+changes each outgoing
+[`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request). Refer
+to the [`auth` reference](./reference/api.md#auth) to learn more.
 
-The `auth` value is used to authenticate all requests sent by a client. It
-supports several strategies: bearer auth, basic auth, or custom, which is a
-callback to modify each [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)
-instance. See the [auth API reference](./reference/api.md#auth) to learn more.
+`capabilities` determines which entities and methods your client can use.
+Servers differ in what they support, so list the ones your app needs. Refer
+to the [capabilities guide](./features/capabilities.md) to learn more.
 
-To learn more about these and other options, review the
-[configuration types](./reference/api.md#config) in the API reference guide.
+For these and the other options, refer to [`Config`](./reference/api.md#config)
+in the API reference.
 
 ## Usage
 
-With a client configured, you can now make requests. Here is a simple example:
+With a client configured, you can call methods on `client.api`:
 
 ```ts
 await client.api.Mailbox.query({
@@ -108,7 +110,7 @@ await client.api.Mailbox.query({
 });
 ```
 
-This function call results in the following JMAP request:
+This call sends the following JMAP request:
 
 ```json
 {
@@ -123,18 +125,20 @@ This function call results in the following JMAP request:
         "filter": { "role": "inbox" },
         "accountId": "<account-id>"
       },
-      "mailboxes"
+      "Mailbox/query::1a2b3c4d"
     ]
   ]
 }
 ```
 
 ::: tip
-For convenience, the client will automatically set the `accountId` based on the primary account associated with the URNs used in a request.
+The client fills in `accountId` for you, usually with the server's primary
+account for the capability that owns the method. Refer to
+[Account IDs](./features/method-calls.md#account-ids) for the details.
 :::
 
-To use the result of one method call as a parameter in a different method call,
-you may use a [result reference](./features/method-calls.md#result-references):
+To pass the result of one method call into another, use a
+[result reference](./features/method-calls.md#result-references):
 
 ```ts
 const query = client.api.Email.query({
@@ -148,12 +152,8 @@ await client.api.Email.get({
 });
 ```
 
-:::tip
-_Result references_ enable the passing of values between requests without requiring
-additional HTTP request round trips.
-:::
-
-This is the resulting JMAP request:
+Both calls go out in one JMAP request, and the server passes the query's IDs
+to `Email/get` without another round trip:
 
 ```json
 {
@@ -169,14 +169,14 @@ This is the resulting JMAP request:
         "limit": 10,
         "accountId": "<account-id>"
       },
-      "query"
+      "Email/query::5e6f7a8b"
     ],
     [
       "Email/get",
       {
         "#ids": {
           "name": "Email/query",
-          "resultOf": "query",
+          "resultOf": "Email/query::5e6f7a8b",
           "path": "/ids"
         },
         "properties": [
@@ -188,74 +188,86 @@ This is the resulting JMAP request:
         ],
         "accountId": "<account-id>"
       },
-      "emails"
+      "Email/get::9c0d1e2f"
     ]
   ]
 }
 ```
 
-To fetch new emails as soon as they are received, use the `onStateChange`
-handler:
+To fetch new emails as they arrive, subscribe with `onStateChange()`. A
+state change says only that the server's state moved on, so keep the last
+state you've seen and ask `Email/changes` what happened since then:
 
 ```ts
-client.onStateChange(async (error, stateChange) => {
+let emailState = (await client.api.Email.get({ ids: [] }))
+  .state;
+
+await client.onStateChange(async (error, change) => {
   if (error) {
-    throw new Error("Something went awry", {
-      cause: error,
-    });
+    console.error(error);
+    return;
   }
 
-  const { entity, state } = stateChange;
-
-  if (entity === "Email") {
+  if (
+    change.entity === "Email" &&
+    change.isPrimaryAccount
+  ) {
     const changes = client.api.Email.changes({
-      sinceState: state,
+      sinceState: emailState,
     });
+    emailState = change.state;
 
-    await client.api.Email.get({
+    const created = await client.api.Email.get({
       ids: changes.resultRef("/created"),
+      properties: ["subject"],
     });
+    for (const { subject } of created.list) {
+      console.log("New email:", subject);
+    }
   }
 });
 ```
 
-You can also upload and download files:
+You can also upload and download files. A blob transfer names its account,
+so read the mail account from the session:
 
 ```ts
-const emails = await client.api.Email.get({
+const session = await client.session;
+const mailAccountId =
+  session.primaryAccounts["urn:ietf:params:jmap:mail"]!;
+
+const withAttachments = await client.api.Email.get({
   ids: ["<emailId>"],
-  properties: ["id", "attachments"],
+  properties: ["attachments"],
 });
 
-const email = emails.list[0]!;
+const { blobId, type, name } =
+  withAttachments.list[0]!.attachments[0]!;
 
-const { blobId, type, name } = email.attachments[0]!;
-
-const request = await client.blob.download({
-  accountId: "<accountId>",
+const response = await client.blob.download({
+  accountId: mailAccountId,
   blobId: blobId!,
-  type: type!,
-  name: name!,
+  type,
+  name: name ?? "attachment",
 });
 
-const data = await request.json();
-//           await request.blob();
-//           await request.arrayBuffer();
-//           etc.
+const file = await response.blob();
+// or: response.text(), response.arrayBuffer(), response.body
 ```
-
-Great work!
 
 ## Next Steps
 
 | I want to...                            | Read                                       |
 | --------------------------------------- | ------------------------------------------ |
 | Make JMAP requests                      | [Method Calls](./features/method-calls.md) |
+| Choose capabilities                     | [Capabilities](./features/capabilities.md) |
 | Listen for state changes                | [Events](./features/events.md)             |
 | Upload and download files               | [Blobs](./features/blobs.md)               |
+| See complete examples                   | [Examples](./examples.md)                  |
 | Test with this library                  | [Testing](./testing.md)                    |
 | Understand the API                      | [API](./reference/api.md)                  |
 | Handle failures                         | [Errors](./reference/errors.md)            |
 | Understand how method calls are batched | [Batching](./advanced/batching.md)         |
-| Define custom capabilities              | [Extending](./advanced/extending.md)       |
 | Hook into the request lifecycle         | [Hooks](./advanced/hooks.md)               |
+| Use WebSockets                          | [Transports](./advanced/transports.md)     |
+| Define custom capabilities              | [Extending](./advanced/extending.md)       |

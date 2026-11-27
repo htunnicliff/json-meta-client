@@ -12,9 +12,14 @@ const mailboxes = await client.api.Mailbox.query({
 });
 ```
 
-The general shape is `client.api.<Entity>.<method>(args, options?)`. The
-arguments and the result are typed by the
-[capabilities](./capabilities.md) the client is configured with: a client
+Every call has the same shape:
+
+```
+client.api.<Entity>.<method>(args, options?)
+```
+
+The arguments and the result are typed by the
+[capabilities](./capabilities.md) the client is configured with. A client
 configured with `"mail"` knows the arguments `Email/query` accepts and the
 shape of its response, while a client without it has no `client.api.Email`
 at all.
@@ -200,8 +205,8 @@ await client.api.Email.set({
 });
 ```
 
-The value types are exported from `json-meta-client/rfc-types` as
-`EmailHeaderForms`, and `EmailHeaderValue<Property>` gives the value of a
+`json-meta-client/rfc-types` exports these value types as
+`EmailHeaderForms`. `EmailHeaderValue<Property>` gives the value type for a
 property name.
 
 ## Result references
@@ -395,10 +400,18 @@ await client.api.Email.set({
 ```
 
 `null` removes a key. The client sends each key as the JSON Pointer path
-JMAP expects, so the update it sends is
-`{ "mailboxIds/<archive-id>": true, "mailboxIds/<inbox-id>": null, "keywords/$seen": true }`.
-It escapes `~` and `/` in each key as `~0` and `~1`, so IDs and keywords
-can be used as they are. Because the keys are in an object, IDs from a
+JMAP expects, so the update it sends is:
+
+```json
+{
+  "mailboxIds/<archive-id>": true,
+  "mailboxIds/<inbox-id>": null,
+  "keywords/$seen": true
+}
+```
+
+The client escapes `~` and `/` in each key as `~0` and `~1`, so IDs and
+keywords can be used as they are. Because the keys are in an object, IDs from a
 variable keep their types, and a value the map doesn't accept, such as
 `false` in `mailboxIds`, is a type error.
 
