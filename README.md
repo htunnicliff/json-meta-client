@@ -12,9 +12,6 @@
   <a href="./LICENSE"><img src="https://img.shields.io/npm/l/json-meta-client" alt="License"></a>
   <a href="https://github.com/htunnicliff/json-meta-client/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/htunnicliff/json-meta-client/ci.yaml?branch=main&label=CI" alt="CI status"></a>
   <img src="https://img.shields.io/badge/dependencies-0-blue" alt="Zero dependencies">
-  <!-- bundle-size:start -->
-  <img src="https://img.shields.io/badge/gzip-16%20kB-blue" alt="gzip bundle size">
-  <!-- bundle-size:end -->
 </p>
 
 ## Introduction
@@ -79,6 +76,23 @@ request, passing the query's IDs to `Email/get` with a result reference.
 
 Follow the [getting started guide](https://json-meta-client.dev/getting-started)
 for runtime requirements and a complete walkthrough.
+
+## Bundle size
+
+What json-meta-client adds to an app, depending on which parts it uses:
+
+<!-- bundle-size:start -->
+
+| Configuration                   | Minified + gzip |
+| ------------------------------- | --------------: |
+| Client with HTTP transport      |          8.7 kB |
+| Client with WebSocket transport |         11.0 kB |
+| Everything (`export *`)         |         11.2 kB |
+
+<!-- bundle-size:end -->
+
+Sizes are measured by bundling each configuration with
+[Rolldown](https://rolldown.rs/). Your bundler's results may differ slightly.
 
 ## Versioning
 

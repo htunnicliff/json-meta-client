@@ -32,7 +32,7 @@ export const BUILT_IN_CAPABILITIES: {
   readonly submission: typeof submission;
   readonly vacationResponse: typeof vacationResponse;
   readonly "community:maskedEmail": typeof maskedEmail;
-} = Object.freeze({
+} = /* @__PURE__ */ Object.freeze({
   blob,
   contacts,
   core,
