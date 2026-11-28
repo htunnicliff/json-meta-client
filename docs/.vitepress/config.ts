@@ -1,8 +1,10 @@
 import { defineConfig } from "vitepress";
 import { groupIconMdPlugin, groupIconVitePlugin } from "vitepress-plugin-group-icons";
+import llmstxt from "vitepress-plugin-llms";
 
 import { playgroundHookPatch } from "./playground/hook-patch.ts";
 import { playgroundTypes } from "./playground/types-plugin.ts";
+import { llmsContent } from "./plugins/llms-content/index.ts";
 import { playgroundLinks } from "./plugins/playground-links/index.ts";
 
 // https://vitepress.dev/reference/site-config
@@ -98,7 +100,20 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [groupIconVitePlugin(), playgroundTypes(), playgroundHookPatch()],
+    plugins: [
+      groupIconVitePlugin(),
+      playgroundTypes(),
+      playgroundHookPatch(),
+      // Must precede `llmstxt`, which reads the content it fills in.
+      llmsContent(),
+      // Publishes /llms.txt, /llms-full.txt, and a Markdown copy of each page.
+      llmstxt({
+        domain: "https://json-meta-client.dev",
+        // The playground is interactive and has no useful text; snippets are
+        // included by other pages.
+        ignoreFiles: ["playground.md", "snippets/**"],
+      }),
+    ],
     // The playground's workers import the library, which loads
     // `eventsource-client` on demand, so they need code splitting.
     // Workers are built with their own plugins: the editor's TypeScript

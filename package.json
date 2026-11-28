@@ -95,6 +95,7 @@
     "typescript": "6.0.3",
     "vitepress": "2.0.0-alpha.21",
     "vitepress-plugin-group-icons": "1.8.2",
+    "vitepress-plugin-llms": "1.15.0",
     "vitest": "5.1.2",
     "ws": "8.23.0"
   },

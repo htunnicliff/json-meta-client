@@ -73,6 +73,8 @@ console.log(limits.maxCallsInRequest, limits.maxSizeUpload);
   <CapabilityTable :capability="capability" />
 </section>
 
+<!-- llms:capabilities-built-in -->
+
 ## Community
 
 Community capabilities are defined by a server vendor rather than by an RFC.
@@ -83,6 +85,8 @@ the others.
   <h3 :id="name"><code>{{name}}</code></h3>
   <CapabilityTable :capability="capability" />
 </section>
+
+<!-- llms:capabilities-community -->
 
 ## By Entity
 
@@ -108,3 +112,5 @@ URN of every enabled capability that declares it.
     </tr>
   </tbody>
 </table>
+
+<!-- llms:capabilities-by-entity -->
