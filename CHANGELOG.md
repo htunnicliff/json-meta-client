@@ -1,5 +1,11 @@
 # json-meta-client
 
+## 1.0.2
+
+### Patch Changes
+
+- [#332](https://github.com/htunnicliff/json-meta-client/pull/332) [`3e30300`](https://github.com/htunnicliff/json-meta-client/commit/3e303007cb2e1f7c06c1993c332a1d6b9acb7ed0) Thanks [@htunnicliff](https://github.com/htunnicliff)! - Let bundlers drop the built-in capabilities table from apps that don't construct a client. Importing only `patch`, `defineCapability`, or an error class no longer bundles every built-in capability.
+
 ## 1.0.1
 
 ### Patch Changes
