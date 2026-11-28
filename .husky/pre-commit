@@ -1,5 +1,5 @@
 pnpm build
-pnpm size:badge
+pnpm size:table
 pnpm lint
 pnpm spelling:check
 pnpm fmt
