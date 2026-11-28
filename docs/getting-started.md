@@ -62,11 +62,17 @@ const installPath = pkg.exports['.'].replace('./', '');
 const cdnUrl = `https://unpkg.com/json-meta-client@${version}/${installPath}`;
 </script>
 
+<llm-exclude>
+
 ```html-vue [index.html]
 <script type="module">
   import { JsonMetaClient } from "{{cdnUrl}}";
 </script>
 ```
+
+</llm-exclude>
+
+<!-- llms:cdn-import -->
 
 ## Setup
 
